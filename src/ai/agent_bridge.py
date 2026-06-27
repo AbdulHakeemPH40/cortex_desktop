@@ -1049,6 +1049,11 @@ def _get_destructive_warning(command: str) -> 'Optional[str]':
         (_re.compile(r'\bRemove-Item\b', _re.I), 'Note: may delete files (PowerShell)'),
         (_re.compile(r'\bgit\s+reset\s+--hard\b'), 'Note: may discard uncommitted changes'),
         (_re.compile(r'\bgit\s+push\b.*--force\b'), 'Note: may overwrite remote history'),
+        (_re.compile(r'\bgit\s+pull\s+--force\b'), 'Note: git pull --force may overwrite local code'),
+        (_re.compile(r'\bgit\s+pull\s+--rebase\b'), 'Note: git pull --rebase may rewrite local commits'),
+        (_re.compile(r'\bgit\s+pull\s+-f\b'), 'Note: git pull -f may overwrite local code'),
+        (_re.compile(r'\bgit\s+rebase\b'), 'Note: git rebase may rewrite commit history'),
+        (_re.compile(r'\bgit\s+pull\b'), 'Note: git pull may overwrite uncommitted local changes — stash first'),
         (_re.compile(r'\b(DROP|TRUNCATE)\s+(TABLE|DATABASE)\b', _re.I), 'Note: may destroy database objects'),
     ]
     for pat, msg in PATTERNS:
@@ -6896,11 +6901,25 @@ They survive auto-compaction and are ALWAYS active:
                 result.tool_id = tool_id
                 # Refresh file tree after shell commands — covers file create/delete/move
                 # that the AI makes via Bash/PowerShell (not tracked by Write/Edit tools)
-                if result.success and self._project_root:
+                # Only refresh for commands that actually modify the filesystem
+                _READ_ONLY_PREFIXES = (
+                    'git status', 'git log', 'git diff', 'git show', 'git branch',
+                    'git remote', 'git stash list', 'git tag', 'git rev-parse',
+                    'ls', 'dir', 'cat', 'type', 'head', 'tail', 'wc', 'find',
+                    'grep', 'rg', 'select-string', 'echo', 'pwd', 'whoami',
+                    'node -v', 'python --version', 'pip list', 'npm list',
+                    'test-path', 'test -f', 'test -d',
+                )
+                _cmd_stripped = command.strip().lower()
+                _is_read_only = any(_cmd_stripped.startswith(p) for p in _READ_ONLY_PREFIXES)
+                if result.success and self._project_root and not _is_read_only:
                     try:
+                        log.debug(f"[BRIDGE] File tree refresh triggered by Bash: {command[:80]}")
                         self.file_tree_refresh_needed.emit(self._project_root)
                     except Exception:
                         pass
+                elif _is_read_only:
+                    log.debug(f"[BRIDGE] File tree refresh SKIPPED (read-only): {command[:80]}")
                 # Close editor tabs for files the agent moved to the Recycle Bin.
                 try:
                     _recycled = (result.result or {}).get("recycled_paths") if isinstance(result.result, dict) else None

@@ -30,8 +30,8 @@
         <div class="nav-group">
           <div class="nav-group-label">Personal</div>
           <button class="nav-item active" data-section="general"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg><span>General</span></button>
-          <button class="nav-item" data-section="appearance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Appearance</span></button>
-          <button class="nav-item" data-section="shortcuts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg><span>Keyboard Shortcuts</span></button>
+
+
         </div>
         <div class="nav-group">
           <div class="nav-group-label">AI & Agent</div>
@@ -106,7 +106,7 @@
         </div>
       </section>
 
-      <!-- APPEARANCE -->
+      <!-- APPEARANCE — TEMPORARILY DISABLED
       <section class="settings-section" data-section="appearance">
         <div class="section-header">
           <div>
@@ -175,45 +175,7 @@
           </div>
         </div>
       </section>
-
-      <!-- KEYBOARD SHORTCUTS -->
-      <section class="settings-section" data-section="shortcuts">
-        <div class="section-header">
-          <div>
-            <h1>Keyboard Shortcuts</h1>
-            <p class="section-desc">View and customize keyboard shortcuts.</p>
-          </div><button class="setting-btn" id="resetShortcuts">Reset to Defaults</button>
-        </div>
-        <div class="settings-card">
-          <h3>General</h3>
-          <div class="shortcut-row">
-            <span class="shortcut-label">Command Palette</span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">New Chat</span><kbd>Ctrl</kbd>+<kbd>N</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Open File</span><kbd>Ctrl</kbd>+<kbd>O</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Save</span><kbd>Ctrl</kbd>+<kbd>S</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Settings</span><kbd>Ctrl</kbd>+<kbd>,</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Toggle Terminal</span><kbd>Ctrl</kbd>+<kbd>`</kbd>
-          </div>
-          <div class="shortcut-row"><span class="shortcut-label">Toggle Sidebar</span><kbd>Ctrl</kbd>+<kbd>B</kbd></div>
-        </div>
-        <div class="settings-card">
-          <h3>AI & Agent</h3>
-          <div class="shortcut-row"><span class="shortcut-label">Send Message</span><kbd>Enter</kbd></div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">New Line in Chat</span><kbd>Shift</kbd>+<kbd>Enter</kbd></div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">Agent Mode Toggle</span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Interrupt AI</span><kbd>Ctrl</kbd>+<kbd>C</kbd></div>
-        </div>
-        <div class="settings-card">
-          <h3>Editor</h3>
-          <div class="shortcut-row"><span class="shortcut-label">Find & Replace</span><kbd>Ctrl</kbd>+<kbd>H</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Go to Line</span><kbd>Ctrl</kbd>+<kbd>G</kbd></div>
-          <div class="shortcut-row">
-            <span class="shortcut-label">Format Document</span><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd></div>
-          <div class="shortcut-row"><span class="shortcut-label">Toggle Comment</span><kbd>Ctrl</kbd>+<kbd>/</kbd></div>
-        </div>
-      </section>
+      -->
 
       <!-- MODELS & PROVIDERS -->
       <section class="settings-section" data-section="models">

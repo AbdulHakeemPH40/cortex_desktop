@@ -28,6 +28,7 @@ from PyQt6.QtWebEngineCore import QWebEnginePage
 from src.config.settings import get_settings
 from src.config.theme_manager import get_theme_manager
 from src.config.points_manager import get_points_manager, InsufficientPointsError
+from src.ui.cursor_split_handle import CursorSplitter
 from src.core.project_manager import ProjectManager
 from src.core.file_manager import FileManager
 from src.core.session_manager import SessionManager
@@ -951,6 +952,9 @@ class CortexMainWindow(QMainWindow):
             return
         # Apply dark title bar after the first paint stabilizes
         QTimer.singleShot(200, self._apply_dark_title_bar)
+        # Re-sync splitter handles after window is fully rendered
+        # (handles may not have correct dimensions until after first show)
+        QTimer.singleShot(100, self._force_sync_all_splitter_handles)
         # Yield to event loop so the window paint completes before session restore
         QApplication.processEvents()
 
@@ -1044,22 +1048,9 @@ class CortexMainWindow(QMainWindow):
         self._chat_started = True
 
         # === CODEX-STYLE LAYOUT WITH SPLITTERS ===
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_splitter = CursorSplitter(Qt.Orientation.Horizontal)
         main_splitter.setChildrenCollapsible(False)
-        main_splitter.setHandleWidth(4)
-        main_splitter.setStyleSheet("""
-            QSplitter::handle {
-                background-color: #2b2b2b;
-                border-left: 1px solid #1a1a1a;
-                border-right: 1px solid #1a1a1a;
-            }
-            QSplitter::handle:hover {
-                background-color: #4d78cc;
-            }
-            QSplitter::handle:pressed {
-                background-color: #5a8ad6;
-            }
-        """)
+        main_splitter.setHandleWidth(6)
 
         # Create all panels
         # Panel 1: Left Sidebar — HTML-based (sidebar.html + SidebarBridge)
@@ -1078,22 +1069,9 @@ class CortexMainWindow(QMainWindow):
         main_splitter.addWidget(self._chat_panel)
 
         # Panel 3: Webview Code Editor (Monaco) + Terminal — vertical split
-        self._editor_terminal_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._editor_terminal_splitter = CursorSplitter(Qt.Orientation.Vertical)
         self._editor_terminal_splitter.setChildrenCollapsible(False)
-        self._editor_terminal_splitter.setHandleWidth(4)
-        self._editor_terminal_splitter.setStyleSheet("""
-            QSplitter::handle {
-                background-color: #2b2b2b;
-                border-top: 1px solid #1a1a1a;
-                border-bottom: 1px solid #1a1a1a;
-            }
-            QSplitter::handle:hover {
-                background-color: #4d78cc;
-            }
-            QSplitter::handle:pressed {
-                background-color: #5a8ad6;
-            }
-        """)
+        self._editor_terminal_splitter.setHandleWidth(6)
 
         # Editor (Monaco webview) — top portion
         self._webview_panel = WebviewPanel()
@@ -4302,10 +4280,11 @@ class CortexMainWindow(QMainWindow):
 
     def _sync_splitter_handles(self, splitter: QSplitter):
         """Hide splitter handles next to hidden panels so no clipped sliver leaks.
-        Visible handles get 4px with dark theme styling.
-        Collapsed handles (one side hidden) get a thin 2px grab bar so the user
+        Visible handles get 6px with dark theme styling.
+        Collapsed handles (one side hidden) get a thin grab bar so the user
         can drag to expand the hidden panel.
-        Works for BOTH horizontal (vertical divider) and vertical (horizontal divider) splitters."""
+        Works for BOTH horizontal (vertical divider) and vertical (horizontal divider) splitters.
+        CursorSplitHandle does its own painting — skip setStyleSheet overrides."""
         is_vertical = splitter.orientation() == Qt.Orientation.Vertical
         sizes = splitter.sizes()
         for idx in range(1, splitter.count()):
@@ -4316,20 +4295,20 @@ class CortexMainWindow(QMainWindow):
                 left_ok = left.isVisible() and (idx - 1 < len(sizes) and sizes[idx - 1] > 0)
                 right_ok = right.isVisible() and (idx < len(sizes) and sizes[idx] > 0)
                 if left_ok and right_ok:
-                    # Both panels visible → full 4px styled handle
+                    # Both panels visible → full 6px styled handle
                     handle.setVisible(True)
                     if is_vertical:
-                        handle.setFixedHeight(4)
+                        handle.setFixedHeight(6)
                     else:
-                        handle.setFixedWidth(4)
-                    handle.setStyleSheet("")
+                        handle.setFixedWidth(6)
+                    # CursorSplitHandle paints itself — no stylesheet override needed
                 elif left_ok or right_ok:
-                    # One panel collapsed → thin grab bar so user can drag to expand
+                    # One panel collapsed → grab bar so user can drag to expand
                     handle.setVisible(True)
                     if is_vertical:
-                        handle.setFixedHeight(4)
+                        handle.setFixedHeight(6)
                     else:
-                        handle.setFixedWidth(4)
+                        handle.setFixedWidth(6)
                 else:
                     # Both panels hidden → fully hide handle
                     handle.setVisible(False)
@@ -4337,7 +4316,26 @@ class CortexMainWindow(QMainWindow):
                         handle.setFixedHeight(0)
                     else:
                         handle.setFixedWidth(0)
-                    handle.setStyleSheet("background: transparent; border: none;")
+
+    def _force_sync_all_splitter_handles(self):
+        """Force re-sync ALL splitter handles after window is fully rendered.
+
+        Called via QTimer.singleShot after showMaximized/showNormal to ensure
+        CursorSplitHandle widgets get correct dimensions and cursor shapes.
+        """
+        if hasattr(self, '_main_splitter'):
+            self._sync_splitter_handles(self._main_splitter)
+            # Force update on all handles to trigger repaint
+            for idx in range(1, self._main_splitter.count()):
+                handle = self._main_splitter.handle(idx)
+                if handle:
+                    handle.update()
+        if hasattr(self, '_editor_terminal_splitter'):
+            self._sync_splitter_handles(self._editor_terminal_splitter)
+            for idx in range(1, self._editor_terminal_splitter.count()):
+                handle = self._editor_terminal_splitter.handle(idx)
+                if handle:
+                    handle.update()
 
     def _toggle_terminal_panel(self, show: bool = True):
         """Toggle integrated terminal panel via vertical splitter — VS Code style."""

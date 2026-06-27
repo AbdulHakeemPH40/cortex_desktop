@@ -175,173 +175,19 @@ DARK = {
     "code_scrollbar":    "rgba(255,255,255,0.10)",
 }
 
-# ── Light theme tokens — OpenCode OC-2 light mode ──
-LIGHT = {
-    "bg":                "#ffffff",
-    "bg_card":           "#f6f8fa",
-    "bg_secondary":      "#f0f2f5",
-    "bg_tertiary":       "#e8eaed",
-    "bg_hover":          "#dfe2e8",
-    "bg_input":          "#ffffff",
-    "bg_elevated":       "#ffffff",
-    "bg_raised":         "#ffffff",
-
-    "border":            "#d0d7de",
-    "border_dim":        "#e1e4e8",
-    "border_color":      "#d0d7de",
-    "border_active":     "#0969da",
-
-    "text":              "#1f2328",
-    "text_dim":          "#656d76",
-    "text_secondary":    "#57606a",
-    "text_primary":      "#1f2328",
-    "muted":             "#8b949e",
-    "mono_muted":        "#656d76",
-
-    "accent":            "#0969da",
-    "accent_primary":    "#7c3aed",
-    "accent_secondary":  "#6c5ce7",
-
-    "think":             "#57606a",
-    "think_label":       "#57606a",
-    "user_bubble":       "#f6f8fa",
-    "green":             "#1a7f37",
-    "red":               "#cf222e",
-    "orange":            "#bf8700",
-    "warning":           "#9a6700",
-    "blue":              "#0969da",
-    "info":              "#8250df",
-    "streaming_cursor":  "#0969da",
-
-    "tool_header_bg":    "rgba(0,0,0,0.03)",
-    "tool_body_bg":      "rgba(0,0,0,0.01)",
-    "diff_add_bg":       "rgba(26,127,55,0.12)",
-    "diff_del_bg":       "rgba(207,34,46,0.12)",
-    "diff_hunk_bg":      "rgba(110,118,129,0.06)",
-    "diff_add_line":     "rgba(26,127,55,0.15)",
-    "diff_del_line":     "rgba(207,34,46,0.15)",
-
-    # Syntax — OC-2 light mode
-    "syntax_string":     "#006656",    # dark-teal
-    "syntax_property":   "#ed6dc8",    # pink
-    "syntax_keyword":    "#a626a4",    # purple
-    "syntax_variable":   "#1a1a1a",    # near-black
-    "syntax_function":   "#4078f2",    # blue
-    "syntax_number":     "#fb4804",    # orange
-    "syntax_type":       "#596600",    # olive
-    "syntax_builtin":    "#cf222e",    # red (OpenCode: builtins are red!)
-    "syntax_comment":    "#8b949e",    # gray
-    "syntax_operator":   "#383a42",    # dark-gray
-    "syntax_constant":   "#e36209",    # orange
-    "syntax_decorator":  "#596600",    # olive
-    "syntax_tag":        "#116329",    # green
-    "syntax_attribute":  "#e36209",    # orange
-    "syntax_namespace":  "#596600",    # olive
-
-    # Markdown — OC-2 light mode
-    "md_heading":        "#d68c27",    # gold-orange
-    "md_text":           "#1a1a1a",    # near-black
-    "md_link":           "#3b7dd8",    # blue
-    "md_link_text":      "#318795",    # cyan
-    "md_code":           "#3d9a57",    # green
-    "md_code_bg":        "rgba(0,0,0,0.05)",
-    "md_blockquote":     "#b0851f",    # gold
-    "md_blockquote_border": "#d0d7de",
-    "md_strong":         "#d68c27",    # gold-orange
-    "md_emph":           "#b0851f",    # dark-gold
-    "md_hr":             "#e5e5e5",    # light gray
-    "md_list_marker":    "#3b7dd8",    # blue
-    "md_table_header_bg": "rgba(0,0,0,0.05)",
-    "md_table_border":   "#d0d7de",
-    "md_strikethrough":  "#8b949e",
-    "md_mark_bg":        "rgba(214,140,39,0.2)",
-
-    # Tool colors
-    "tool_read":      "#0969da",
-    "tool_edit":      "#1a7f37",
-    "tool_write":     "#1a7f37",
-    "tool_search":    "#8250df",
-    "tool_terminal":  "#bc4c00",
-    "tool_web":       "#0e8a7e",
-    "tool_task":      "#8250df",
-    "tool_team":      "#cf222e",
-    "tool_thought":   "#6c5ce7",
-    "tool_generic":   "#57606a",
-    "status_running": "#0e8a7e",
-    "status_ok":      "#1a7f37",
-    "status_error":   "#cf222e",
-
-    "font_ui":           "Geist, 'Segoe UI', system-ui, -apple-system, sans-serif",
-    "font_mono":         "'JetBrains Mono','Fira Code',Consolas,'Courier New',monospace",
-    "font_size":         "14px",
-    "font_size_sm":      "13px",
-    "font_size_xs":      "12px",
-    "font_size_xxs":     "11px",
-
-    "line_height":       "1.45",
-    "line_height_code":  "1.4",
-
-    "radius_xs":         "4px",
-    "radius_sm":         "6px",
-    "radius_md":         "8px",
-    "radius_lg":         "10px",
-    "radius_xl":         "14px",
-
-    # Input / Menu / Button tokens
-    "input_border":      "#d0d7de",
-    "input_hover":       "#e8eaed",
-    "separator":         "#d0d7de",
-    "btn_bg":            "#f0f2f5",
-    "btn_hover":         "#e8eaed",
-    "btn_text":          "#57606a",
-    "btn_text_hover":    "#1f2328",
-    "menu_bg":           "#ffffff",
-    "menu_text":         "#1f2328",
-    "menu_selected":     "#f0f2f5",
-    "divider":           "#d0d7de",
-    "white":             "#ffffff",
-    "card_border_subtle": "rgba(0,0,0,0.08)",
-    "card_bg_subtle":    "rgba(0,0,0,0.015)",
-    "stop_btn":          "#cf222e",
-    "stop_btn_hover_bg": "rgba(207,34,46,0.15)",
-    "spell_error":       "#cf222e",
-    "spell_input_bg":    "#f6f8fa",
-    "context_menu_bg":   "#ffffff",
-    "context_menu_border": "#d0d7de",
-    "context_menu_sel":  "#0969da",
-    "ring_purple":       "#7c3aed",
-    "ring_purple_light": "#8b5cf6",
-    "ring_cyan":         "#0969da",
-    "ring_cyan_light":   "#58a6ff",
-    "edited_row_bg":     "#f6f8fa",
-    "edited_row_hover":  "#e8eaed",
-    "edited_row_text":   "#1f2328",
-    "edited_row_badge":  "#bf8700",
-
-    "code_header_bg":    "#f0f2f5",
-    "code_header_border": "#e1e4e8",
-    "code_copy_color":   "#57606a",
-    "code_copy_hover":   "#1f2328",
-    "code_copy_bg":      "rgba(0,0,0,0.03)",
-    "code_copy_bg_hover": "rgba(0,0,0,0.08)",
-    "code_lang_color":   "#8b949e",
-    "code_line_number":  "#c7c7c7",
-    "code_scrollbar":    "rgba(0,0,0,0.10)",
-}
-
 # ── Theme state ──
 _current_theme = DARK
 
 
 def get_theme(mode: str = "dark") -> dict:
-    """Return the token dict for the given theme mode."""
-    return LIGHT if mode == "light" else DARK
+    """Return the token dict for the given theme mode. Always returns DARK."""
+    return DARK
 
 
 def set_theme(mode: str = "dark"):
-    """Switch the active theme. All T() calls will return the new theme."""
+    """Switch the active theme. Currently only dark is supported."""
     global _current_theme
-    _current_theme = LIGHT if mode == "light" else DARK
+    _current_theme = DARK
 
 
 def T() -> dict:

@@ -7731,7 +7731,7 @@ class ChatPanel(QWidget):
     def set_theme(self, is_dark: bool):
         """Update theme tokens and retheme all existing thought blocks."""
         from src.ui.tokens import set_theme as set_tokens_theme
-        set_tokens_theme("dark" if is_dark else "light")
+        set_tokens_theme("dark")
         # Retheme all existing ThoughtsBlock instances in the UI
         for tb in self.findChildren(ThoughtsBlock):
             try:

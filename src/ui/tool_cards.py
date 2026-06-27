@@ -12,7 +12,7 @@ Phase 6 of the native chat migration.
 """
 
 from __future__ import annotations
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QEvent
 from PyQt6.QtGui import QTextCharFormat, QColor, QFont, QTextCursor, QFontMetrics
 from PyQt6.QtWidgets import (
     QFrame, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit,
@@ -523,15 +523,18 @@ class TerminalCard(ToolCardBase):
         if exit_code is not None:
             self.set_status(exit_code == 0)
         # Always show the actual command in the card body (before output)
+        self._cmd_lbl = None
         if self._has_body and cmd:
             cmd_lbl = QLabel(cmd)
             _contain_label(cmd_lbl)
+            self._cmd_lbl = cmd_lbl
+            cmd_lbl.setMouseTracking(True)
             cmd_lbl.setStyleSheet(
                 f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
                 f"color:{T['tool_search']};background:{T['bg']};"
-                f"padding:4px 8px;border:1px solid {T['border']};"
-                f"border-radius:2px;"
+                f"padding:4px 8px;border:none;"
             )
+            cmd_lbl.installEventFilter(self)
             self.body_layout.addWidget(cmd_lbl)
         if has_output and self._has_body:
             from src.ui.syntax_highlight import highlight_code
@@ -553,7 +556,7 @@ class TerminalCard(ToolCardBase):
             out.setStyleSheet(
                 f"background:{T['bg']};color:{out_color};"
                 f"font-family:{T['font_mono']};font-size:{T['font_size_xxs']};"
-                f"border:1px solid {T['border_dim']};border-radius:4px;padding:6px;"
+                f"border:none;border-radius:4px;padding:6px;"
             )
             out.setMaximumHeight(200)
             def _fit():
@@ -562,6 +565,26 @@ class TerminalCard(ToolCardBase):
                     out.setMinimumHeight(min(doc_h + 12, 200))
             QTimer.singleShot(0, _fit)
             self.body_layout.addWidget(out)
+
+    def eventFilter(self, obj, event):
+        """Hover effect on the command label inside the terminal card.
+        Subtle background highlight only — NO border ever."""
+        if obj == self._cmd_lbl:
+            if event.type() == QEvent.Type.Enter:
+                self._cmd_lbl.setStyleSheet(
+                    f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
+                    f"color:{T['tool_search']};background:{T['border']};"
+                    f"padding:4px 8px;border:none;"
+                )
+                return True
+            elif event.type() == QEvent.Type.Leave:
+                self._cmd_lbl.setStyleSheet(
+                    f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
+                    f"color:{T['tool_search']};background:{T['bg']};"
+                    f"padding:4px 8px;border:none;"
+                )
+                return True
+        return super().eventFilter(obj, event)
 
 
 class TaskCard(ToolCardBase):
@@ -709,7 +732,7 @@ class WebFetchCard(ToolCardBase):
                 out.setStyleSheet(
                     f"background:{T['bg']};color:{T['text_dim']};"
                     f"font-family:{T['font_mono']};font-size:{T['font_size_xxs']};"
-                    f"border:1px solid {T['border_dim']};border-radius:4px;padding:6px;"
+                    f"border:none;border-radius:4px;padding:6px;"
                 )
                 out.setMaximumHeight(250)
                 def _fit():

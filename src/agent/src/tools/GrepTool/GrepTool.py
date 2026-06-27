@@ -1069,9 +1069,11 @@ class GrepTool:
         abort_controller = getattr(context, "abort_controller", None)
         signal = getattr(abort_controller, "signal", None) if abort_controller else None
         
-        # If path was a file, restrict ripgrep to search only that file
+        # If path was a file, pass it directly to ripgrep as a positional arg.
+        # Using --glob for this is unreliable (glob is a directory-traversal filter,
+        # not a path matcher — bare filenames like 'main_window.py' often fail to match).
         if _restrict_to_file:
-            args.extend(['--glob', _restrict_to_file])
+            args.append(os.path.join(absolute_path, _restrict_to_file))
         
         results = await ripgrep(args, absolute_path, signal)
         

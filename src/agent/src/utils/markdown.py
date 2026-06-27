@@ -100,21 +100,6 @@ class ThemeColors:
     code_operator: str = "#d4d4d4"     # White
 
 
-@dataclass
-class LightThemeColors(ThemeColors):
-    """Light theme colors."""
-    
-    background: str = "#ffffff"
-    code_background: str = "#f5f5f5"
-    blockquote_background: str = "#f0f0f0"
-    text: str = "#333333"
-    link: str = "#0066cc"
-    link_hover: str = "#004499"
-    code_keyword: str = "#0000ff"
-    code_string: str = "#a31515"
-    code_comment: str = "#008000"
-
-
 # ============================================================================
 # Markdown Element Types
 # ============================================================================
@@ -424,7 +409,7 @@ class MarkdownRenderer(QObject):
     def __init__(self, parent: Optional[QWidget] = None, theme: str = "dark"):
         super().__init__(parent)
         self.theme = theme
-        self.colors = LightThemeColors() if theme == "light" else ThemeColors()
+        self.colors = ThemeColors()
         self.parser = MarkdownParser()
         
         # Fonts
@@ -806,7 +791,7 @@ class MarkdownViewer(QTextEdit):
         Change the color theme.
         
         Args:
-            theme: "dark" or "light"
+            theme: "dark"
         """
         self.renderer.theme = theme
         self.renderer.colors = LightThemeColors() if theme == "light" else ThemeColors()
@@ -838,7 +823,6 @@ def render_markdown(markdown_text: str, theme: str = "dark") -> QTextDocument:
 __all__ = [
     # Theme colors
     "ThemeColors",
-    "LightThemeColors",
     
     # Element types
     "ElementType",

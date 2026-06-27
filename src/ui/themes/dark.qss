@@ -96,20 +96,21 @@ QToolButton:pressed {
 }
 
 /* --- Splitter --- */
+/* CursorSplitHandle does its own painting — no QSS override needed */
 QSplitter::handle {
-    background-color: #2a2a2a;
+    background-color: transparent;
 }
 
 QSplitter::handle:horizontal {
-    width: 1px;
+    width: 6px;
 }
 
 QSplitter::handle:vertical {
-    height: 1px;
+    height: 6px;
 }
 
 QSplitter::handle:hover {
-    background-color: #228df2;
+    background-color: transparent;
 }
 
 /* --- Tab Widget --- */
