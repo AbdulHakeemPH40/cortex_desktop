@@ -1051,6 +1051,7 @@ class CortexMainWindow(QMainWindow):
         main_splitter = CursorSplitter(Qt.Orientation.Horizontal)
         main_splitter.setChildrenCollapsible(False)
         main_splitter.setHandleWidth(6)
+        main_splitter.setOpaqueResize(False)  # ← CRITICAL: prevents real-time repaint of 3 QWebEngineViews during drag
 
         # Create all panels
         # Panel 1: Left Sidebar — HTML-based (sidebar.html + SidebarBridge)
@@ -1072,6 +1073,7 @@ class CortexMainWindow(QMainWindow):
         self._editor_terminal_splitter = CursorSplitter(Qt.Orientation.Vertical)
         self._editor_terminal_splitter.setChildrenCollapsible(False)
         self._editor_terminal_splitter.setHandleWidth(6)
+        self._editor_terminal_splitter.setOpaqueResize(False)  # ← same: no real-time QWebEngineView repaint during drag
 
         # Editor (Monaco webview) — top portion
         self._webview_panel = WebviewPanel()

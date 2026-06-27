@@ -6458,9 +6458,8 @@ class ChatPanel(QWidget):
         else:
             self._ensure("tools")
             self._open_block.add_widget(card)
-        # Deferred: let Qt compute card geometry, then scroll it fully visible
-        QTimer.singleShot(150, lambda c=card: self._scroll_card_into_view(c))
-        QTimer.singleShot(400, lambda c=card: self._scroll_card_into_view(c))  # safety net
+        # Single deferred scroll — no need for two timers
+        QTimer.singleShot(100, lambda c=card: self._scroll_card_into_view(c))
 
         # Windows push notification - only when IDE is backgrounded (card is visible in-chat)
         try:
@@ -6507,9 +6506,8 @@ class ChatPanel(QWidget):
         else:
             self._ensure("tools")
             self._open_block.add_widget(card)
-        # Deferred: let Qt compute card geometry, then scroll it fully visible
-        QTimer.singleShot(150, lambda c=card: self._scroll_card_into_view(c))
-        QTimer.singleShot(400, lambda c=card: self._scroll_card_into_view(c))  # safety net
+        # Single deferred scroll — no need for two timers
+        QTimer.singleShot(100, lambda c=card: self._scroll_card_into_view(c))
 
         # Windows push notification - only when IDE is backgrounded (card is visible in-chat)
         try:
@@ -6577,9 +6575,8 @@ class ChatPanel(QWidget):
         card.allow_always.connect(lambda rid, c=card: (self._on_permission_response(rid, "always", command), c.setVisible(False), c.deleteLater()))
         card.rejected.connect(lambda rid, c=card: (self._on_permission_response(rid, "reject", command), c.setVisible(False), c.deleteLater()))
         self._insert(card)
-        # Deferred: let Qt compute card geometry, then scroll it fully visible
-        QTimer.singleShot(150, lambda c=card: self._scroll_card_into_view(c))
-        QTimer.singleShot(400, lambda c=card: self._scroll_card_into_view(c))  # safety net
+        # Single deferred scroll — no need for two timers
+        QTimer.singleShot(100, lambda c=card: self._scroll_card_into_view(c))
 
         try:
             from src.utils.notifications import notify_permission_required
@@ -6639,8 +6636,8 @@ class ChatPanel(QWidget):
         card = QuestionCard(question, qtype, choices or [], default)
         card.answered.connect(lambda ans: self._on_question_answered(question_id, ans, card))
         self._insert(card)
-        QTimer.singleShot(150, lambda c=card: self._scroll_card_into_view(c))
-        QTimer.singleShot(400, lambda c=card: self._scroll_card_into_view(c))  # safety net
+        # Single deferred scroll — no need for two timers
+        QTimer.singleShot(100, lambda c=card: self._scroll_card_into_view(c))
 
     def _on_question_answered(self, question_id, answer, card=None):
         log.info(f"[question] {question_id[:20]} -> {answer}")
@@ -6818,7 +6815,11 @@ class ChatPanel(QWidget):
             if not getattr(self, '_rapid_insert_mode', False):
                 _fade_in_widget(w, duration_ms=150, slide_px=6)
             self._show_new_msg_pill()
-            self._virtualize_old_messages()
+            # PERFORMANCE: Only virtualize for MessageWidget inserts (prose/ai blocks).
+            # PermissionCard, QuestionCard, ResumeTaskCard etc. don't add
+            # MessageWidget children — scanning all layout items is wasted work.
+            if isinstance(w, MessageWidget):
+                self._virtualize_old_messages()
 
     def _end_batch_mode(self):
         """Called when the batch cooldown timer fires (120ms after last insert).
@@ -7076,13 +7077,14 @@ class ChatPanel(QWidget):
     def _scroll_card_into_view(self, widget):
         """Scroll so a widget (e.g. permission card) is fully visible.
 
-        The footer is a SEPARATE widget below the scroll area — it does NOT
-        overlap the viewport. No footer offset needed.
+        PERFORMANCE FIX: Removed container.adjustSize() which forced a FULL
+        layout recalculation of every child widget (including QWebEngineView).
+        Instead, just let Qt flush pending geometry via processEvents, then
+        use ensureWidgetVisible which only needs the widget's current geometry.
         """
         try:
-            # Force layout recalc so widget geometry is accurate
-            self.container.adjustSize()
-            # Use Qt's built-in scroll-to-widget with small padding
+            # Let Qt process any pending layout without forcing a full recalc
+            QApplication.processEvents()
             self.scroll.ensureWidgetVisible(widget, 10, 30)
         except (RuntimeError, AttributeError):
             pass
