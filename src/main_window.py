@@ -6897,7 +6897,7 @@ class CortexMainWindow(QMainWindow):
                 self._sidebar._ai_active = False
                 # Trigger a single deferred refresh to catch up on changes
                 from PyQt6.QtCore import QTimer
-                QTimer.singleShot(2000, lambda: self._sidebar.refreshFileTree() if hasattr(self, '_sidebar') else None)
+                QTimer.singleShot(2000, lambda: self._sidebar._bridge.refreshFileTree() if hasattr(self, '_sidebar') and self._sidebar and self._sidebar._bridge else None)
 
             # ── Check if task complete notifications are enabled ──
             from src.utils.notifications import _get_notif_setting
