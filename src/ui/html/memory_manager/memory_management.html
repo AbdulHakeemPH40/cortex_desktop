@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cortex Settings</title>
+  <link rel="stylesheet" href="./memory_management.css?v=8">
+</head>
+
+<body>
+  <div class="settings-shell">
+    <!-- Left Nav -->
+    <nav class="settings-nav">
+      <div class="nav-header">
+        <button class="back-btn" id="backBtn" title="Back to app">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+          <span>Back to app</span>
+        </button>
+      </div>
+      <div class="nav-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input type="text" id="settingsSearch" placeholder="Search settings..." autocomplete="off">
+      </div>
+      <div class="nav-sections">
+        <div class="nav-group">
+          <div class="nav-group-label">Personal</div>
+          <button class="nav-item active" data-section="general"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg><span>General</span></button>
+          <button class="nav-item" data-section="appearance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span>Appearance</span></button>
+          <button class="nav-item" data-section="shortcuts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.001M10 8h.001M14 8h.001M18 8h.001M8 12h.001M12 12h.001M16 12h.001M7 16h10"/></svg><span>Keyboard Shortcuts</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">AI & Agent</div>
+          <button class="nav-item" data-section="models"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span>Models & Providers</span></button>
+          <button class="nav-item" data-section="memory"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg><span>Memory</span></button>
+          <button class="nav-item" data-section="personalization"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Personalization</span></button>
+          <button class="nav-item" data-section="safety"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Safety & Permissions</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Integrations</div>
+          <button class="nav-item" data-section="mcp"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg><span>MCP Servers</span></button>
+          <button class="nav-item" data-section="git"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg><span>Git</span></button>
+          <button class="nav-item" data-section="extensions"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>Extensions</span></button>
+        </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Advanced</div>
+          <button class="nav-item" data-section="terminal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span>Terminal</span></button>
+          <button class="nav-item" data-section="performance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Performance</span></button>
+          <button class="nav-item" data-section="about"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>About Cortex</span></button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="settings-content">
+
+      <!-- GENERAL -->
+      <section class="settings-section active" data-section="general">
+        <div class="section-header">
+          <div>
+            <h1>General</h1>
+            <p class="section-desc">Core application settings and behavior.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Startup</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Restore previous session</label>
+              <p>Reopen tabs and chat history when Cortex starts.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="restoreSession" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Check for updates on startup</label>
+              <p>Automatically check for new versions of Cortex.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="checkUpdates" checked><span class="switch-slider"></span></label>
+          </div>
+        <div class="settings-card">
+          <h3>Notifications</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Desktop notifications</label>
+              <p>Show system notifications when AI tasks complete.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="notifications" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Sound alerts</label>
+              <p>Play a sound when long-running tasks finish.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="soundAlerts"><span class="switch-slider"></span></label>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Telemetry</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Send anonymous usage data</label>
+              <p>Help improve Cortex by sending anonymous crash reports. No code or content is ever sent.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="telemetry"><span class="switch-slider"></span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- APPEARANCE -->
+      <section class="settings-section" data-section="appearance">
+        <div class="section-header">
+          <div>
+            <h1>Appearance</h1>
+            <p class="section-desc">Customize the look and feel of Cortex.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Theme</h3>
+          <div class="theme-picker">
+            <button class="theme-option active" data-theme="dark"><div class="theme-preview dark-preview"></div><span>Dark</span></button>
+            <button class="theme-option" data-theme="light"><div class="theme-preview light-preview"></div><span>Light</span></button>
+            <button class="theme-option" data-theme="system"><div class="theme-preview system-preview"></div><span>System</span></button>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Editor</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Font size</label>
+              <p>Font size for the code editor.</p>
+            </div>
+            <div class="range-control">
+              <input type="range" id="editorFontSize" min="10" max="24" value="14" class="setting-range"><span class="range-value" id="editorFontSizeVal">14px</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Font family</label>
+              <p>Monospace font for code editing.</p>
+            </div>
+            <select class="setting-select" id="editorFont"><option value="cascadia" selected>Cascadia Code</option><option value="fira">Fira Code</option><option value="jetbrains">JetBrains Mono</option><option value="consolas">Consolas</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Tab size</label>
+              <p>Number of spaces per tab character.</p>
+            </div>
+            <select class="setting-select" id="tabSize"><option value="2" selected>2 spaces</option><option value="4">4 spaces</option><option value="8">8 spaces</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Word wrap</label>
+              <p>Wrap long lines in the editor.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="wordWrap" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Minimap</label>
+              <p>Show a minimap overview on the right side of the editor.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="minimap" checked><span class="switch-slider"></span></label>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Interface</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>UI Scale</label>
+              <p>Zoom level for the entire Cortex interface.</p>
+            </div>
+            <div class="range-control">
+              <input type="range" id="uiScale" min="80" max="150" value="100" class="setting-range"><span class="range-value" id="uiScaleVal">100%</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Sidebar position</label>
+              <p>Place the sidebar on the left or right side.</p>
+            </div>
+            <select class="setting-select" id="sidebarPosition"><option value="left" selected>Left</option><option value="right">Right</option></select>
+          </div>
+        </div>
+      </section>
+
+      <!-- KEYBOARD SHORTCUTS -->
+      <section class="settings-section" data-section="shortcuts">
+        <div class="section-header">
+          <div>
+            <h1>Keyboard Shortcuts</h1>
+            <p class="section-desc">View and customize keyboard shortcuts.</p>
+          </div><button class="setting-btn" id="resetShortcuts">Reset to Defaults</button>
+        </div>
+        <div class="settings-card">
+          <h3>General</h3>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Command Palette</span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">New Chat</span><kbd>Ctrl</kbd>+<kbd>N</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Open File</span><kbd>Ctrl</kbd>+<kbd>O</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Save</span><kbd>Ctrl</kbd>+<kbd>S</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Settings</span><kbd>Ctrl</kbd>+<kbd>,</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Toggle Terminal</span><kbd>Ctrl</kbd>+<kbd>`</kbd>
+          </div>
+          <div class="shortcut-row"><span class="shortcut-label">Toggle Sidebar</span><kbd>Ctrl</kbd>+<kbd>B</kbd></div>
+        </div>
+        <div class="settings-card">
+          <h3>AI & Agent</h3>
+          <div class="shortcut-row"><span class="shortcut-label">Send Message</span><kbd>Enter</kbd></div>
+          <div class="shortcut-row">
+            <span class="shortcut-label">New Line in Chat</span><kbd>Shift</kbd>+<kbd>Enter</kbd></div>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Agent Mode Toggle</span><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Interrupt AI</span><kbd>Ctrl</kbd>+<kbd>C</kbd></div>
+        </div>
+        <div class="settings-card">
+          <h3>Editor</h3>
+          <div class="shortcut-row"><span class="shortcut-label">Find & Replace</span><kbd>Ctrl</kbd>+<kbd>H</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Go to Line</span><kbd>Ctrl</kbd>+<kbd>G</kbd></div>
+          <div class="shortcut-row">
+            <span class="shortcut-label">Format Document</span><kbd>Shift</kbd>+<kbd>Alt</kbd>+<kbd>F</kbd></div>
+          <div class="shortcut-row"><span class="shortcut-label">Toggle Comment</span><kbd>Ctrl</kbd>+<kbd>/</kbd></div>
+        </div>
+      </section>
+
+      <!-- MODELS & PROVIDERS -->
+      <section class="settings-section" data-section="models">
+        <div class="section-header">
+          <div>
+            <h1>Models & Providers</h1>
+            <p class="section-desc">Configure AI model providers and API keys.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Default Model</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Primary model</label>
+              <p>The default model used for new chats.</p>
+            </div>
+            <select class="setting-select" id="defaultModel"><option value="mimo-v2.5-pro" selected>MiMo V2.5 Pro (Xiaomi)</option><option value="deepseek-v4">DeepSeek V4</option><option value="kimi-k2.6">Kimi K2.6 (Moonshot)</option><option value="mistral-large">Mistral Large</option><option value="openai-gpt-4o">GPT-4o (OpenAI)</option><option value="openrouter">OpenRouter (20+ models)</option><option value="qwen-max">Qwen Max (Alibaba)</option><option value="siliconflow">SiliconFlow</option><option value="auto">Auto (Best available)</option></select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Provider API Keys</h3>
+          <p class="card-desc">Store your API keys locally. Keys are encrypted and never leave your device.</p>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo openai">O</div>
+              <div><label>OpenAI</label>
+                <p>GPT-4o, GPT-5</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="openaiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo deepseek">D</div>
+              <div><label>DeepSeek</label>
+                <p>DeepSeek V4, DeepSeek Coder</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="deepseekKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo mistral">M</div>
+              <div><label>Mistral AI</label>
+                <p>Mistral Large, Codestral</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="mistralKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#6366f1;color:white">K</div>
+              <div><label>Kimi (Moonshot)</label>
+                <p>Kimi K2.6</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="kimiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#f97316;color:white">X</div>
+              <div><label>Xiaomi MiMo</label>
+                <p>MiMo V2.5 Pro</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="mimoKey" placeholder="API key"><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo google">G</div>
+              <div><label>Google AI</label>
+                <p>Gemini 2.5 Pro, Flash</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="googleKey" placeholder="AIza..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#8b5cf6;color:white">R</div>
+              <div><label>OpenRouter</label>
+                <p>20+ models via single API</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="openrouterKey" placeholder="sk-or-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#06b6d4;color:white">Q</div>
+              <div><label>Alibaba Qwen</label>
+                <p>Qwen Max, Qwen Plus</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="alibabaKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo ollama">O</div>
+              <div><label>Ollama (Local)</label>
+                <p>Run models locally — no API key needed</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="text" class="setting-input" id="ollamaUrl" placeholder="http://localhost:11434" value="http://localhost:11434"><button class="setting-btn" id="testOllama">Test</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MEMORY -->
+      <section class="settings-section" data-section="memory">
+        <div class="section-header">
+          <div>
+            <h1>Memory</h1>
+            <p class="section-desc">Persistent project memory for the current workspace.</p>
+          </div>
+          <div class="section-actions">
+            <button class="setting-btn" id="statsBtn">Stats</button><button class="setting-btn" id="consolidateBtn">Consolidate</button><button class="setting-btn" id="openRulesBtn">Rules Setup</button><button class="setting-btn" id="refreshBtn">Refresh</button><button class="setting-btn danger-btn" id="clearBtn">Clear All</button>
+          </div>
+        </div>
+        <div class="settings-card memory-hero">
+          <div class="memory-hero-copy"><span class="status-dot" id="statusDot"></span>
+            <div>
+              <h3>Automatic memory generation</h3>
+              <p>Save preferences, project context, and long-term notes the agent can reuse later.</p>
+            </div>
+          </div>
+          <label class="switch"><input type="checkbox" id="enabledToggle" checked><span class="switch-slider"></span></label>
+        </div>
+        <div class="settings-card">
+          <div class="memory-toolbar">
+            <div>
+              <h3>Memory List</h3>
+              <p id="countLabel" class="card-desc">0 memories</p>
+            </div>
+            <div class="memory-toolbar-meta">
+              <div id="scopeSwitch" class="scope-switch" role="tablist">
+                <button type="button" class="scope-tab active" data-scope="project">Project</button><button type="button" class="scope-tab" data-scope="global">Global</button><button type="button" class="scope-tab" data-scope="shared">Shared</button>
+              </div><button class="setting-btn" id="syncGlobalBtn">Sync</button>
+            </div>
+          </div>
+          <div class="memory-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg><input type="text" id="searchInput" placeholder="Find by title, keyword, path, or content"><button class="semantic-btn" id="semanticSearchBtn" title="Semantic Search (AI)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z"/><line x1="9" y1="21" x2="15" y2="21"/></svg></button>
+          </div>
+          <div id="typeFilters" class="type-filters"></div>
+          <div id="emptyState" class="memory-empty hidden">
+            <div class="empty-glyph">M</div>
+            <h3>No memories saved yet</h3>
+            <p>The agent will populate this space as it learns your preferences and project rules.</p>
+          </div>
+          <div id="listView" class="memory-list"></div>
+        </div>
+      </section>
+
+      <!-- PERSONALIZATION -->
+      <section class="settings-section" data-section="personalization">
+        <div class="section-header">
+          <div>
+            <h1>Personalization</h1>
+            <p class="section-desc">Customize how Cortex's AI behaves and responds.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>AI Behavior</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Custom system instructions</label>
+              <p>Add custom instructions that the AI follows in every conversation.</p>
+            </div>
+          </div>
+          <textarea class="setting-textarea" id="systemInstructions" placeholder="e.g., Always respond in a concise, technical style. Prefer TypeScript over JavaScript."></textarea>
+        </div>
+        <div class="settings-card">
+          <h3>Response Style</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Verbosity</label>
+              <p>How detailed should AI responses be?</p>
+            </div>
+            <select class="setting-select" id="verbosity"><option value="concise">Concise</option><option value="balanced" selected>Balanced</option><option value="detailed">Detailed</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Code style preference</label>
+              <p>Preferred code formatting style.</p>
+            </div>
+            <select class="setting-select" id="codeStyle"><option value="standard" selected>Standard</option><option value="airbnb">Airbnb</option><option value="google">Google</option></select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Memory & Context</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Remember conversations</label>
+              <p>Allow the AI to reference previous conversations.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="rememberConvos" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Context window size</label>
+              <p>Maximum context tokens per conversation.</p>
+            </div>
+            <select class="setting-select" id="contextWindow"><option value="32k">32K tokens</option><option value="128k" selected>128K tokens</option><option value="200k">200K tokens</option><option value="1m">1M tokens</option></select>
+          </div>
+        </div>
+      </section>
+
+      <!-- SAFETY & PERMISSIONS -->
+      <section class="settings-section" data-section="safety">
+        <div class="section-header">
+          <div>
+            <h1>Safety & Permissions</h1>
+            <p class="section-desc">Control what the AI agent can access and modify.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Agent Permissions</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Allow file creation</label>
+              <p>Let the AI agent create new files in your project.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="allowFileCreate" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Allow file deletion</label>
+              <p>Let the AI agent delete files. Requires confirmation.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="allowFileDelete"><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Allow terminal commands</label>
+              <p>Let the AI agent execute terminal commands.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="allowTerminal" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Require approval for destructive actions</label>
+              <p>Always ask before deleting files or running dangerous commands.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="requireApproval" checked><span class="switch-slider"></span></label>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Data Privacy</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Privacy mode</label>
+              <p>Your code is never stored or used for training by any provider.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="privacyMode" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Local-only mode</label>
+              <p>Only use local models (Ollama). No data leaves your machine.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="localOnly"><span class="switch-slider"></span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- MCP SERVERS -->
+      <section class="settings-section" data-section="mcp">
+        <div class="section-header">
+          <div>
+            <h1>MCP Servers</h1>
+            <p class="section-desc">Manage Model Context Protocol server connections.</p>
+          </div><button class="setting-btn" id="addMcpBtn">+ Add Server</button>
+        </div>
+        <div class="settings-card">
+          <div class="mcp-empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" opacity="0.3">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            <h3>No MCP servers configured</h3>
+            <p>Add MCP servers to extend Cortex with tools like file system access, databases, and more.</p>
+            <button class="setting-btn" id="learnMcpBtn">Learn about MCP</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- GIT -->
+      <section class="settings-section" data-section="git">
+        <div class="section-header">
+          <div>
+            <h1>Git</h1>
+            <p class="section-desc">Git integration settings and configuration.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>General</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Auto-commit AI changes</label>
+              <p>Automatically create git commits when the AI makes changes.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="autoCommit"><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Commit message prefix</label>
+              <p>Prefix for AI-generated commit messages.</p>
+            </div><input type="text" class="setting-input" id="commitPrefix" placeholder="[cortex-ai]" value="[cortex-ai]">
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Default branch</label>
+              <p>Default branch name for new repositories.</p>
+            </div><input type="text" class="setting-input" id="defaultBranch" placeholder="main" value="main">
+          </div>
+        </div>
+      </section>
+
+      <!-- EXTENSIONS -->
+      <section class="settings-section" data-section="extensions">
+        <div class="section-header">
+          <div>
+            <h1>Extensions</h1>
+            <p class="section-desc">Manage installed extensions and plugins.</p>
+          </div><button class="setting-btn" id="browseExtensions">Browse Extensions</button>
+        </div>
+        <div class="settings-card">
+          <div class="extension-empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="1.5" opacity="0.3">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            <h3>No extensions installed</h3>
+            <p>Extensions add new features, themes, and integrations to Cortex.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TERMINAL -->
+      <section class="settings-section" data-section="terminal">
+        <div class="section-header">
+          <div>
+            <h1>Terminal</h1>
+            <p class="section-desc">Configure the integrated terminal.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Shell</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Default shell</label>
+              <p>The shell used for new terminal instances.</p>
+            </div>
+            <select class="setting-select" id="defaultShell"><option value="powershell" selected>PowerShell</option><option value="cmd">Command Prompt</option><option value="bash">Git Bash</option><option value="wsl">WSL</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Shell arguments</label>
+              <p>Additional arguments passed to the shell on startup.</p>
+            </div><input type="text" class="setting-input" id="shellArgs" placeholder="-NoLogo">
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Appearance</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Font size</label>
+              <p>Font size for the terminal.</p>
+            </div>
+            <div class="range-control">
+              <input type="range" id="termFontSize" min="10" max="24" value="14" class="setting-range"><span class="range-value" id="termFontSizeVal">14px</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Scrollback lines</label>
+              <p>Number of lines to keep in the terminal buffer.</p>
+            </div>
+            <select class="setting-select" id="scrollback"><option value="1000">1,000</option><option value="3000" selected>3,000</option><option value="10000">10,000</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Cursor style</label>
+              <p>Terminal cursor appearance.</p>
+            </div>
+            <select class="setting-select" id="cursorStyle"><option value="block" selected>Block</option><option value="underline">Underline</option><option value="bar">Bar</option></select>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Copy on select</label>
+              <p>Automatically copy selected text to clipboard.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="copyOnSelect"><span class="switch-slider"></span></label>
+          </div>
+        </div>
+      </section>
+
+      <!-- PERFORMANCE -->
+      <section class="settings-section" data-section="performance">
+        <div class="section-header">
+          <div>
+            <h1>Performance</h1>
+            <p class="section-desc">Optimize Cortex's resource usage.</p>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Memory & CPU</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>GPU acceleration</label>
+              <p>Use hardware GPU for rendering. Disable if you experience display issues.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="gpuAccel" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Limit background processes</label>
+              <p>Reduce CPU usage when Cortex is not the active window.</p>
+            </div>
+            <label class="switch"><input type="checkbox" id="limitBackground" checked><span class="switch-slider"></span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>File watcher debounce</label>
+              <p>Delay before reacting to file system changes (ms).</p>
+            </div>
+            <div class="range-control">
+              <input type="range" id="watcherDebounce" min="100" max="2000" value="500" step="100" class="setting-range"><span class="range-value" id="watcherDebounceVal">500ms</span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Network</h3>
+          <div class="setting-row">
+            <div class="setting-info"><label>Request timeout</label>
+              <p>Maximum time to wait for AI provider responses (seconds).</p>
+            </div>
+            <div class="range-control">
+              <input type="range" id="requestTimeout" min="10" max="300" value="120" step="10" class="setting-range"><span class="range-value" id="requestTimeoutVal">120s</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info"><label>Proxy</label>
+              <p>HTTP proxy for API requests. Leave empty for direct connection.</p>
+            </div><input type="text" class="setting-input" id="proxy" placeholder="http://proxy:8080">
+          </div>
+        </div>
+      </section>
+
+      <!-- ABOUT -->
+      <section class="settings-section" data-section="about">
+        <div class="section-header">
+          <div>
+            <h1>About Cortex</h1>
+            <p class="section-desc">Version information and credits.</p>
+          </div>
+        </div>
+        <div class="settings-card about-card">
+          <div class="about-logo">
+            <div class="logo-glyph">C</div>
+            <h2>Cortex AI Engine</h2>
+            <p class="version">Version 2.6.0</p>
+          </div>
+          <div class="about-links"><a href="#" class="about-link">Website</a><a href="#"
+              class="about-link">Documentation</a><a href="#" class="about-link">GitHub</a><a href="#"
+              class="about-link">Changelog</a><a href="#" class="about-link">License</a></div>
+          <p class="about-footer">Built with PyQt6 + Qt WebEngine. Powered by open-source AI models.<br>&copy; 2026 Cortex AI. All rights reserved.
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast + Modal Hosts -->
+  <div id="toastHost" class="toast-host"></div>
+  <div id="modalHost" class="modal-overlay hidden"></div>
+  <div id="consolidationModal" class="modal-overlay hidden">
+    <div class="consolidation-modal">
+      <div class="modal-header">
+        <h2>Consolidation Report</h2>
+        <button class="modal-close" id="closeConsolidationModal"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="consolidationStats"></div>
+        <div id="consolidationClusters"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="setting-btn primary-btn" id="mergeAllBtn">Merge All Duplicates</button><button class="setting-btn" id="closeConsolidationModalBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script>
+    window.__memMgrDebug = { loaded: false, errors: [] };
+    window.onerror = function(msg, src, line) { window.__memMgrDebug.errors.push({msg,src,line}); return false; };
+    window.receiveMemoryState = window.receiveMemoryState || function(s) { window.__memMgrDebug.fallbackState = s; };
+  </script>
+  <script src="./memory_management.js?v=15"></script>
+</body>
+
+</html>

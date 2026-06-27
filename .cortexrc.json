@@ -1,0 +1,8 @@
+{
+  "projectRoot": "C:\\Users\\Hakeem1\\OneDrive\\Desktop\\Cortex_Ai_Agent\\cortex-Cortex-Engine",
+  "restrictToProject": true,
+  "forbiddenPaths": [
+    "C:\\Program Files (x86)\\Cortex"
+  ],
+  "description": "All memory and agent operations are scoped INSIDE this project directory."
+}

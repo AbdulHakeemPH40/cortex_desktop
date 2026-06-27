@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Cortex Terminal</title>
+    <!-- Load xterm.js locally -->
+    <link rel="stylesheet" href="assets/xterm/xterm.css" />
+    <script src="assets/xterm/xterm.js"></script>
+    <script src="assets/xterm/xterm-addon-fit.js"></script>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #0c0c0c; /* Default dark mode background */
+            overflow: hidden;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+        }
+        #terminal-container {
+            width: 100%;
+            height: 100%;
+            padding: 4px;
+            box-sizing: border-box;
+        }
+
+        
+        /* VS Code-style terminal scrollbar — ALWAYS visible on the right.
+           Track is slightly lighter than the terminal bg; thumb is a clear grey. */
+        .xterm-viewport {
+            /* Force the track to always render (xterm defaults to auto, which
+               QWebEngine hides as an auto-fading overlay). */
+            overflow-y: scroll !important;
+            /* Firefox */
+            scrollbar-width: thin;
+            scrollbar-color: rgba(121, 121, 121, 0.5) rgba(255, 255, 255, 0.04);
+        }
+
+        .xterm-viewport::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-track {
+            /* Slightly lighter than the black terminal background, clearly visible */
+            background: #1a1a1a;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: #5a5a5a;
+            border-radius: 6px;
+            /* Transparent border creates inset padding so the thumb looks slim */
+            border: 3px solid #1a1a1a;
+            background-clip: padding-box;
+            min-height: 30px;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb:hover {
+            background: #7a7a7a;
+            background-clip: padding-box;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-thumb:active {
+            background: #969696;
+            background-clip: padding-box;
+        }
+
+        .xterm-viewport::-webkit-scrollbar-corner {
+            background: transparent;
+        }
+
+        /* Right-click context menu (dark mode, VS Code-like) */
+        #term-ctx-menu {
+            position: fixed;
+            display: none;
+            z-index: 10000;
+            min-width: 160px;
+            background: #1f1f1f;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            padding: 4px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 13px;
+            user-select: none;
+        }
+        #term-ctx-menu .ctx-item {
+            padding: 6px 14px;
+            color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #term-ctx-menu .ctx-item:hover {
+            background: #2d6cdf;
+            color: #ffffff;
+        }
+        #term-ctx-menu .ctx-item.disabled {
+            color: #666;
+            pointer-events: none;
+        }
+        #term-ctx-menu .ctx-sep {
+            height: 1px;
+            background: #3a3a3a;
+            margin: 4px 8px;
+        }
+        
+        /* URL Link Styling - Underline and hover highlighting */
+        .xterm-decoration-container .xterm-decoration {
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        
+        .xterm-decoration-container .xterm-decoration:hover {
+            text-decoration: underline;
+            background-color: rgba(0, 120, 212, 0.3) !important;
+        }
+        
+        /* Link styling in dark mode */
+        .xterm .xterm-decoration {
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        
+        .xterm .xterm-decoration:hover {
+            text-decoration: underline;
+            background-color: rgba(0, 120, 212, 0.3);
+        }
+        
+        /* Selection styling for dark mode */
+        .xterm .xterm-selection div {
+            background-color: rgba(255, 255, 255, 0.3) !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-message" style="color: #00ff00; padding: 20px; background: #0c0c0c;">Terminal loading...</div>
+    <div id="terminal-container"></div>
+    <div id="error-message" style="color: red; padding: 20px; display: none;"></div>
+
+    <!-- Right-click context menu (dark mode) -->
+    <div id="term-ctx-menu">
+        <div class="ctx-item" data-action="copy">Copy</div>
+        <div class="ctx-item" data-action="selectall">Select All</div>
+        <div class="ctx-item" data-action="copyall">Copy All</div>
+        <div class="ctx-sep"></div>
+        <div class="ctx-item" data-action="paste">Paste</div>
+        <div class="ctx-item" data-action="clear">Clear</div>
+    </div>
+    <script>
+        // Store logs until pyTerminal is available
+        let logQueue = [];
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function flushLogQueue() {
+            if (window.pyTerminal && logQueue.length > 0) {
+                logQueue.forEach(msg => window.pyTerminal.js_log(msg));
+                logQueue = [];
+            }
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const msg = '[LOG] ' + args.join(' ');
+            if (window.pyTerminal) {
+                window.pyTerminal.js_log(msg);
+            } else {
+                logQueue.push(msg);
+            }
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            const msg = '[ERROR] ' + args.join(' ');
+            if (window.pyTerminal) {
+                window.pyTerminal.js_log(msg);
+            } else {
+                logQueue.push(msg);
+            }
+        };
+        
+        console.log('[TERMINAL] Script starting...');
+        console.log('[TERMINAL] qt.webChannelTransport available:', typeof qt !== 'undefined' && qt.webChannelTransport);
+        console.log('[TERMINAL] QWebChannel available:', typeof QWebChannel !== 'undefined');
+        
+        // Check if xterm.js loaded
+        if (typeof Terminal === 'undefined') {
+            console.error('[TERMINAL] ERROR: Terminal class not found!');
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-message').textContent = 'Error: xterm.js failed to load. Terminal class not found.';
+        } else {
+            console.log('[TERMINAL] Terminal class found, initializing...');
+        }
+        
+        // Hide loading message
+        document.getElementById('loading-message').style.display = 'none';
+        
+        // Initialize xterm.js with performance optimizations
+        let term;
+        try {
+            term = new Terminal({
+                fontFamily: "'Cascadia Code', 'Consolas', monospace",
+            fontSize: 13,
+            cursorBlink: true,
+            // PERFORMANCE: Limit scrollback to prevent memory bloat
+            scrollback: 3000,
+            // PERFORMANCE: Disable features we don't need
+            allowTransparency: false,
+            fastScrollModifier: 'alt',
+            // Padding on both sides (20px left + 8px scrollbar + 12px right = 20px effective right padding)
+            padding: { left: 20, right: 20 },
+            theme: {
+                background: '#0c0c0c',
+                foreground: '#cccccc',
+                selectionBackground: 'rgba(255, 255, 255, 0.3)',
+                selectionForeground: '#ffffff',
+                black: '#0c0c0c',
+                red: '#c50f1f',
+                green: '#13a10e',
+                yellow: '#c19c00',
+                blue: '#0037da',
+                magenta: '#881798',
+                cyan: '#3a96dd',
+                white: '#cccccc',
+                brightBlack: '#767676',
+                brightRed: '#e74856',
+                brightGreen: '#16c60c',
+                brightYellow: '#f9f1a5',
+                brightBlue: '#3b78ff',
+                brightMagenta: '#b4009e',
+                brightCyan: '#61d6d6',
+                brightWhite: '#f2f2f2'
+            }
+        });
+
+        // Load the Fit addon so it automatically resizes to the container
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        
+        // Open the terminal in the container
+        term.open(document.getElementById('terminal-container'));
+        fitAddon.fit();
+
+        // OPTIMIZATION 1: Resize debounce — prevents 100 resize events
+        let _resizeTimer = null;
+        window.addEventListener('resize', () => {
+            if (_resizeTimer) clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(() => {
+                fitAddon.fit();
+                if (window.pyTerminal) {
+                    window.pyTerminal.resize(term.cols, term.rows);
+                }
+                _resizeTimer = null;
+            }, 100);   // debounce 100ms — not every pixel change
+        });
+
+        // OPTIMIZATION 2: Write queue with requestAnimationFrame — prevents bridge flooding
+        let _writeQueue = [];
+        let _rafId = null;
+        const _MAX_BATCH = 65536;   // 64KB per frame max
+
+        function _flushWrites() {
+            _rafId = null;
+            if (_writeQueue.length === 0) return;
+
+            const batch = _writeQueue.join('');
+            _writeQueue = [];
+
+            if (batch.length <= _MAX_BATCH) {
+                term.write(batch);
+            } else {
+                // Write in chunks across multiple frames to stay responsive
+                term.write(batch.slice(0, _MAX_BATCH));
+                let offset = _MAX_BATCH;
+                function writeRest() {
+                    if (offset >= batch.length) return;
+                    const end = Math.min(offset + _MAX_BATCH, batch.length);
+                    term.write(batch.slice(offset, end));
+                    offset = end;
+                    if (offset < batch.length) requestAnimationFrame(writeRest);
+                }
+                requestAnimationFrame(writeRest);
+            }
+        }
+
+        function writeToTerm(text) {
+            _writeQueue.push(text);
+            if (!_rafId) {
+                _rafId = requestAnimationFrame(_flushWrites);
+            }
+        }
+
+        // OPTIMIZATION 3: Input debounce for fast typing/paste
+        let _inputBuffer = '';
+        let _inputTimer = null;
+        function sendInput(data) {
+            _inputBuffer += data;
+            if (!_inputTimer) {
+                _inputTimer = setTimeout(() => {
+                    if (window.pyTerminal && _inputBuffer) {
+                        window.pyTerminal.receive_input(_inputBuffer);
+                        _inputBuffer = '';
+                    }
+                    _inputTimer = null;
+                }, 1);   // 1ms — imperceptible but batches paste operations
+            }
+        }
+
+        let _ignoreOnData = false;
+        let _ignoreTimer = null;
+        function _startIgnoreOnData() {
+            _ignoreOnData = true;
+            if (_ignoreTimer) {
+                clearTimeout(_ignoreTimer);
+            }
+            _ignoreTimer = setTimeout(() => {
+                _ignoreOnData = false;
+                _ignoreTimer = null;
+            }, 50);
+        }
+
+        // Track paste operation to prevent double handling
+        let _isPasting = false;
+        let _pasteTimer = null;
+        
+        // Handle paste events - prevent browser default and use Python clipboard
+        function _handlePasteEvent(e) {
+            if (!window.pyTerminal) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear any existing paste timer
+            if (_pasteTimer) {
+                clearTimeout(_pasteTimer);
+            }
+            
+            // Mark that we're pasting
+            _isPasting = true;
+            _startIgnoreOnData();
+            
+            // Get clipboard data directly
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const pastedText = clipboardData.getData('text');
+            
+            if (pastedText && window.pyTerminal) {
+                // Send directly to Python without going through xterm
+                window.pyTerminal.receive_input(pastedText);
+            }
+            
+            // Reset paste flag after a short delay
+            _pasteTimer = setTimeout(() => { 
+                _isPasting = false; 
+                _pasteTimer = null;
+            }, 100);
+        }
+        
+        // Cleanup function for page unload
+        window.addEventListener('beforeunload', () => {
+            if (_ignoreTimer) clearTimeout(_ignoreTimer);
+            if (_pasteTimer) clearTimeout(_pasteTimer);
+            if (_resizeTimer) clearTimeout(_resizeTimer);
+            if (_inputTimer) clearTimeout(_inputTimer);
+            if (_contextMenuTimer) clearTimeout(_contextMenuTimer);
+            if (_rafId) cancelAnimationFrame(_rafId);
+        });
+
+        // Add paste listener to textarea
+        if (term.textarea) {
+            term.textarea.addEventListener('paste', _handlePasteEvent, true);
+        }
+
+        // Flag to track if we sent from key handler
+        let _sentFromKeyHandler = false;
+        
+        // Block local echo for printable chars, send from key handler
+        term.attachCustomKeyEventHandler(e => {
+            if (e.type === 'keydown') {
+                // Copy
+                if (e.ctrlKey && e.code === 'KeyC') {
+                    if (term.hasSelection()) {
+                        if (window.pyTerminal) {
+                            window.pyTerminal.copy_to_clipboard(term.getSelection());
+                        }
+                        term.clearSelection();
+                        return false; 
+                    }
+                    return true;
+                }
+                // Paste - let the paste event handle it
+                if (e.ctrlKey && e.code === 'KeyV') {
+                    // The paste event will handle this
+                    return false;
+                }
+                // Select All
+                if (e.ctrlKey && e.code === 'KeyA') {
+                    term.selectAll();
+                    return false;
+                }
+                
+                // For printable chars: send from here, block local display
+                if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1) {
+                    if (window.pyTerminal) {
+                        _sentFromKeyHandler = true;
+                        window.pyTerminal.receive_input(e.key);
+                    }
+                    return false;  // Block local display
+                }
+            }
+            return true;
+        });
+
+        // ── Right-click context menu: Copy / Select All / Copy All / Paste / Clear ──
+        let _contextMenuTimer = null;
+        const _ctxMenu = document.getElementById('term-ctx-menu');
+
+        function _hideCtxMenu() { _ctxMenu.style.display = 'none'; }
+
+        async function _doPaste() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text && window.pyTerminal) {
+                    if (_contextMenuTimer) clearTimeout(_contextMenuTimer);
+                    _isPasting = true;
+                    _startIgnoreOnData();
+                    window.pyTerminal.receive_input(text);
+                    _contextMenuTimer = setTimeout(() => { _isPasting = false; _contextMenuTimer = null; }, 100);
+                }
+            } catch (err) {
+                console.error('[TERMINAL] Failed to read clipboard:', err);
+            }
+        }
+
+        function _copySelection() {
+            if (term.hasSelection() && window.pyTerminal) {
+                window.pyTerminal.copy_to_clipboard(term.getSelection());
+            }
+        }
+
+        // Copy ALL terminal text (full scrollback), regardless of current selection.
+        function _copyAll() {
+            term.selectAll();
+            const all = term.getSelection();
+            if (all && window.pyTerminal) {
+                window.pyTerminal.copy_to_clipboard(all);
+            }
+            return all;
+        }
+
+        document.getElementById('terminal-container').addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // Enable/disable Copy based on whether there's a selection
+            const copyItem = _ctxMenu.querySelector('[data-action="copy"]');
+            copyItem.classList.toggle('disabled', !term.hasSelection());
+            // Position the menu, keeping it inside the viewport
+            _ctxMenu.style.display = 'block';
+            const mw = _ctxMenu.offsetWidth, mh = _ctxMenu.offsetHeight;
+            let x = e.clientX, y = e.clientY;
+            if (x + mw > window.innerWidth)  x = window.innerWidth - mw - 4;
+            if (y + mh > window.innerHeight) y = window.innerHeight - mh - 4;
+            _ctxMenu.style.left = x + 'px';
+            _ctxMenu.style.top = y + 'px';
+        });
+
+        _ctxMenu.addEventListener('mousedown', (e) => {
+            e.preventDefault();  // keep terminal focus / selection
+            const action = e.target && e.target.getAttribute('data-action');
+            if (!action) return;
+            switch (action) {
+                case 'copy':      _copySelection(); term.clearSelection(); break;
+                case 'selectall': term.selectAll(); break;
+                case 'copyall':   _copyAll(); term.clearSelection(); break;
+                case 'paste':     _doPaste(); break;
+                case 'clear':     term.clear(); break;
+            }
+            _hideCtxMenu();
+        });
+
+        // Dismiss the menu on any outside click, scroll, Escape, or resize.
+        document.addEventListener('mousedown', (e) => {
+            if (!_ctxMenu.contains(e.target)) _hideCtxMenu();
+        });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') _hideCtxMenu(); });
+        window.addEventListener('resize', _hideCtxMenu);
+        document.getElementById('terminal-container').addEventListener('wheel', _hideCtxMenu, { passive: true });
+
+        // Initialize QWebChannel bridge - wait for qt to be ready
+        function initQWebChannel() {
+            if (typeof qt === 'undefined' || !qt.webChannelTransport) {
+                console.log('[TERMINAL] Waiting for qt.webChannelTransport...');
+                setTimeout(initQWebChannel, 100);
+                return;
+            }
+            console.log('[TERMINAL] qt.webChannelTransport available, initializing QWebChannel...');
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+            window.pyTerminal = channel.objects.pyTerminal;
+            console.log('[TERMINAL] QWebChannel connected, pyTerminal available');
+            
+            // Flush any queued logs
+            flushLogQueue();
+            
+            // Initial resize event to Python
+            window.pyTerminal.resize(term.cols, term.rows);
+
+            // Send input to Python - skip if already sent from key handler or pasting
+            term.onData(data => {
+                // Skip during paste operations
+                if (_isPasting) {
+                    return;
+                }
+                if (_ignoreOnData) {
+                    _startIgnoreOnData();
+                    return;
+                }
+                // Skip if we already sent this from the key handler
+                if (_sentFromKeyHandler && data.length === 1) {
+                    _sentFromKeyHandler = false;
+                    return;
+                }
+                _sentFromKeyHandler = false;
+                sendInput(data);
+            });
+            
+            // Connect Python -> JS (incoming text from stdout) — use write queue
+            window.pyTerminal.send_output.connect(function(text) {
+                writeToTerm(text);
+            });
+            
+            // URL Link Handler - Make URLs clickable with hover underline
+            const URL_REGEX = /https?:\/\/[^\s"'<>]+/g;
+            
+            term.registerLinkProvider({
+                provideLinks(bufferLineNumber, callback) {
+                    const line = term.buffer.active.getLine(bufferLineNumber - 1);
+                    if (!line) {
+                        callback([]);
+                        return;
+                    }
+                    
+                    const text = line.translateToString(true);
+                    const links = [];
+                    let match;
+                    
+                    while ((match = URL_REGEX.exec(text)) !== null) {
+                        const url = match[0];
+                        const startX = match.index + 1;
+                        const endX = match.index + url.length;
+                        
+                        links.push({
+                            text: url,
+                            range: {
+                                start: { x: startX, y: bufferLineNumber },
+                                end: { x: endX, y: bufferLineNumber }
+                            },
+                            activate: function(event, url) {
+                                if (window.pyTerminal) {
+                                    window.pyTerminal.open_external_url(url);
+                                }
+                            }
+                        });
+                    }
+                    
+                    callback(links);
+                }
+            });
+            
+            // Connect Python -> JS (theme update) — dark mode only
+            window.pyTerminal.update_theme.connect(function(is_dark) {
+                document.body.style.backgroundColor = '#0c0c0c';
+                document.body.classList.remove('light-mode');
+                term.options.theme = {
+                    background: '#0c0c0c',
+                    foreground: '#cccccc',
+                    cursor: '#ffffff',
+                    selectionBackground: 'rgba(255, 255, 255, 0.3)',
+                    selectionForeground: '#ffffff'
+                };
+            });
+            
+            // Let Python know we are ready
+            window.pyTerminal.ready();
+            });
+        }
+        
+        // Start waiting for QWebChannel
+        initQWebChannel();
+        } catch (e) {
+            console.error('[TERMINAL] ERROR initializing terminal:', e);
+            document.getElementById('error-message').style.display = 'block';
+            document.getElementById('error-message').textContent = 'Error initializing terminal: ' + e.message;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+(venv) PS C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine> python src\main.py
+[16:10:49] INFO agent_bridge: [BRIDGE] Real agent bootstrap/state loaded
+[16:10:49] INFO agent_bridge: [BRIDGE] Real FileReadTool loaded
+[16:10:49] INFO agent_bridge: [BRIDGE] Real FileEditTool loaded
+[16:10:49] INFO agent_bridge: [BRIDGE] Real FileWriteTool loaded
+[16:10:49] INFO agent_bridge: [BRIDGE] Real GlobTool loaded
+[16:10:50] INFO agent_bridge: [BRIDGE] Real GrepTool loaded
+[16:10:50] INFO agent_bridge: [BRIDGE] Real SementicSearchTool loaded
+[16:10:50] INFO agent_bridge: [BRIDGE] Real AbortController loaded from utils.abortController
+[16:10:50] WARNING main_window: Syntax highlighting module not available
+[16:10:50] INFO stability_engine: [STABILITY] psutil not available ΓÇö using fallback monitoring
+[16:10:50] INFO stability_engine: [STABILITY] Monitor started (interval=5.0s)
+[16:10:50] INFO main_window: MainWindow: __init__ START
+[16:10:50] INFO main_window: MainWindow: Initializing managers...
+[16:10:50] INFO main_window: [GIT] GitManager initialized
+[16:10:50] INFO agent_bridge: [BRIDGE] Initialising Cortex Agent Bridge
+[16:10:50] INFO agent_bridge: [BRIDGE] Agent state: cwd=C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine, session=d2f558c0-13f7-40f5-8ed2-6ce2cc859d29
+[16:10:50] INFO agent_bridge: [CTX] Model limits: mimo-v2.5-pro -> file_cap=200,000 chars
+[16:10:50] INFO agent_bridge: [BRIDGE] FileReadTool instance created
+[16:10:50] INFO streaming: StreamingEventEmitter initialized
+[16:10:50] INFO agent_bridge: [BRIDGE] Streaming emitter ready (real-time path: response_chunk ΓåÆ native bridge)
+[16:10:50] INFO agent_bridge: [SESSION] Restored debug loop: state=DebugLoopState.INVESTIGATING, cycles=3
+[16:10:50] INFO agent_bridge: [SESSION] Injected resume marker: [System: Session resumed from 2026-06-24 16:10:34. 12 mutations had been made, 0...
+[16:10:50] INFO agent_bridge: [SESSION] Session restored from snapshot
+[16:10:50] INFO agent_bridge: [BRIDGE] Agent bridge ready
+[16:10:51] INFO provider_registry: MistralProvider registered
+[16:10:51] INFO provider_registry: SiliconFlowProvider registered
+[16:10:51] INFO provider_registry: DeepSeekProvider registered with V4 models
+[16:10:51] INFO provider_registry: KimiProvider registered with K2.6 model
+[16:10:51] INFO provider_registry: MimoProvider registered with V2.5 models
+[16:10:51] INFO provider_registry: OpenAIProvider registered
+[16:10:51] INFO provider_registry: OpenRouterProvider registered with 20+ models
+[16:10:51] INFO provider_registry: AlibabaProvider registered with Qwen models
+[16:10:51] INFO agent_bridge: [BRIDGE] Provider registry pre-warmed
+[16:10:51] INFO agent_bridge: [BRIDGE] file_edit_notification signal initialized
+[16:10:51] INFO main_window: [AGENT] Agent bridge initialized - full integration active
+[16:10:51] INFO main_window: MainWindow: Building UI...
+[16:10:52] INFO xterm_terminal: [DEV] Loading terminal from: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\src\ui\components\terminal.html
+[16:10:52] INFO xterm_terminal: Loading terminal from URL: file:///C:/Users/Hakeem1/OneDrive/Desktop/Cortex_Ai_Agent/cortex-Cortex-Engine/src/ui/components/terminal.html
+[16:10:52] INFO main_window: MainWindow: Building Menu...
+[16:10:52] INFO main_window: MainWindow: Building Status Bar...
+[16:10:52] INFO main_window: MainWindow: Connecting signals...
+[16:10:52] INFO main_window: [NATIVE-CHAT] AgentBridge ΓåÆ ChatPanel wired via NativeChatBridge
+[16:10:52] INFO main_window: Permission system initialized and connected to main window
+[16:10:52] INFO main_window: MainWindow: Applying initial theme...
+[16:10:52] INFO main_window: MainWindow: Initialization complete (session restore deferred).
+[16:10:52] INFO main_window: [ICON] Successfully loaded icon: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\src\assets\logo\taskbar_rounded.png
+[16:10:52] INFO main_window: [STARTUP] Deferring window show to event loop...
+[16:10:52] INFO main_window: [STARTUP] _deferred_show: calling showMaximized() directly...
+[16:10:52] INFO main_window: [STARTUP] _deferred_show: window shown
+[16:10:53] INFO sidebar: [Sidebar] Loading: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\src\ui\html\sidebar.html
+[16:10:53] INFO main_window: [DWM] Dark title bar applied to HWND=1510670
+[16:10:53] INFO main_window: [STARTUP] Deferred session restore starting...
+[16:10:53] INFO main_window: Restoring last session project...
+[16:10:53] INFO project_manager: Opened project: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO main_window: Project opened: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO main_window: [PROJECT-SWITCH] Switching to: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO main_window: ≡ƒåò First project load - skipping cleanup
+[16:10:53] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:10:53] INFO database: Database indexes created (optimized for C:\Users\Hakeem1\.cortex\cortex.db)
+[16:10:53] INFO database: Cortex database initialized at C:\Users\Hakeem1\.cortex\cortex.db
+[16:10:53] INFO agent_bridge: [SESSION] _restore_latest_conversation: latest conv_id=0b6f0909-5b6c-4e56-ab74-71479fbf393a
+[16:10:53] INFO agent_bridge: [SESSION] Restored 20 messages from conversation 0b6f0909-5b6c-4e56-ab74-71479fbf393a
+[16:10:53] INFO main_window: [GIT] Repository set on project-opened: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine (ok=True)
+[16:10:53] INFO main_window: [ChatPersist] Setting up for project_path='C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine'
+[16:10:53] INFO main_window: [ChatPersist] Bridge conv_id synced to 0b6f0909-5b6c-4e56-ab74-71479fbf393a
+[16:10:53] INFO main_window: [ChatPersist] Queued async restore of 8 messages for 0b6f0909-5b6c-4e56-ab74-71479fbf393a (project=C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine)
+[16:10:53] INFO crash_persistence: [CrashStore] Initialized at C:\Users\Hakeem1\.cortex\cortex.db
+[16:10:53] INFO main_window: [ChatPersist] Connected save callback to response_complete
+[16:10:53] INFO main_window: [ChatPersist] Persistence wired for conv_id=0b6f0909-5b6c-4e56-ab74-71479fbf393a (project=C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine)
+[16:10:53] INFO sidebar_bridge: [SidebarBridge] Project path set: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO sidebar_bridge: [SidebarBridge] File watcher started for: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO main_window: [GIT] Repository restored to: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO sidebar_bridge: [SidebarBridge] Project path set: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO sidebar_bridge: [SidebarBridge] File watcher started for: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:53] INFO main_window: Session restore: skipping file restoration (open on demand).
+[16:10:53] INFO main_window: [STARTUP] Deferred session restore done in 557ms
+[16:10:54] INFO project_context: Project context built in 121ms for C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:54] INFO project_context: Project context cached for: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+    "type": 3
+}
+
+[16:10:54] INFO sidebar_bridge: [SidebarBridge] Page loaded ΓÇö flushing 2 queued JS calls
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] Connected to agent_bridge.file_tree_refresh_needed
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 37 entries
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 37 entries
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:10:55] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 37 entries
+[16:10:59] INFO main_window: Opening file: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[16:10:59] INFO main_window: [Snapshot] Stored initial snapshot: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py (0 chars)
+[16:10:59] INFO main_window: Content read (0 chars). Detecting language...
+[16:10:59] INFO main_window: Language detected: python. Opening index in tabs...
+[16:10:59] INFO main_window: File opened successfully: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[16:10:59] INFO main_window: File refreshed from disk: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py (0 chars)
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+[16:11:00] INFO main_window: Opening file: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:00] INFO main_window: [Snapshot] Stored initial snapshot: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py (0 chars)
+[16:11:00] INFO main_window: Content read (0 chars). Detecting language...
+[16:11:00] INFO main_window: Language detected: python. Opening index in tabs...
+[16:11:00] INFO main_window: File opened successfully: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:00] INFO main_window: File refreshed from disk: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py (0 chars)
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+[SidebarBridge.deleteFile] CALLED with filepath='C:\\Users\\Hakeem1\\OneDrive\\Desktop\\Cortex_Ai_Agent\\cortex-Cortex-Engine\\hello2.py'
+[SidebarBridge.deleteFile] safe_delete result={'success': True, 'method': 'SHFileOperation', 'message': 'Moved to Recycle Bin'}
+[16:11:02] INFO safe_delete: Moved to Recycle Bin (SHFileOperation): C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[SidebarBridge.deleteFile] emitting file_deleted for abs_path='C:\\Users\\Hakeem1\\OneDrive\\Desktop\\Cortex_Ai_Agent\\cortex-Cortex-Engine\\hello2.py'
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[16:11:02] INFO sidebar_bridge: deleteFile: moved to Recycle Bin ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[SidebarBridge.deleteFile] CALLED with filepath='C:\\Users\\Hakeem1\\OneDrive\\Desktop\\Cortex_Ai_Agent\\cortex-Cortex-Engine\\hello22.py'
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello2.py
+[SidebarBridge.deleteFile] safe_delete result={'success': True, 'method': 'SHFileOperation', 'message': 'Moved to Recycle Bin'}
+[16:11:02] INFO safe_delete: Moved to Recycle Bin (SHFileOperation): C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[SidebarBridge.deleteFile] emitting file_deleted for abs_path='C:\\Users\\Hakeem1\\OneDrive\\Desktop\\Cortex_Ai_Agent\\cortex-Cortex-Engine\\hello22.py'
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:02] INFO sidebar_bridge: deleteFile: moved to Recycle Bin ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:02] INFO agent_bridge: [BRIDGE] project root ΓåÆ C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:02] INFO agent_bridge: [BRIDGE] .cortex/ ready at C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\.cortex
+[16:11:02] INFO main_window: File deleted: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\hello22.py
+[16:11:09] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:09] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 36 entries
+[16:11:19] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:19] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 37 entries
+[16:11:30] INFO main_window: Opening file: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\cortex.log
+[16:11:30] INFO main_window: [Snapshot] Stored initial snapshot: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\cortex.log (10834 chars)
+[16:11:30] INFO main_window: Content read (10834 chars). Detecting language...
+[16:11:30] INFO main_window: Language detected: plaintext. Opening index in tabs...
+[16:11:30] INFO main_window: File opened successfully: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\cortex.log
+[16:11:30] INFO main_window: File refreshed from disk: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\cortex.log (10834 chars)
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+[16:11:36] INFO main_window: Opening file: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\error.log
+[16:11:36] INFO main_window: [Snapshot] Stored initial snapshot: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\error.log (10834 chars)
+[16:11:36] INFO main_window: Content read (10834 chars). Detecting language...
+[16:11:36] INFO main_window: Language detected: plaintext. Opening index in tabs...
+[16:11:36] INFO main_window: File opened successfully: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine\error.log
+No candidates found for "onContentDelivered" with 2 arguments on object _EditorBridge(0x25389843a40) .
+[16:11:37] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: C:\Users\Hakeem1\OneDrive\Desktop\Cortex_Ai_Agent\cortex-Cortex-Engine
+[16:11:37] INFO sidebar_bridge: [SidebarBridge] loadDirectoryTree: 37 entries
+[16:11:40] INFO main_window: [Warmup] Flush after 50.0s ΓÇö opening 0 queued file(s)
+[16:11:40] INFO main_window: [Warmup] Queue flushed ΓÇö Chromium should now be stable
