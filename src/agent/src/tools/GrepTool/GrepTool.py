@@ -941,7 +941,7 @@ class GrepTool:
         path = inp.get("path")
         glob_pattern = inp.get("glob")
         file_type = inp.get("type")
-        output_mode = inp.get("output_mode", "files_with_matches")
+        output_mode = inp.get("output_mode", "content")
         context_before = inp.get("before_context")
         context_after = inp.get("after_context")
         context_c = inp.get("context_lines")

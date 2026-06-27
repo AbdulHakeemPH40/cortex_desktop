@@ -531,8 +531,8 @@ class TerminalCard(ToolCardBase):
             cmd_lbl.setMouseTracking(True)
             cmd_lbl.setStyleSheet(
                 f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
-                f"color:{T['tool_search']};background:{T['bg']};"
-                f"padding:4px 8px;border:none;"
+                f"color:{T['tool_search']};background:transparent;"
+                f"padding:4px 8px;border:0px solid transparent;margin:0;"
             )
             cmd_lbl.installEventFilter(self)
             self.body_layout.addWidget(cmd_lbl)
@@ -573,15 +573,15 @@ class TerminalCard(ToolCardBase):
             if event.type() == QEvent.Type.Enter:
                 self._cmd_lbl.setStyleSheet(
                     f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
-                    f"color:{T['tool_search']};background:{T['border']};"
-                    f"padding:4px 8px;border:none;"
+                    f"color:{T['tool_search']};background:transparent;"
+                    f"padding:4px 8px;border:0px solid transparent;margin:0;"
                 )
                 return True
             elif event.type() == QEvent.Type.Leave:
                 self._cmd_lbl.setStyleSheet(
                     f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
-                    f"color:{T['tool_search']};background:{T['bg']};"
-                    f"padding:4px 8px;border:none;"
+                    f"color:{T['tool_search']};background:transparent;"
+                    f"padding:4px 8px;border:0px solid transparent;margin:0;"
                 )
                 return True
         return super().eventFilter(obj, event)

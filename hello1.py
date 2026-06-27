@@ -1,1 +1,0 @@
-i have a question when dangerous  command run like -r delete file asking permission card its wired properly on ai_agent ? & edit permission card & delete permission card both different design right ?

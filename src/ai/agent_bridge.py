@@ -5996,20 +5996,29 @@ They survive auto-compaction and are ALWAYS active:
                         continue
                     # Format: "path/to/file.py:123: matched text"
                     parts = line.split(':', 2)
-                    if len(parts) >= 2:
+                    if len(parts) >= 3:
+                        fpath = parts[0].strip()
+                        try:
+                            lineno = int(parts[1].strip())
+                        except ValueError:
+                            lineno = 0
+                        text = parts[2].strip()
+                        fname = fpath.split('/')[-1].split('\\')[-1]
+                        matches.append({"file": fname, "line": lineno, "path": fpath, "text": text})
+                    elif len(parts) == 2:
                         fpath = parts[0].strip()
                         try:
                             lineno = int(parts[1].strip())
                         except ValueError:
                             lineno = 0
                         fname = fpath.split('/')[-1].split('\\')[-1]
-                        matches.append({"file": fname, "line": lineno, "path": fpath})
+                        matches.append({"file": fname, "line": lineno, "path": fpath, "text": ""})
             elif isinstance(data, list):
                 data_list: List[Any] = cast(List[Any], data)
                 for item in data_list[:15]:
                     if isinstance(item, str):
                         fname = item.split('/')[-1].split('\\')[-1]
-                        matches.append({"file": fname, "line": 0, "path": item})
+                        matches.append({"file": fname, "line": 0, "path": item, "text": ""})
             elif isinstance(data, dict):
                 # Possible {files: [...]} or {matches: [...]}
                 data_map = cast(Dict[str, Any], data)
@@ -6023,7 +6032,16 @@ They survive auto-compaction and are ALWAYS active:
                     for item in items[:15]:
                         if isinstance(item, str):
                             fname = item.split('/')[-1].split('\\')[-1]
-                            matches.append({"file": fname, "line": 0, "path": item})
+                            matches.append({"file": fname, "line": 0, "path": item, "text": ""})
+                        elif isinstance(item, dict):
+                            # Structured match with file/line/text
+                            fname = item.get("file", "").split('/')[-1].split('\\')[-1]
+                            matches.append({
+                                "file": fname,
+                                "line": item.get("line", 0),
+                                "path": item.get("file", ""),
+                                "text": item.get("text", "")
+                            })
         except (json.JSONDecodeError, TypeError):
             # Plain text — parse lines
             for line in result_str.split('\n')[:15]:
@@ -6031,16 +6049,25 @@ They survive auto-compaction and are ALWAYS active:
                 if not line or line.startswith('---') or line.startswith('==='):
                     continue
                 parts = line.split(':', 2)
-                if len(parts) >= 2:
+                if len(parts) >= 3:
+                    fpath = parts[0].strip()
+                    try:
+                        lineno = int(parts[1].strip())
+                    except ValueError:
+                        lineno = 0
+                    text = parts[2].strip()
+                    fname = fpath.split('/')[-1].split('\\')[-1]
+                    matches.append({"file": fname, "line": lineno, "path": fpath, "text": text})
+                elif len(parts) == 2:
                     fpath = parts[0].strip()
                     try:
                         lineno = int(parts[1].strip())
                     except ValueError:
                         lineno = 0
                     fname = fpath.split('/')[-1].split('\\')[-1]
-                    matches.append({"file": fname, "line": lineno, "path": fpath})
+                    matches.append({"file": fname, "line": lineno, "path": fpath, "text": ""})
                 else:
-                    matches.append({"file": line[:60], "line": 0, "path": line})
+                    matches.append({"file": line[:60], "line": 0, "path": line, "text": ""})
         return matches
 
     @staticmethod

@@ -50,4 +50,10 @@ MODEL_GROUPS = [
         ("qwen-flash", "Qwen Flash", "1M ctx · fast · free quota", "#f59e0b"),
         ("qwen-turbo", "Qwen Turbo", "1M ctx · low cost", "#f59e0b"),
     ], "byok"),
+
+    # ── Coming Soon ──
+    ("Coming Soon", [
+        ("mistral-soon", "Mistral AI", "Mistral Large, Codestral", "#6b7280"),
+        ("kimi-soon", "Kimi (Moonshot)", "Kimi K2.6", "#6b7280"),
+    ], "coming_soon"),
 ]

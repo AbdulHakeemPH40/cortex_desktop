@@ -1217,13 +1217,13 @@ class ToolRow(QWidget):
         return super().eventFilter(obj, event)
 
     def enterEvent(self, event):
-        """Phase 3A: Subtle border glow on hover."""
+        """Phase 3A: Subtle background highlight on hover — no border."""
         self._hover_ss = self.styleSheet()
-        self.setStyleSheet(f"border:1px solid {T.get('border_hover', '#444')};border-radius:4px;")
+        self.setStyleSheet(f"background:{T['bg_hover']};border:none;border-radius:4px;")
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        """Phase 3A: Remove hover glow."""
+        """Phase 3A: Remove hover highlight."""
         self.setStyleSheet(getattr(self, '_hover_ss', ''))
         super().leaveEvent(event)
 
@@ -1503,9 +1503,8 @@ class ToolGroup(CollapsibleCard):
                 _contain_label(cmd_lbl)
                 cmd_lbl.setStyleSheet(
                     f"font-family:{T['font_mono']};font-size:{T['font_size_xs']};"
-                    f"color:{T['tool_search']};background:{T['bg']};"
-                    f"padding:4px 8px;border:1px solid {T['border']};"
-                    f"border-radius:2px;"
+                    f"color:{T['tool_search']};background:transparent;"
+                    f"padding:4px 8px;border:0px solid transparent;margin:0;"
                 )
                 card.body_layout.addWidget(cmd_lbl)
 
@@ -3961,6 +3960,32 @@ class InputArea(QWidget):
                     # Store ref so we can add items into it below
                     _current_section_frame = section_frame
                     _current_section_items_layout = _sub_layout
+                elif tier == "coming_soon":
+                    # ═══ Coming Soon section — disabled items ═══
+                    section_frame = QFrame()
+                    section_frame.setStyleSheet(
+                        f"QFrame {{ background:transparent;"
+                        f"  border:1px solid rgba({_border_dim[1:]},0.25);"
+                        f"  border-radius:6px; margin:6px 2px 4px 2px; }}"
+                    )
+                    section_layout = QVBoxLayout(section_frame)
+                    section_layout.setContentsMargins(6, 6, 6, 4)
+                    section_layout.setSpacing(1)
+                    section_lbl = QLabel("🕐  Coming Soon")
+                    section_lbl.setStyleSheet(
+                        f"color:{T.get('muted','#666')}; font-size:10px; font-weight:600;"
+                        f"  padding:0px 6px 4px 6px; background:transparent; border:none;"
+                        f"  letter-spacing:0.2px;"
+                    )
+                    section_lbl.setEnabled(False)
+                    section_layout.addWidget(section_lbl)
+                    _sub_container = QWidget()
+                    _sub_layout = QVBoxLayout(_sub_container)
+                    _sub_layout.setContentsMargins(0, 0, 0, 0)
+                    _sub_layout.setSpacing(1)
+                    section_layout.addWidget(_sub_container)
+                    _current_section_frame = section_frame
+                    _current_section_items_layout = _sub_layout
                 else:
                     # ═══ BYOK section — smaller header, subtle border ═══
                     section_frame = QFrame()
@@ -4004,29 +4029,32 @@ class InputArea(QWidget):
             for value, name, subtitle, color in items:
                 text = f"{name}   {subtitle}"
                 item_btn = QPushButton(text)
-                item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 item_btn.setFlat(True)
-                # Subscription models get a subtle accent-colored dot indicator
-                if tier == "subscription":
-                    dot = "●  "
+                # Coming soon models are disabled
+                if tier == "coming_soon":
+                    item_btn.setEnabled(False)
+                    item_btn.setCursor(Qt.CursorShape.ForbiddenCursor)
+                    item_btn.setStyleSheet(
+                        "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
+                        f"  background:transparent; color:{T.get('muted','#555')}; border:none; font-size:13px; }}"
+                    )
+                elif tier == "subscription":
+                    item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     item_btn.setStyleSheet(
                         "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
                         f"  background:transparent; color:{T['menu_text']}; border:none; font-size:13px; }}"
                         f"QPushButton:hover {{ background:{T['menu_selected']}; color:{T['white']}; }}"
                     )
+                    item_btn.setText(f"● {text}")
+                    item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
                 else:
-                    dot = ""
+                    item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     item_btn.setStyleSheet(
                         "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
                         f"  background:transparent; color:{T['text_secondary']}; border:none; font-size:13px; }}"
                         f"QPushButton:hover {{ background:{T['menu_selected']}; color:{T['white']}; }}"
                     )
-                # Prefix with accent dot for subscription models (plain text — QPushButton doesn't support rich text)
-                if dot:
-                    item_btn.setText(f"● {text}")
-                else:
-                    item_btn.setText(text)
-                item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
+                    item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
                 _current_section_items_layout.addWidget(item_btn)
 
         scroll_layout.addStretch()

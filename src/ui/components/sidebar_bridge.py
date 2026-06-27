@@ -1452,7 +1452,10 @@ class SidebarBridge(QObject):
 
     def _on_file_tree_refresh_needed(self, *args):
         """Called when agent_bridge.file_tree_refresh_needed fires."""
-        if self._suppress_refresh or self._ai_active or getattr(self, '_suppress_watcher', False):
+        # Check both bridge-level and sidebar-level _ai_active flags
+        _parent = self.parent()
+        _parent_ai_active = getattr(_parent, '_ai_active', False) if _parent else False
+        if self._suppress_refresh or self._ai_active or _parent_ai_active or getattr(self, '_suppress_watcher', False):
             return
         from PyQt6.QtCore import QTimer
         if getattr(self, '_tree_refresh_debounce', None) is None:

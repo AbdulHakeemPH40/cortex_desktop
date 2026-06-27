@@ -191,7 +191,42 @@
             <div class="setting-info"><label>Primary model</label>
               <p>The default model used for new chats.</p>
             </div>
-            <select class="setting-select" id="defaultModel"><option value="mimo-v2.5-pro" selected>MiMo V2.5 Pro (Xiaomi)</option><option value="deepseek-v4">DeepSeek V4</option><option value="kimi-k2.6">Kimi K2.6 (Moonshot)</option><option value="mistral-large">Mistral Large</option><option value="openai-gpt-4o">GPT-4o (OpenAI)</option><option value="openrouter">OpenRouter (20+ models)</option><option value="qwen-max">Qwen Max (Alibaba)</option><option value="siliconflow">SiliconFlow</option><option value="auto">Auto (Best available)</option></select>
+            <select class="setting-select" id="defaultModel">
+              <option value="auto" selected>Auto (Smart routing)</option>
+              <option value="mimo-v2.5-pro">MiMo V2.5 Pro (Subscription)</option>
+              <option value="deepseek-v4-pro">DeepSeek V4 Pro (Subscription)</option>
+              <option value="gpt-5.5">GPT-5.5 (OpenAI BYOK)</option>
+              <option value="gpt-5.4">GPT-5.4 (OpenAI BYOK)</option>
+              <option value="anthropic/claude-opus-4-8">Claude Opus 4.8 (OpenRouter)</option>
+              <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (OpenRouter)</option>
+              <option value="qwen3.7-plus">Qwen 3.7 Plus (Alibaba)</option>
+            </select>
+          </div>
+        </div>
+        <div class="settings-card">
+          <h3>Cortex Subscription</h3>
+          <p class="card-desc">Included with your Cortex subscription — no API key required.</p>
+          <div class="provider-row" style="opacity:0.7">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#a78bfa;color:white">D</div>
+              <div><label>DeepSeek V4</label>
+                <p>1.6T params · 1M ctx · included</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
+            </div>
+          </div>
+          <div class="provider-row" style="opacity:0.7">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#f97316;color:white">X</div>
+              <div><label>Xiaomi MiMo</label>
+                <p>MiMo V2.5 Pro · 42B MoE · included</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
+            </div>
           </div>
         </div>
         <div class="settings-card">
@@ -201,7 +236,7 @@
             <div class="provider-info">
               <div class="provider-logo openai">O</div>
               <div><label>OpenAI</label>
-                <p>GPT-4o, GPT-5</p>
+                <p>GPT-5.5, GPT-5.4</p>
               </div>
             </div>
             <div class="provider-key">
@@ -210,94 +245,102 @@
           </div>
           <div class="provider-row">
             <div class="provider-info">
-              <div class="provider-logo deepseek">D</div>
-              <div><label>DeepSeek</label>
-                <p>DeepSeek V4, DeepSeek Coder</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="deepseekKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo mistral">M</div>
-              <div><label>Mistral AI</label>
-                <p>Mistral Large, Codestral</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="mistralKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#6366f1;color:white">K</div>
-              <div><label>Kimi (Moonshot)</label>
-                <p>Kimi K2.6</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="kimiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#f97316;color:white">X</div>
-              <div><label>Xiaomi MiMo</label>
-                <p>MiMo V2.5 Pro</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="mimoKey" placeholder="API key"><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo google">G</div>
-              <div><label>Google AI</label>
-                <p>Gemini 2.5 Pro, Flash</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="googleKey" placeholder="AIza..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
               <div class="provider-logo" style="background:#8b5cf6;color:white">R</div>
               <div><label>OpenRouter</label>
-                <p>20+ models via single API</p>
+                <p>Anthropic, Google, NVIDIA, GLM</p>
               </div>
             </div>
             <div class="provider-key">
               <input type="password" class="setting-input" id="openrouterKey" placeholder="sk-or-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
             </div>
           </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#06b6d4;color:white">Q</div>
-              <div><label>Alibaba Qwen</label>
-                <p>Qwen Max, Qwen Plus</p>
+            <div class="provider-row">
+              <div class="provider-info">
+                <div class="provider-logo" style="background:#f59e0b;color:white">Q</div>
+                <div><label>Alibaba Qwen</label>
+                  <p>Qwen 3.7 Plus, Qwen Flash, Qwen Coder</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <input type="password" class="setting-input" id="alibabaKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="alibabaKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
           </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo ollama">O</div>
-              <div><label>Ollama (Local)</label>
-                <p>Run models locally — no API key needed</p>
+          <div class="settings-card">
+            <h3>Local Models</h3>
+            <p class="card-desc">Run models locally on your machine — no API key required.</p>
+            <div class="provider-row">
+              <div class="provider-info">
+                <div class="provider-logo ollama">O</div>
+                <div><label>Ollama</label>
+                  <p>Run open-source models locally</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <input type="text" class="setting-input" id="ollamaUrl" placeholder="http://localhost:11434" value="http://localhost:11434"><button class="setting-btn" id="testOllama">Test</button>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="text" class="setting-input" id="ollamaUrl" placeholder="http://localhost:11434" value="http://localhost:11434"><button class="setting-btn" id="testOllama">Test</button>
+          </div>
+          <div class="settings-card" style="border:1px dashed rgba(100,100,100,0.4); background:rgba(255,255,255,0.02)">
+            <h3 style="color:#888">🕐  Coming Soon</h3>
+            <p class="card-desc">These providers will be available in a future update.</p>
+            <div class="provider-row" style="opacity:0.45">
+              <div class="provider-info">
+                <div class="provider-logo google">G</div>
+                <div><label>Google AI</label>
+                  <p>Gemini 2.5 Pro, Flash</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              </div>
+            </div>
+            <div class="provider-row" style="opacity:0.45">
+              <div class="provider-info">
+                <div class="provider-logo" style="background:#d77b4a;color:white">A</div>
+                <div><label>Anthropic</label>
+                  <p>Claude Opus, Sonnet, Haiku</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              </div>
+            </div>
+            <div class="provider-row" style="opacity:0.45">
+              <div class="provider-info">
+                <div class="provider-logo" style="background:#1da1f2;color:white">X</div>
+                <div><label>xAI (Grok)</label>
+                  <p>Grok 3, Grok 3 Mini</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              </div>
+            </div>
+            <div class="provider-row" style="opacity:0.45">
+              <div class="provider-info">
+                <div class="provider-logo mistral">M</div>
+                <div><label>Mistral AI</label>
+                  <p>Mistral Large, Codestral</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              </div>
+            </div>
+            <div class="provider-row" style="opacity:0.45">
+              <div class="provider-info">
+                <div class="provider-logo" style="background:#6366f1;color:white">K</div>
+                <div><label>Kimi (Moonshot)</label>
+                  <p>Kimi K2.6</p>
+                </div>
+              </div>
+              <div class="provider-key">
+                <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
       <!-- MEMORY -->
       <section class="settings-section" data-section="memory">
