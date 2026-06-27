@@ -1112,7 +1112,10 @@ class CortexMainWindow(QMainWindow):
         self._sync_splitter_handles(main_splitter)
         self._sync_splitter_handles(self._editor_terminal_splitter)
         # Auto re-sync handles whenever splitter moves
-        main_splitter.splitterMoved.connect(lambda: self._sync_splitter_handles(main_splitter))
+        # REMOVED: splitterMoved → _sync_splitter_handles during drag
+        # This caused a relayout storm on every pixel of drag movement.
+        # CursorSplitHandle manages its own size; _sync only needed on collapse/expand.
+        # main_splitter.splitterMoved.connect(lambda: self._sync_splitter_handles(main_splitter))
         self._editor_terminal_splitter.splitterMoved.connect(self._on_editor_term_moved)
 
         # Panel toggle state tracking
@@ -4280,11 +4283,8 @@ class CortexMainWindow(QMainWindow):
 
     def _sync_splitter_handles(self, splitter: QSplitter):
         """Hide splitter handles next to hidden panels so no clipped sliver leaks.
-        Visible handles get 6px with dark theme styling.
-        Collapsed handles (one side hidden) get a thin grab bar so the user
-        can drag to expand the hidden panel.
-        Works for BOTH horizontal (vertical divider) and vertical (horizontal divider) splitters.
-        CursorSplitHandle does its own painting — skip setStyleSheet overrides."""
+        Visible handles get 6px. CursorSplitHandle does its own painting.
+        PERFORMANCE: skips redundant setFixed calls when size is already correct."""
         is_vertical = splitter.orientation() == Qt.Orientation.Vertical
         sizes = splitter.sizes()
         for idx in range(1, splitter.count()):
@@ -4295,27 +4295,26 @@ class CortexMainWindow(QMainWindow):
                 left_ok = left.isVisible() and (idx - 1 < len(sizes) and sizes[idx - 1] > 0)
                 right_ok = right.isVisible() and (idx < len(sizes) and sizes[idx] > 0)
                 if left_ok and right_ok:
-                    # Both panels visible → full 6px styled handle
-                    handle.setVisible(True)
-                    if is_vertical:
-                        handle.setFixedHeight(6)
-                    else:
-                        handle.setFixedWidth(6)
-                    # CursorSplitHandle paints itself — no stylesheet override needed
+                    if not handle.isVisible():
+                        handle.setVisible(True)
+                    cur = handle.height() if is_vertical else handle.width()
+                    if cur != 6:
+                        if is_vertical:
+                            handle.setFixedHeight(6)
+                        else:
+                            handle.setFixedWidth(6)
                 elif left_ok or right_ok:
-                    # One panel collapsed → grab bar so user can drag to expand
-                    handle.setVisible(True)
-                    if is_vertical:
-                        handle.setFixedHeight(6)
-                    else:
-                        handle.setFixedWidth(6)
+                    if not handle.isVisible():
+                        handle.setVisible(True)
+                    cur = handle.height() if is_vertical else handle.width()
+                    if cur != 6:
+                        if is_vertical:
+                            handle.setFixedHeight(6)
+                        else:
+                            handle.setFixedWidth(6)
                 else:
-                    # Both panels hidden → fully hide handle
-                    handle.setVisible(False)
-                    if is_vertical:
-                        handle.setFixedHeight(0)
-                    else:
-                        handle.setFixedWidth(0)
+                    if handle.isVisible():
+                        handle.setVisible(False)
 
     def _force_sync_all_splitter_handles(self):
         """Force re-sync ALL splitter handles after window is fully rendered.

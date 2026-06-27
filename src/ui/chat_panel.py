@@ -1017,9 +1017,17 @@ class ThoughtsBlock(CollapsibleCard):
         # only chance to recalculate the height with the correct width.
         old_w = getattr(self, '_last_resize_w', 0)
         new_w = event.size().width()
-        if abs(new_w - old_w) > 2:
+        if abs(new_w - old_w) > 50:
             self._last_resize_w = new_w
-            QTimer.singleShot(0, self._auto_resize_body)
+            # Use a shared debounce timer instead of instant singleShot
+            # to prevent layout storms during splitter drag.
+            if not hasattr(self, '_resize_debounce'):
+                from PyQt6.QtCore import QTimer as _QTimer
+                self._resize_debounce = _QTimer()
+                self._resize_debounce.setSingleShot(True)
+                self._resize_debounce.setInterval(200)
+                self._resize_debounce.timeout.connect(self._auto_resize_body)
+            self._resize_debounce.start()
 
     # ── Theming ──────────────────────────────────────────────────
     def _apply_theme_styles(self):
@@ -7239,23 +7247,25 @@ class ChatPanel(QWidget):
     # Problem 1B — reflow all text bodies on resize
     def resizeEvent(self, e):
         super().resizeEvent(e)
-        # Update all child widget max widths to match viewport.
-        # Always update (not just when shrinking) so widgets can grow
-        # when the window expands.
+        # PERFORMANCE: Cache viewport width to skip redundant findChildren traversal.
+        # During splitter drag, this fires on every pixel — the findChildren(QWidget)
+        # + setMaximumWidth loop is O(n) per call and triggers layout recalculation.
         try:
             vp_w = self.scroll.viewport().width()
-            if vp_w > 0:
+            old_vp_w = getattr(self, '_last_vp_w', 0)
+            if vp_w > 0 and abs(vp_w - old_vp_w) > 10:
+                self._last_vp_w = vp_w
                 max_w = vp_w - 24  # 24 = left+right col margins
                 for w in self.col.parent().findChildren(QWidget):
                     if w != self.scroll and w != self._header:
                         w.setMaximumWidth(max_w)
         except RuntimeError:
             pass
-        # Throttle resize refit — defer with timer to avoid layout storm during streaming
+        # Throttle resize refit — 250ms debounce to avoid layout storm during splitter drag
         if not hasattr(self, '_resize_fit_timer'):
             self._resize_fit_timer = QTimer()
             self._resize_fit_timer.setSingleShot(True)
-            self._resize_fit_timer.setInterval(100)
+            self._resize_fit_timer.setInterval(250)
             self._resize_fit_timer.timeout.connect(self._refit_all_bodies)
         self._resize_fit_timer.start()
 
