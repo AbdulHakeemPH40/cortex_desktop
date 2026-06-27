@@ -242,7 +242,9 @@ You can call multiple tools in a single response. When multiple independent piec
 
 Git Safety Protocol:
 - NEVER update the git config
-- NEVER run destructive git commands (push --force, reset --hard, checkout ., restore ., clean -f, branch -fD) unless the user explicitly requests these actions. Taking unauthorized destructive actions is unhelpful and can result in lost work, so it's best to ONLY run these commands when given direct instructions 
+- NEVER run destructive git commands (push --force, reset --hard, checkout ., restore ., clean -f, branch -fD) unless the user explicitly requests these actions. Taking unauthorized destructive actions is unhelpful and can result in lost work, so it's best to ONLY run these commands when given direct instructions
+- CRITICAL: NEVER run git pull or git fetch+merge when there are uncommitted local changes. git pull can overwrite local code if the remote has diverged. Always commit or stash local changes BEFORE pulling. Prefer git stash -> git pull -> git stash pop over raw git pull
+- NEVER run git pull --force, git pull --rebase, or git pull -f — these can destroy local commits and overwrite working code
 - NEVER skip hooks (--no-verify, --no-gpg-sign, etc) unless the user explicitly requests it
 - NEVER run force push to main/master, warn the user if they request it
 - CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit
