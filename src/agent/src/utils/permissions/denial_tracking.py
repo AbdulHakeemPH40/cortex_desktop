@@ -11,7 +11,7 @@ Use Cases in Cortex IDE:
 - Autonomous coding session keeps hitting restrictions → prompt user for guidance
 
 Multi-LLM Support: Works with all providers (Anthropic, OpenAI, Gemini, DeepSeek,
-Mistral, Groq, Ollama, SiliconFlow) as it's provider-agnostic safety logic.
+Mistral, Groq, SiliconFlow) as it's provider-agnostic safety logic.
 
 Example:
     >>> from denial_tracking import DenialTracker

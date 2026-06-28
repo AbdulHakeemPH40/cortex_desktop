@@ -150,6 +150,7 @@ class _MemoryPage(QWebEnginePage):
 class MemoryManagerBridge(QObject):
     data_changed = pyqtSignal(str)
     toast_requested = pyqtSignal(str, str)
+    model_changed = pyqtSignal(str, str)  # (model_id, model_label)
 
     def __init__(self, project_root: str, settings=None, parent=None):
         super().__init__(parent)
@@ -719,13 +720,22 @@ class MemoryManagerBridge(QObject):
         """Alias for loadInitialData — JS calls bridge.getState()."""
         return self.loadInitialData()
 
+    # API key fields that should be stored in KeyManager (encrypted)
+    _API_KEY_FIELDS = {
+        "ai.openai_key":     "openai",
+        "ai.deepseek_key":   "deepseek",
+        "ai.mistral_key":    "mistral",
+        "ai.mimo_key":       "mimo",
+        "ai.openrouter_key": "openrouter",
+        "ai.alibaba_key":    "alibaba",
+    }
+
     @pyqtSlot(str, str)
     def setSetting(self, key: str, value: str):
         """Persist a single setting by dotted path (e.g. 'editor.font_size').
 
-        If the key contains a dot, the part before the first dot is used as the
-        settings section and the rest as the setting key.  Flat keys (no dot)
-        are stored in the ``ui`` section for backward compatibility.
+        API key fields (ai.*_key) are stored encrypted via KeyManager instead
+        of plain JSON.  All other settings go to ~/.cortex/settings.json.
         """
         try:
             if self._settings:
@@ -734,6 +744,15 @@ class MemoryManagerBridge(QObject):
                     section, setting_key = key.split(".", 1)
                 else:
                     section, setting_key = "ui", key
+
+                # ── API Key: store encrypted via KeyManager ──
+                km_provider = self._API_KEY_FIELDS.get(key)
+                if km_provider is not None:
+                    self._store_api_key(km_provider, value)
+                    # Also store a placeholder in settings (so UI knows a key exists)
+                    self._settings.set(section, setting_key, "***")
+                    log.info(f"[MemoryManager] API key for {km_provider} stored in KeyManager")
+                    return
 
                 # Coerce value to the right Python type
                 low = value.lower()
@@ -752,6 +771,104 @@ class MemoryManagerBridge(QObject):
                 log.info(f"[MemoryManager] setSetting({section}.{setting_key} = {coerced!r})")
         except Exception as e:
             log.warning(f"[MemoryManager] setSetting failed: {e}")
+
+    @pyqtSlot(str, str)
+    def setDefaultModel(self, model_id: str, model_label: str):
+        """Update the default model and notify the chat panel to sync its button."""
+        try:
+            if self._settings:
+                self._settings.set("ai", "model", model_id)
+                self._settings.set("ai", "model_label", model_label)
+            self.model_changed.emit(model_id, model_label)
+            log.info(f"[MemoryManager] Default model changed to: {model_id} ({model_label})")
+        except Exception as e:
+            log.warning(f"[MemoryManager] setDefaultModel failed: {e}")
+
+    # ── Profile & Usage Bridge Methods ────────────────────────────
+
+    @pyqtSlot(result=str)
+    def getProfile(self) -> str:
+        """Return profile data as JSON string."""
+        try:
+            from src.ai.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            return json.dumps(tracker.get_profile())
+        except Exception as e:
+            log.warning(f"[MemoryManager] getProfile failed: {e}")
+            return "{}"
+
+    @pyqtSlot(result=str)
+    def getUsageStats(self) -> str:
+        """Return usage stats as JSON string."""
+        try:
+            from src.ai.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            return json.dumps(tracker.get_usage_stats())
+        except Exception as e:
+            log.warning(f"[MemoryManager] getUsageStats failed: {e}")
+            return "{}"
+
+    @pyqtSlot(str)
+    def setProfile(self, data_json: str):
+        """Update profile fields from JSON."""
+        try:
+            from src.ai.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            data = json.loads(data_json)
+            tracker.update_profile_bulk(data)
+            log.info(f"[MemoryManager] Profile updated: {list(data.keys())}")
+        except Exception as e:
+            log.warning(f"[MemoryManager] setProfile failed: {e}")
+
+    @pyqtSlot(str, str, str, result=str)
+    def getUsageForRange(self, start_date: str, end_date: str, granularity: str) -> str:
+        """Return usage data for a date range (daily/weekly/cumulative)."""
+        try:
+            from src.ai.usage_tracker import get_usage_tracker
+            tracker = get_usage_tracker()
+            data = tracker.get_usage_for_range(start_date, end_date, granularity)
+            return json.dumps(data)
+        except Exception as e:
+            log.warning(f"[MemoryManager] getUsageForRange failed: {e}")
+            return json.dumps({"error": str(e)})
+
+    def _store_api_key(self, provider: str, api_key: str):
+        """Store an API key in KeyManager (encrypted) and hot-reload the provider."""
+        try:
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            success = km.store_key(provider, api_key)
+            if success:
+                log.info(f"[MemoryManager] Encrypted key stored for {provider}")
+                # Hot-reload: update the live provider instance
+                self._reload_provider_key(provider, api_key)
+            else:
+                log.warning(f"[MemoryManager] Failed to store key for {provider}")
+        except Exception as e:
+            log.warning(f"[MemoryManager] _store_api_key error: {e}")
+
+    def _reload_provider_key(self, provider: str, api_key: str):
+        """Push new API key into the live provider instance (no restart needed)."""
+        try:
+            from src.ai.providers import get_provider_registry, ProviderType
+            registry = get_provider_registry()
+            provider_map = {
+                "openai":     ProviderType.OPENAI,
+                "deepseek":   ProviderType.DEEPSEEK,
+                "mistral":    ProviderType.MISTRAL,
+                "mimo":       ProviderType.MIMO,
+                "openrouter": ProviderType.OPENROUTER,
+                "alibaba":    ProviderType.ALIBABA,
+                "siliconflow":ProviderType.SILICONFLOW,
+            }
+            pt = provider_map.get(provider)
+            if pt:
+                p = registry.get_provider(pt)
+                if p and hasattr(p, 'set_api_key'):
+                    p.set_api_key(api_key)
+                    log.info(f"[MemoryManager] Hot-reloaded key for {provider}")
+        except Exception as e:
+            log.debug(f"[MemoryManager] Hot-reload skipped: {e}")
 
     @pyqtSlot(str, result=str)
     def getSetting(self, key: str) -> str:
@@ -772,19 +889,39 @@ class MemoryManagerBridge(QObject):
     def getSettings(self) -> str:
         """Return ALL settings from ALL sections as nested JSON dict.
 
-        The JS side flattens this into dotted paths (e.g. ``editor.font_size``)
-        and uses a SETTINGS_MAP to hydrate every HTML control.
+        API keys are loaded from KeyManager (decrypted) and injected into
+        the ai section so the settings page can display them.
         """
         try:
             if self._settings:
-                # self._settings.all() returns the full nested dict from
-                # ~/.cortex/settings.json merged with DEFAULT_SETTINGS.
-                # Sections: theme, ui_mode, layout, ai_command, editor, ui,
-                #           ai, window, lsp, memory, notifications, git, terminal, etc.
-                return json.dumps(self._settings.all())
+                data = self._settings.all()
+                # Inject API keys from KeyManager into the ai section
+                ai = data.get("ai", {})
+                if isinstance(ai, dict):
+                    for settings_key, km_name in self._API_KEY_FIELDS.items():
+                        _, field = settings_key.split(".", 1)
+                        key = self._load_api_key(km_name)
+                        if key:
+                            ai[field] = key
+                        else:
+                            # Clear placeholder if no real key exists
+                            if ai.get(field) == "***":
+                                ai[field] = ""
+                    data["ai"] = ai
+                return json.dumps(data)
         except Exception:
             pass
         return "{}"
+
+    def _load_api_key(self, provider: str) -> str:
+        """Load an API key from KeyManager (decrypted)."""
+        try:
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            key = km.get_key(provider)
+            return key or ""
+        except Exception:
+            return ""
 
     @pyqtSlot()
     def onSettingsClosed(self):

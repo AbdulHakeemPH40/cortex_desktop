@@ -65,12 +65,9 @@ class AlibabaProvider(BaseProvider):
             # Tool description truncation (matching DeepSeek)
             self._tool_desc_max_chars = self._get_int_env("CORTEX_ALIBABA_TOOL_DESC_MAX_CHARS", 180, minimum=60, maximum=500)
 
-            # Initialize from environment — prefer DASHSCOPE_API_KEY, fall back to QWEN_API_KEY.
-            api_key = os.getenv("DASHSCOPE_API_KEY", "") or os.getenv("QWEN_API_KEY", "")
-            if api_key:
-                self.set_api_key(api_key)
-            else:
-                log.warning("Alibaba Model Studio API key not configured (set DASHSCOPE_API_KEY or QWEN_API_KEY)")
+            # API key loaded automatically by BaseProvider._load_api_key()
+            if not self._api_key:
+                log.warning("Alibaba Model Studio API key not configured (set DASHSCOPE_API_KEY or use Settings)")
         except Exception as e:
             log.warning(f"[Alibaba] __init__ error: {e}")
 

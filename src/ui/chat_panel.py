@@ -340,6 +340,26 @@ def _format_web_tool_result(tool_name: str, result_data) -> str | None:
 _LATEX_BLOCK = re.compile(r'\$\$(.+?)\$\$', re.DOTALL)
 _LATEX_INLINE = re.compile(r'(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)')
 
+def _show_toast(parent, message: str, duration_ms: int = 3000):
+    """Show a brief toast notification on the parent widget."""
+    from PyQt6.QtCore import QTimer as _QTimer
+    toast = QLabel(message, parent)
+    toast.setStyleSheet(
+        "background:#333; color:#fff; padding:8px 16px; border-radius:6px;"
+        "font-size:12px; font-weight:500;"
+    )
+    toast.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    toast.setWordWrap(True)
+    toast.setFixedWidth(min(parent.width() - 40, 400))
+    toast.adjustSize()
+    # Position at bottom-center of parent
+    x = (parent.width() - toast.width()) // 2
+    y = parent.height() - toast.height() - 20
+    toast.move(x, y)
+    toast.show()
+    toast.raise_()
+    _QTimer.singleShot(duration_ms, toast.deleteLater)
+
 def _convert_latex_to_unicode(text: str) -> str:
     """Convert LaTeX math ($..$ and $$..$$) to Unicode using flatlatex."""
     if '$' not in text:
@@ -3922,18 +3942,51 @@ class InputArea(QWidget):
         scroll_layout.setSpacing(1)
         scroll_container.setStyleSheet(f"background:{T['menu_bg']};")
 
-        # ── Subscription accent color (from tokens) ──
+        # ── API key status check ──
         _accent_primary = T.get('accent_primary', '#7c5cff')
-        _accent_dim = T.get('accent', '#6a5acd')
         _border_dim = T.get('separator', '#333')
+        try:
+            from src.core.key_manager import KeyManager
+            _km = KeyManager()
+        except Exception:
+            _km = None
 
-        # ── Track which tiers we've rendered to insert section headers ──
+        _PROVIDER_KEY_MAP = {
+            "deepseek": "deepseek",
+            "mimo": "mimo",
+            "gpt": "openai",
+            "openai": "openai",
+            "anthropic": "openrouter",
+            "google": "openrouter",
+            "nvidia": "openrouter",
+            "z-ai": "openrouter",
+            "qwen": "alibaba",
+        }
+        def _has_key(provider_hint: str) -> bool:
+            if _km is None:
+                log.warning(f"[DROPDOWN] KeyManager not available")
+                return False
+            km_name = _PROVIDER_KEY_MAP.get(provider_hint, "")
+            if not km_name:
+                log.debug(f"[DROPDOWN] No key mapping for provider_hint='{provider_hint}'")
+                return False
+            try:
+                key = _km.get_key(km_name)
+                result = bool(key)
+                log.info(f"[DROPDOWN] _has_key('{provider_hint}') → km_name='{km_name}', found={result}")
+                return result
+            except Exception as e:
+                log.warning(f"[DROPDOWN] _has_key error for '{provider_hint}': {e}")
+                return False
+
+        # ── Build model items ──
+        _accent_primary = T.get('accent_primary', '#7c5cff')
         _last_tier = None
         for group_label, items, tier in MODEL_GROUPS:
-            # Insert section header when tier changes
+            # Section header on tier change
             if tier != _last_tier:
                 if tier == "subscription":
-                    # ═══ Cortex Subscription section — highlighted border ═══
+                    # ═══ Subscription section — highlighted border ═══
                     section_frame = QFrame()
                     section_frame.setStyleSheet(
                         f"QFrame {{ background:rgba({_accent_primary[1:]},0.08);"
@@ -3943,39 +3996,11 @@ class InputArea(QWidget):
                     section_layout = QVBoxLayout(section_frame)
                     section_layout.setContentsMargins(6, 6, 6, 4)
                     section_layout.setSpacing(1)
-                    section_lbl = QLabel("⚡  Cortex Subscription")
+                    section_lbl = QLabel("⚡  Subscription")
                     section_lbl.setStyleSheet(
                         f"color:{_accent_primary}; font-size:11px; font-weight:700;"
                         f"  padding:0px 6px 4px 6px; background:transparent; border:none;"
                         f"  letter-spacing:0.3px;"
-                    )
-                    section_lbl.setEnabled(False)
-                    section_layout.addWidget(section_lbl)
-                    # Container inside the bordered frame for the model items
-                    _sub_container = QWidget()
-                    _sub_layout = QVBoxLayout(_sub_container)
-                    _sub_layout.setContentsMargins(0, 0, 0, 0)
-                    _sub_layout.setSpacing(1)
-                    section_layout.addWidget(_sub_container)
-                    # Store ref so we can add items into it below
-                    _current_section_frame = section_frame
-                    _current_section_items_layout = _sub_layout
-                elif tier == "coming_soon":
-                    # ═══ Coming Soon section — disabled items ═══
-                    section_frame = QFrame()
-                    section_frame.setStyleSheet(
-                        f"QFrame {{ background:transparent;"
-                        f"  border:1px solid rgba({_border_dim[1:]},0.25);"
-                        f"  border-radius:6px; margin:6px 2px 4px 2px; }}"
-                    )
-                    section_layout = QVBoxLayout(section_frame)
-                    section_layout.setContentsMargins(6, 6, 6, 4)
-                    section_layout.setSpacing(1)
-                    section_lbl = QLabel("🕐  Coming Soon")
-                    section_lbl.setStyleSheet(
-                        f"color:{T.get('muted','#666')}; font-size:10px; font-weight:600;"
-                        f"  padding:0px 6px 4px 6px; background:transparent; border:none;"
-                        f"  letter-spacing:0.2px;"
                     )
                     section_lbl.setEnabled(False)
                     section_layout.addWidget(section_lbl)
@@ -3987,7 +4012,7 @@ class InputArea(QWidget):
                     _current_section_frame = section_frame
                     _current_section_items_layout = _sub_layout
                 else:
-                    # ═══ BYOK section — smaller header, subtle border ═══
+                    # ═══ BYOK section ═══
                     section_frame = QFrame()
                     section_frame.setStyleSheet(
                         f"QFrame {{ background:transparent;"
@@ -4027,34 +4052,53 @@ class InputArea(QWidget):
 
             # Model items
             for value, name, subtitle, color in items:
-                text = f"{name}   {subtitle}"
-                item_btn = QPushButton(text)
-                item_btn.setFlat(True)
-                # Coming soon models are disabled
-                if tier == "coming_soon":
-                    item_btn.setEnabled(False)
-                    item_btn.setCursor(Qt.CursorShape.ForbiddenCursor)
-                    item_btn.setStyleSheet(
-                        "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
-                        f"  background:transparent; color:{T.get('muted','#555')}; border:none; font-size:13px; }}"
-                    )
-                elif tier == "subscription":
+                # Determine provider from model_id
+                provider_hint = ""
+                v_lower = value.lower()
+                for _pk in _PROVIDER_KEY_MAP:
+                    if v_lower.startswith(_pk + "/") or v_lower.startswith(_pk + "-"):
+                        provider_hint = _pk
+                        break
+                if not provider_hint:
+                    for _pk in _PROVIDER_KEY_MAP:
+                        if v_lower.startswith(_pk):
+                            provider_hint = _pk
+                            break
+                if not provider_hint:
+                    provider_hint = value.split("/")[0].split("-")[0].lower()
+                has_key = _has_key(provider_hint)
+                is_subscription = (tier == "subscription")
+
+                # Icon logic:
+                #   Subscription       → ●  (always works)
+                #   BYOK with key      → ●  (key configured)
+                #   BYOK without key   → no icon (toast on click)
+                if is_subscription or has_key:
+                    text = f"● {name}   {subtitle}"
+                    item_btn = QPushButton(text)
+                    item_btn.setFlat(True)
                     item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     item_btn.setStyleSheet(
                         "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
-                        f"  background:transparent; color:{T['menu_text']}; border:none; font-size:13px; }}"
+                        f"  background:transparent; color:{T['white']}; border:none; font-size:13px; }}"
                         f"QPushButton:hover {{ background:{T['menu_selected']}; color:{T['white']}; }}"
                     )
-                    item_btn.setText(f"● {text}")
                     item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
                 else:
+                    # BYOK without key — no icon, toast on click
+                    text = f"{name}   {subtitle}"
+                    item_btn = QPushButton(text)
+                    item_btn.setFlat(True)
                     item_btn.setCursor(Qt.CursorShape.PointingHandCursor)
                     item_btn.setStyleSheet(
                         "QPushButton { text-align:left; padding:5px 14px; border-radius:4px;"
-                        f"  background:transparent; color:{T['text_secondary']}; border:none; font-size:13px; }}"
+                        f"  background:transparent; color:{T['white']}; border:none; font-size:13px; }}"
                         f"QPushButton:hover {{ background:{T['menu_selected']}; color:{T['white']}; }}"
                     )
-                    item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
+                    def _warn_no_key(_checked=False, _v=value, _n=name):
+                        _show_toast(self, f"API key required for {_n} — add in Settings")
+                        self._set_model(_v, _n)
+                    item_btn.clicked.connect(_warn_no_key)
                 _current_section_items_layout.addWidget(item_btn)
 
         scroll_layout.addStretch()

@@ -58,7 +58,6 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     GOOGLE = "google"  # Gemini
     QWEN = "qwen"  # Alibaba
-    KIMI = "kimi"  # Moonshot AI
 
 
 # Provider environment variable mapping
@@ -67,7 +66,6 @@ PROVIDER_ENV_VARS = {
     LLMProvider.ANTHROPIC: "CORTEX_ANTHROPIC_API_KEY",
     LLMProvider.GOOGLE: "CORTEX_GOOGLE_API_KEY",
     LLMProvider.QWEN: "CORTEX_QWEN_API_KEY",
-    LLMProvider.KIMI: "MOONSHOT_API_KEY",
 }
 
 # Server configuration

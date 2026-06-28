@@ -50,6 +50,7 @@ from src.ai.session_task import (
     stop_session_task,
 )
 from src.ai.model_limits import ModelLimits
+from src.ai.usage_tracker import UsageTracker
 import urllib.error
 import urllib.request
 
@@ -2157,7 +2158,7 @@ class CortexAgentBridge(QObject):
         self._interaction_mode: str = "default"
         self._conversation_history: List[ChatMessage] = []
         self._history_lock = threading.Lock()  # Protects _conversation_history from concurrent access
-        self._last_turn_reasoning: str = ""  # Preserved from final agentic turn for MiMo/Kimi/DeepSeek
+        self._last_turn_reasoning: str = ""  # Preserved from final agentic turn for MiMo/DeepSeek
         self._current_conversation_id: Optional[str] = None  # Active chat ID for direct DB saves
         self._enhancement_data: Dict[str, Any] = {}
         self._streaming      = None
@@ -2255,6 +2256,14 @@ class CortexAgentBridge(QObject):
 
         # ── Hierarchical task graph ───────────────────────────────────────
         self._task_graph: TaskGraph = TaskGraph()
+
+        # ── Usage Tracker (profile + usage stats for Settings UI) ─────────────
+        try:
+            self._usage_tracker = UsageTracker()
+            log.info("[BRIDGE] UsageTracker initialized")
+        except Exception as _ut_err:
+            log.warning(f"[BRIDGE] UsageTracker init failed: {_ut_err}")
+            self._usage_tracker = None
 
         log.info("[BRIDGE] Initialising Cortex Agent Bridge")
 
@@ -3732,7 +3741,7 @@ They survive auto-compaction and are ALWAYS active:
                 _hist_msg.tool_calls = _tc
             if getattr(cm, 'tool_call_id', None):
                 _hist_msg.tool_call_id = cm.tool_call_id
-            # PRESERVE reasoning_content — MiMo/Kimi/DeepSeek thinking
+            # PRESERVE reasoning_content — MiMo/DeepSeek thinking
             # mode requires reasoning_content from previous assistant
             # messages to be passed back in subsequent requests.
             # Without this, MiMo returns HTTP 400:
@@ -3762,7 +3771,7 @@ They survive auto-compaction and are ALWAYS active:
     # PROVIDER FAILOVER HELPERS
     # ============================================================
 
-    # Failover priority chain: MISTRAL → SILICONFLOW → DEEPSEEK → KIMI → OPENAI
+    # Failover priority chain: MISTRAL → SILICONFLOW → DEEPSEEK → MIMO → OPENAI → OPENROUTER → ALIBABA
     _failover_chain = None  # lazily built
 
     def _get_failover_provider(self, current_type: Any, registry: Any) -> Optional[Any]:
@@ -3779,7 +3788,6 @@ They survive auto-compaction and are ALWAYS active:
                 ProviderType.MISTRAL,
                 ProviderType.SILICONFLOW,
                 ProviderType.DEEPSEEK,
-                ProviderType.KIMI,
                 ProviderType.MIMO,
                 ProviderType.OPENAI,
                 ProviderType.OPENROUTER,
@@ -3822,7 +3830,6 @@ They survive auto-compaction and are ALWAYS active:
             ProviderType.MISTRAL:     'mistral-large-latest',
             ProviderType.SILICONFLOW: 'Qwen/Qwen3-VL-32B-Instruct' if not _is_small else 'Qwen/Qwen3-VL-8B-Instruct',
             ProviderType.DEEPSEEK:    'deepseek-v4-pro',
-            ProviderType.KIMI:        'kimi-k2.6',
             ProviderType.OPENAI:      'gpt-5.4',
             ProviderType.MIMO:        original_model,
             ProviderType.OPENROUTER:  'anthropic/claude-opus-4-8',
@@ -3927,16 +3934,19 @@ They survive auto-compaction and are ALWAYS active:
             
             # Determine provider type based on model ID
             provider_type = ProviderType.DEEPSEEK  # Default (fallback for unmatched models)
-            
+
+            # Reject removed/local provider prefixes — route to default instead
+            if model_lower.startswith("ollama/"):
+                log.warning(f"[BRIDGE] Ollama provider removed — falling back to default for '{model_id}'")
+                provider_type = ProviderType.DEEPSEEK
+                model_id = "deepseek-v4-pro"
             # OpenRouter model IDs use "provider/model-name" format (e.g. anthropic/claude-sonnet-4-5)
-            if "/" in model_lower:
+            elif "/" in model_lower:
                 provider_type = ProviderType.OPENROUTER
             elif model_lower.startswith("deepseek"):
                 provider_type = ProviderType.DEEPSEEK
             elif model_lower.startswith("mistral") or model_lower.startswith("codestral"):
                 provider_type = ProviderType.MISTRAL
-            elif model_lower.startswith("kimi-"):
-                provider_type = ProviderType.KIMI
             elif model_lower.startswith("mimo-"):
                 provider_type = ProviderType.MIMO
             elif "siliconflow" in model_lower:
@@ -4550,7 +4560,7 @@ They survive auto-compaction and are ALWAYS active:
                         _chat_kwargs: Dict[str, Any] = {
                             "retry_callback": _retry_notify
                         }
-                        # Per-provider retry config — ensures DeepSeek/Kimi get
+                        # Per-provider retry config — ensures DeepSeek/MiMo get
                         # the same retry resilience as Mistral.
                         if active_tool_defs:
                             _chat_kwargs["max_retries"] = 3
@@ -9834,7 +9844,7 @@ They survive auto-compaction and are ALWAYS active:
                 except Exception:
                     pass
             # Save assistant turn to history — PRESERVE reasoning_content
-            # for MiMo/Kimi/DeepSeek thinking mode. Without this, the next
+            # for MiMo/DeepSeek thinking mode. Without this, the next
             # request to MiMo returns HTTP 400: "reasoning_content must be
             # passed back to the API."
             _cm = ChatMessage(role="assistant", content=response)
@@ -10504,7 +10514,7 @@ They survive auto-compaction and are ALWAYS active:
                     if len(_content) > 4000:
                         _content = _content[:4000] + '\n... [truncated on restore]'
                     _cm = ChatMessage(role=_m.get('role', 'user'), content=_content)
-                    # PRESERVE reasoning_content — MiMo/Kimi/DeepSeek thinking
+                    # PRESERVE reasoning_content — MiMo/DeepSeek thinking
                     # mode requires reasoning_content from previous assistant
                     # messages to be passed back in subsequent requests.
                     # Without this, MiMo returns HTTP 400:
@@ -10639,7 +10649,7 @@ They survive auto-compaction and are ALWAYS active:
                         self.response_chunk.emit(
                             "\n\n*Image attached but Mistral vision is unavailable "
                             "and the current model does not support image input. "
-                            "Please switch to a vision-capable model (e.g., mimo-v2.5, Kimi) "
+                            "Please switch to a vision-capable model (e.g., mimo-v2.5) "
                             "or configure Mistral API key for image processing.*\n"
                         )
                         self.response_complete.emit("")
@@ -10778,7 +10788,7 @@ They survive auto-compaction and are ALWAYS active:
                 result[name] = info
 
             # Ensure all four main providers are present even if not in registry
-            for fallback_name in ['kimi', 'mimo', 'openai', 'mistral']:
+            for fallback_name in ['mimo', 'deepseek', 'openai', 'mistral']:
                 if fallback_name not in result:
                     result[fallback_name] = {'status': 'unknown', 'message': 'Provider not registered'}
 
@@ -10786,8 +10796,8 @@ They survive auto-compaction and are ALWAYS active:
             log.warning(f"[BRIDGE] get_provider_status failed: {e}")
             # Return minimal fallback data
             result = {
-                'kimi': {'status': 'unknown', 'message': 'Error querying provider'},
                 'mimo': {'status': 'unknown', 'message': 'Error querying provider'},
+                'deepseek': {'status': 'unknown', 'message': 'Error querying provider'},
                 'openai': {'status': 'unknown', 'message': 'Error querying provider'},
                 'mistral': {'status': 'unknown', 'message': 'Error querying provider'},
             }
@@ -10957,8 +10967,6 @@ They survive auto-compaction and are ALWAYS active:
             pt = ProviderType.DEEPSEEK
         elif ml.startswith('mistral') or ml.startswith('codestral'):
             pt = ProviderType.MISTRAL
-        elif ml.startswith('kimi-'):
-            pt = ProviderType.KIMI
         elif ml.startswith('mimo-'):
             pt = ProviderType.MIMO
         elif 'siliconflow' in ml:

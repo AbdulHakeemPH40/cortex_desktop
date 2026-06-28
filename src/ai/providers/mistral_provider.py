@@ -44,7 +44,7 @@ class MistralProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.MISTRAL)
-            self.api_key = os.getenv("MISTRAL_API_KEY", "")
+            self.api_key = self._api_key or ""  # Sync with BaseProvider's _api_key
             self.base_url = "https://api.mistral.ai/v1"
             # Reuse HTTP connections across calls (reduces TLS/handshake overhead).
             self._session = requests.Session()
@@ -190,7 +190,7 @@ class MistralProvider(BaseProvider):
     def _sanitize_messages_for_mistral(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Strip reasoning_content from assistant messages (Mistral API rejects this field).
 
-        When failing over from Kimi/DeepSeek, assistant messages may contain
+        When failing over from DeepSeek, assistant messages may contain
         'reasoning_content' which Mistral doesn't recognize, causing HTTP 422.
         """
         try:
@@ -643,7 +643,7 @@ class MistralProvider(BaseProvider):
                                     content = delta.get('content', '')
                                     reasoning = delta.get('reasoning_content', '')
                                     
-                                    # Stream reasoning into thought card (same as DeepSeek/Kimi)
+                                    # Stream reasoning into thought card (same as DeepSeek)
                                     if reasoning:
                                         yield f"__REASONING_DELTA__:{reasoning}"
                                     

@@ -555,7 +555,7 @@ def process_images_for_api(
     }
     
     # Check provider vision support
-    vision_providers = {"mistral", "kimi"}
+    vision_providers = {"mistral"}
     if provider.lower() not in vision_providers:
         result["errors"].append(
             f"Provider '{provider}' does not support vision/OCR. "
@@ -579,7 +579,7 @@ def process_images_for_api(
     # CRITICAL: This is STRICTLY an OCR/description step. Mistral must ONLY
     # transcribe and describe what's visually in the image — it MUST NOT
     # provide solutions, write code, debug, or analyze beyond visual description.
-    # The full solution will be handled by the coding agent (DeepSeek/Kimi).
+    # The full solution will be handled by the coding agent (DeepSeek/MiMo).
     # NOTE: Must capture BOTH text AND visual/behavioral context (UI state,
     # highlights, errors, layout) so the coding model can understand the
     # screenshot as if it could see it directly.

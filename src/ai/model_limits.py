@@ -15,7 +15,7 @@ every supported LLM is handled gracefully without hardcoded magic numbers.
 
 Supported families (auto-detected by model_id substring matching):
   DeepSeek · OpenAI GPT · Claude (OpenRouter) · Mistral (OCR)
-  Gemini (OpenRouter) · Qwen / SiliconFlow · NVIDIA · Kimi · MiMo · Z.ai GLM
+  Gemini (OpenRouter) · Qwen / SiliconFlow · NVIDIA · MiMo · Z.ai GLM
 """
 
 from __future__ import annotations
@@ -172,10 +172,6 @@ _REGISTRY: List[Tuple[str, int, int]] = [
     ("z-ai/glm-5.2",                1_000_000,  65_536),   # 744B MoE, coding-first, 1M ctx
     ("z-ai/glm",                    1_000_000,  65_536),   # catch-all for future Z.ai models
 
-    # ── Kimi / Moonshot AI ───────────────────────────────────────────────────
-    ("kimi-k2.6",                 262_144,  32_768),
-    ("kimi",                      262_144,  32_768),   # catch-all
-
     # ── Xiaomi MiMo V2.5 ────────────────────────────────────────────────────
     ("mimo-v2.5-pro",           1_048_576, 131_072),
     ("mimo-v2.5",               1_048_576, 131_072),
@@ -262,11 +258,10 @@ _ESCALATION_TABLE: Dict[str, Tuple[int, int, int]] = {
     "anthropic/claude":         (  64_000,  64_000,  64_000),
     # Mistral (OCR)
     "mistral":                  ( 32_768,  49_152,  65_536),
-    # NVIDIA / Kimi / MiMo
+    # NVIDIA / MiMo
     "nvidia/nemotron-3-ultra":  ( 65_536, 131_072, 131_072),
     # Z.ai GLM
     "z-ai/glm-5.2":             ( 65_536,  98_304, 131_072),
-    "kimi-k2.6":                ( 65_536,  98_304, 131_072),
     "mimo-v2.5-pro":            (131_072, 131_072, 131_072),
     "mimo-v2.5":                (131_072, 131_072, 131_072),
 }

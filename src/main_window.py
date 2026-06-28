@@ -5472,8 +5472,6 @@ class CortexMainWindow(QMainWindow):
                 provider = "mistral"
             elif model_id.startswith("deepseek"):
                 provider = "deepseek"
-            elif model_id.startswith("kimi-"):
-                provider = "kimi"
             elif model_id.startswith("mimo-"):
                 provider = "mimo"
             elif model_id.startswith(("gpt-", "o1", "o3", "codex")):
@@ -5483,6 +5481,8 @@ class CortexMainWindow(QMainWindow):
                     provider = "openai"
             elif "/" in model_id:
                 provider = "openrouter"
+            elif model_id.startswith("qwen") or model_id.startswith("qwq"):
+                provider = "alibaba"
             else:
                 provider = "deepseek"
 
@@ -5503,6 +5503,19 @@ class CortexMainWindow(QMainWindow):
         except Exception as e:
             log.error(f"[MainWindow] Model change failed for '{model_id}': {e}")
 
+    def _on_settings_model_changed(self, model_id: str, model_label: str):
+        """Handle model change from Settings page → sync chat panel button."""
+        try:
+            if hasattr(self, '_ai_chat') and self._ai_chat:
+                input_area = getattr(self._ai_chat, 'input_area', None)
+                if input_area:
+                    input_area.model = model_id
+                    input_area.model_label = model_label
+                    input_area.model_btn.setText(model_label)
+                    log.info(f"[MainWindow] Settings synced model button to: {model_label}")
+        except Exception as e:
+            log.warning(f"[MainWindow] _on_settings_model_changed failed: {e}")
+
     def _on_ai_stop_requested(self):
         """Handle stop request from AI (via web bridge)."""
         self._ai_agent.stop()
@@ -5514,7 +5527,7 @@ class CortexMainWindow(QMainWindow):
         switches the performance mode to "performance" which activates the
         CoordinationEngine multi-agent path.
         
-        For non-Mistral models (Kimi, DeepSeek, etc.), the toggle state is
+        For non-Mistral models (DeepSeek, MiMo, etc.), the toggle state is
         stored in the bridge but does NOT change performance_mode — the
         model routing in ai_chat.py already bypasses performance-mode for
         non-Mistral models, so forcing it would have no effect.
@@ -5530,7 +5543,7 @@ class CortexMainWindow(QMainWindow):
         # ── Sync performance mode with autogen toggle ────────────
         # Only set performance_mode when using a Mistral model, because
         # the performance-mode pipeline hardcodes Mistral as the provider.
-        # For non-Mistral models (Kimi, DeepSeek), the routing in ai_chat.py
+        # For non-Mistral models (DeepSeek, MiMo), the routing in ai_chat.py
         # bypasses performance-mode regardless, so we leave it unchanged.
         try:
             from src.config.settings import get_settings
@@ -6839,6 +6852,9 @@ class CortexMainWindow(QMainWindow):
         project_root = getattr(self, '_current_project_path', None) or os.getcwd()
         try:
             dlg = MemoryManagerDialog(project_root, settings=settings, parent=self)
+            # Sync settings model change → chat panel model button
+            if hasattr(dlg, '_bridge') and hasattr(self, '_ai_chat'):
+                dlg._bridge.model_changed.connect(self._on_settings_model_changed)
             dlg.exec()
         except Exception as exc:
             logging.getLogger("main_window").error(f"[MainWindow] Memory manager failed: {exc}", exc_info=True)

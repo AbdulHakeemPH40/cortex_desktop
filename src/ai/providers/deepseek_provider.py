@@ -30,7 +30,7 @@ class DeepSeekProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.DEEPSEEK)
-            self.api_key = os.getenv("DEEPSEEK_API_KEY", "")
+            self.api_key = self._api_key or ""  # Sync with BaseProvider's _api_key
             self._base_url = "https://api.deepseek.com/v1"
             self._token_count = {"input": 0, "output": 0}
             self._session = requests.Session()

@@ -5,7 +5,7 @@ Provides friendly shorthand names across active LLM providers so
 users can type 'deepseek' or 'gpt54' instead of full model IDs.
 
 Active providers (mirrors src/ai/providers/):
-  - DeepSeek · OpenAI · Mistral · Alibaba Qwen · Kimi · MiMo
+  - DeepSeek · OpenAI · Mistral · Alibaba Qwen · MiMo
   - OpenRouter (Claude, Gemini, Nemotron)
   - SiliconFlow (embeddings / vision)
 """
@@ -46,11 +46,6 @@ ALIAS_MAP: Dict[str, str] = {
     'qwenflash':    'qwen-flash',
     'qwenturbo':    'qwen-turbo',
 
-    # ── Kimi/Moonshot AI ──────────────────────────────────────────────────
-    'kimi':         'kimi-k2.6',
-    'kimik26':      'kimi-k2.6',
-    'moonshot':     'kimi-k2.6',
-
     # ── MiMo ──────────────────────────────────────────────────────────────
     'mimo':         'mimo-v2.5-pro',
     'mimopro':      'mimo-v2.5-pro',
@@ -80,7 +75,7 @@ ModelAlias = str
 
 MODEL_FAMILY_ALIASES: Tuple[str, ...] = (
     'deepseek', 'qwen', 'mistral', 'gemini',
-    'claude', 'opus', 'kimi', 'mimo', 'nemotron',
+    'claude', 'opus', 'mimo', 'nemotron',
 )
 
 

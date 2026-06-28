@@ -5,7 +5,7 @@ Provides comprehensive file safety validation, dangerous file/directory detectio
 path traversal prevention, and permission decision framework for AI agent file operations.
 
 Multi-LLM Support: Works with all providers (Anthropic, OpenAI, Gemini, DeepSeek,
-Mistral, Groq, Ollama, SiliconFlow) as it's provider-agnostic security logic.
+Mistral, Groq, SiliconFlow) as it's provider-agnostic security logic.
 
 Phases:
 - Phase 1: Dangerous file/directory lists + path safety validation

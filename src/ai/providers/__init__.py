@@ -14,14 +14,14 @@ log = get_logger("provider_registry")
 
 class ProviderType(Enum):
     """Supported LLM providers."""
-    MISTRAL = "mistral"     # Mistral — OCR/vision only (fallback)
-    SILICONFLOW = "siliconflow"  # Vision models
-    DEEPSEEK = "deepseek"   # DeepSeek V4 — primary coding/reasoning
-    KIMI = "kimi"           # Kimi/Moonshot AI (K2.6 multimodal)
-    MIMO = "mimo"           # Xiaomi MiMo (V2.5 family — 1M ctx agentic)
-    OPENAI = "openai"       # OpenAI — GPT-4o/4.1 series
-    OPENROUTER = "openrouter"  # OpenRouter — 300+ models via single API key
-    ALIBABA = "alibaba"     # Alibaba Cloud Model Studio (DashScope) — Qwen family
+    MISTRAL = "mistral"        # Mistral — OCR/vision (backend, subscription)
+    SILICONFLOW = "siliconflow"  # Embeddings (backend, subscription)
+    DEEPSEEK = "deepseek"      # DeepSeek V4 — LLM chat (subscription + BYOK)
+    MIMO = "mimo"              # Xiaomi MiMo — LLM chat (subscription + BYOK)
+    OPENAI = "openai"          # OpenAI — GPT-5.x (BYOK)
+    OPENROUTER = "openrouter"  # OpenRouter — 300+ models (BYOK)
+    ALIBABA = "alibaba"        # Alibaba DashScope — Qwen family (BYOK)
+
 
 
 @dataclass
@@ -63,16 +63,30 @@ class ChatResponse:
 
 class BaseProvider(ABC):
     """Abstract base class for all LLM providers."""
-    
+
+    # Map provider types to their env var names and KeyManager provider names
+    _KEY_SOURCES = {
+        ProviderType.OPENAI:     ("OPENAI_API_KEY",     "openai"),
+        ProviderType.DEEPSEEK:   ("DEEPSEEK_API_KEY",   "deepseek"),
+        ProviderType.MISTRAL:    ("MISTRAL_API_KEY",    "mistral"),
+        ProviderType.MIMO:       ("MIMO_API_KEY",       "mimo"),
+        ProviderType.OPENROUTER: ("OPENROUTER_API_KEY", "openrouter"),
+        ProviderType.ALIBABA:    ("DASHSCOPE_API_KEY",  "alibaba"),
+        ProviderType.SILICONFLOW:("SILICONFLOW_API_KEY","siliconflow"),
+    }
+
     def __init__(self, provider_type: ProviderType):
         self.provider_type = provider_type
         self._api_key: Optional[str] = None
         self._base_url: Optional[str] = None
         self._last_error: Optional[str] = None
-        
+
         # Ensure TLS CA bundle is configured (critical for frozen builds)
         self._ensure_ca_bundle()
-        
+
+        # Auto-load API key from KeyManager or env var
+        self._load_api_key()
+
     @staticmethod
     def _ensure_ca_bundle():
         """Ensure REQUESTS_CA_BUNDLE is set for SSL verification in frozen builds."""
@@ -88,7 +102,37 @@ class BaseProvider(ABC):
             pass
         except Exception:
             pass
-        
+
+    def _load_api_key(self):
+        """Load API key from KeyManager (encrypted) with fallback to env var."""
+        import os
+        sources = self._KEY_SOURCES.get(self.provider_type)
+        if not sources:
+            return
+        env_var, km_name = sources
+
+        # 1. Try KeyManager (encrypted storage)
+        try:
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            key = km.get_key(km_name)
+            if key:
+                self._api_key = key
+                log.debug(f"[{self.provider_type.value}] Loaded API key from KeyManager")
+                return
+        except Exception as e:
+            log.debug(f"[{self.provider_type.value}] KeyManager unavailable: {e}")
+
+        # 2. Fallback to environment variable
+        if env_var:
+            key = os.getenv(env_var, "")
+            if key:
+                self._api_key = key
+                log.debug(f"[{self.provider_type.value}] Loaded API key from env ${env_var}")
+                return
+
+        log.debug(f"[{self.provider_type.value}] No API key found")
+
     @property
     @abstractmethod
     def available_models(self) -> List[ModelInfo]:
@@ -197,14 +241,6 @@ class ProviderRegistry:
         except (ImportError, Exception) as e:
             log.warning(f"Could not register DeepSeekProvider: {e}")
         
-        # Register Kimi/Moonshot AI provider (K2.6 multimodal model)
-        try:
-            from src.ai.providers.kimi_provider import KimiProvider
-            self._register_provider(ProviderType.KIMI, KimiProvider())
-            log.info("KimiProvider registered with K2.6 model")
-        except (ImportError, Exception) as e:
-            log.warning(f"Could not register KimiProvider: {e}")
-
         # Register Xiaomi MiMo provider (V2.5 family — 1M ctx agentic)
         try:
             from src.ai.providers.mimo_provider import MimoProvider

@@ -17,7 +17,7 @@ log = get_logger("openai_provider")
 
 
 class OpenAIProvider(BaseProvider):
-    """OpenAI API Provider with retry logic matching DeepSeek/Kimi reliability."""
+    """OpenAI API Provider with retry logic matching DeepSeek reliability."""
 
     def __init__(self):
         try:
@@ -26,18 +26,15 @@ class OpenAIProvider(BaseProvider):
             self._client_key = None  # Track which key the client was created with
             self._token_count = {"input": 0, "output": 0}
 
-            # Retry & timeout configuration (matching DeepSeek/Kimi patterns)
+            # Retry & timeout configuration (matching DeepSeek patterns)
             self._max_retries = self._get_int_env("CORTEX_OPENAI_MAX_RETRIES", 4, minimum=1, maximum=5)
             self._retry_delay = 1.0
             self._connect_timeout = self._get_float_env("CORTEX_OPENAI_CONNECT_TIMEOUT_SEC", 20.0, minimum=1.0, maximum=120.0)
             self._read_timeout = self._get_float_env("CORTEX_OPENAI_READ_TIMEOUT_SEC", 120.0, minimum=3.0, maximum=600.0)
             self._tool_read_timeout = self._get_float_env("CORTEX_OPENAI_TOOL_READ_TIMEOUT_SEC", 180.0, minimum=5.0, maximum=600.0)
 
-            # Initialize from environment
-            api_key = os.getenv("OPENAI_API_KEY", "")
-            if api_key:
-                self.set_api_key(api_key)
-            else:
+            # API key loaded automatically by BaseProvider._load_api_key()
+            if not self._api_key:
                 log.warning("OPENAI_API_KEY not configured")
         except Exception as e:
             log.warning(f"[OpenAI] __init__ error: {e}")
@@ -176,7 +173,7 @@ class OpenAIProvider(BaseProvider):
                 # GPT-5.x requires /v1/responses for tools+reasoning. Only enable
                 # reasoning when NO tools are passed (pure text response turn).
                 # CRITICAL: When reasoning is enabled, GPT-5.x ONLY accepts temperature=1.0
-                # (same constraint as o1/o3/Kimi reasoning models). Any other value → 400.
+                # (same constraint as o1/o3 reasoning models). Any other value → 400.
                 _is_gpt5_nano = model and "nano" in model.lower()
                 if _is_gpt5 and not _is_gpt5_nano and not tools:
                     _reasoning_effort = os.getenv("CORTEX_OPENAI_REASONING_EFFORT", "medium")
@@ -271,7 +268,7 @@ class OpenAIProvider(BaseProvider):
                     **kwargs: Any) -> Generator[str, None, None]:
         """Stream chat completion — yields text, __REASONING_DELTA__: and __TOOL_CALL_DELTA__: chunks.
 
-        Now with retry logic matching DeepSeek/Kimi reliability.
+        Now with retry logic matching DeepSeek reliability.
         Transient errors (timeouts, rate limits, server errors) are
         retried automatically; non-transient errors are yielded as
         error text so the agent_bridge can react appropriately.
@@ -280,7 +277,7 @@ class OpenAIProvider(BaseProvider):
         __REASONING_DELTA__: chunks. The agent_bridge routes these to the
         brain-icon thought card UI via tool_activity(type="thinking").
         Without this, model thinking/reasoning would leak into the main
-        chat text or be completely lost. Matches DeepSeek/Kimi pattern.
+        chat text or be completely lost. Matches DeepSeek pattern.
 
         CRITICAL: Tool-call arguments are INCREMENTAL deltas from the
         SDK. Each __TOOL_CALL_DELTA__ yield MUST contain ONLY the raw
@@ -330,7 +327,7 @@ class OpenAIProvider(BaseProvider):
                 # GPT-5.x requires /v1/responses for tools+reasoning. Only enable
                 # reasoning when NO tools are passed (pure text response turn).
                 # CRITICAL: When reasoning is enabled, GPT-5.x ONLY accepts temperature=1.0
-                # (same constraint as o1/o3/Kimi reasoning models). Any other value → 400.
+                # (same constraint as o1/o3 reasoning models). Any other value → 400.
                 _is_gpt5_nano = model and "nano" in model.lower()
                 if _is_gpt5 and not _is_gpt5_nano and not tools:
                     _reasoning_effort = os.getenv("CORTEX_OPENAI_REASONING_EFFORT", "medium")
@@ -354,7 +351,7 @@ class OpenAIProvider(BaseProvider):
                     # OpenAI models (gpt-5.x, gpt-4.1+, o-series) emit reasoning tokens
                     # that belong in the brain-icon thought container with chevron — NOT
                     # in the main chat stream. Routed via __REASONING_DELTA__: matching
-                    # DeepSeek/Kimi. The agent_bridge emits these to tool_activity with
+                    # DeepSeek. The agent_bridge emits these to tool_activity with
                     # type="thinking" which drives the thought card UI.
                     if getattr(delta, 'reasoning_content', None):
                         yield f"__REASONING_DELTA__:{delta.reasoning_content}"
@@ -370,7 +367,7 @@ class OpenAIProvider(BaseProvider):
                     # The agent_bridge does its own += on each delta. Yielding the
                     # accumulated value causes double-accumulation → corrupt JSON
                     # like {"{"file{"file_path{"file_path":"{... seen in terminal.log.
-                    # This matches the DeepSeek/Kimi pattern.
+                    # This matches the DeepSeek pattern.
                     if getattr(delta, 'tool_calls', None):
                         for _tc_delta in delta.tool_calls:
                             _idx = getattr(_tc_delta, 'index', 0)
@@ -390,7 +387,7 @@ class OpenAIProvider(BaseProvider):
                                 if getattr(_fn, 'arguments', None):
                                     _tool_acc[_idx]["function"]["arguments"] += _fn.arguments
 
-                            # ── Yield ONLY the INCREMENTAL delta (matching DeepSeek/Kimi pattern) ──
+                            # ── Yield ONLY the INCREMENTAL delta (matching DeepSeek pattern) ──
                             # The agent_bridge expects raw per-delta arguments and does its own
                             # accumulation: tool_acc[idx]["arguments"] += td["function"]["arguments"]
                             _fn_raw = getattr(_tc_delta, 'function', None)

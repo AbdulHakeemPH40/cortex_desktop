@@ -35,14 +35,9 @@
     defaultModel: "ai.model",
     openaiKey: "ai.openai_key",
     deepseekKey: "ai.deepseek_key",
-    mistralKey: "ai.mistral_key",
-    kimiKey: "ai.kimi_key",
     mimoKey: "ai.mimo_key",
-    googleKey: "ai.google_key",
     openrouterKey: "ai.openrouter_key",
     alibabaKey: "ai.alibaba_key",
-    ollamaUrl: "ai.ollama_url",
-
     /* Personalization */
     systemInstructions: "ai.system_instructions",
     verbosity: "ai.verbosity",
@@ -296,6 +291,24 @@
     document.querySelectorAll(".setting-select").forEach(s => s.addEventListener("change", () => persistSetting(s.id, s.value)));
     document.querySelectorAll(".setting-input, .setting-textarea").forEach(i => i.addEventListener("blur", () => persistSetting(i.id, i.value)));
 
+    /* ── Default Model → also sync chat panel model button ── */
+    const modelSelect = $("defaultModel");
+    if (modelSelect) {
+      modelSelect.addEventListener("change", () => {
+        const value = modelSelect.value;
+        const label = modelSelect.options[modelSelect.selectedIndex].text;
+        persistSetting("defaultModel", value);
+        /* Notify chat panel to update model button */
+        if (bridge && typeof bridge.setDefaultModel === "function") {
+          bridge.setDefaultModel(value, label);
+        } else if (bridge && typeof bridge.setSetting === "function") {
+          bridge.setSetting("ai.model", value);
+          bridge.setSetting("ai.model_label", label);
+        }
+        showToast("Default model: " + label);
+      });
+    }
+
     /* ── Memory controls ── */
     $("enabledToggle")?.addEventListener("change", () => { state.enabled = $("enabledToggle").checked; $("statusDot")?.classList.toggle("enabled", state.enabled); callBridge(["setMemoryEnabled", "setEnabled", "toggle_memory"], [state.enabled]).catch(() => { }); });
     document.querySelectorAll(".scope-tab").forEach(tab => tab.addEventListener("click", () => { state.activeScope = tab.dataset.scope; document.querySelectorAll(".scope-tab").forEach(t => t.classList.toggle("active", t === tab)); callBridge(["setActiveScope", "setScope", "switch_scope"], [state.activeScope]).catch(() => { }); renderMemoryList(); }));
@@ -310,7 +323,320 @@
     $("syncGlobalBtn")?.addEventListener("click", () => { const root = state.scopes.project.projectRoot || ""; callBridge(["syncGlobalMemoriesToProject", "syncGlobal", "sync_global_memories"], [root, true]).then(() => showToast("Synced")).catch(() => showToast("Sync unavailable")); });
 
     /* ── Escape ── */
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("consolidationModal")?.classList.add("hidden"); $("modalHost")?.classList.add("hidden"); } });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { $("consolidationModal")?.classList.add("hidden"); $("modalHost")?.classList.add("hidden"); closeEditProfileModal(); } });
+
+    /* ═══════════════════════════════════════════════════════════════
+       PROFILE & USAGE
+       ═══════════════════════════════════════════════════════════════ */
+
+    /* ── Token formatting ── */
+    function formatTokens(n) {
+      if (!n || n === 0) return '0';
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds || seconds === 0) return '0m 0s';
+      if (seconds >= 3600) return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
+      if (seconds >= 60) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
+      return seconds + 's';
+    }
+
+    /* ── Cached usage data for chart range switching ── */
+    let _cachedUsageData = null;
+
+    /* ── Load profile data from bridge ── */
+    function loadProfile() {
+      callBridge(["getProfile", "get_profile"], []).then(data => {
+        if (!data) return;
+        try {
+          const p = typeof data === 'string' ? JSON.parse(data) : data;
+          const profile = p.profile || p;
+          if ($("profileAvatar")) $("profileAvatar").textContent = profile.avatar_initials || 'HA';
+          if ($("profileAvatar")) $("profileAvatar").style.background = `linear-gradient(135deg, ${profile.avatar_color || '#f97316'}, ${profile.avatar_color || '#fb923c'})`;
+          if ($("profileName")) $("profileName").textContent = profile.display_name || 'User';
+          if ($("profileUsername")) $("profileUsername").textContent = '@' + (profile.username || 'user');
+          if ($("profilePlan")) $("profilePlan").textContent = profile.plan || 'Free';
+        } catch (e) { console.error('[PROFILE] parse error:', e); }
+      }).catch(() => { /* no bridge — use defaults */ });
+    }
+
+    /* ── Apply usage data to UI (shared by bridge + demo) ── */
+    function applyUsageData(u) {
+      if (!u) return;
+      const life = u.lifetime || {};
+      const peak = u.peak || {};
+      const streaks = u.streaks || {};
+      const period = u.current_period || {};
+      const models = u.model_usage || {};
+      const insights = u.insights || {};
+
+      /* Update stat cards */
+      if ($("lifetimeTokens")) $("lifetimeTokens").textContent = formatTokens(life.total_tokens);
+      if ($("peakTokens")) $("peakTokens").textContent = formatTokens(peak.peak_tokens_single_session);
+      if ($("longestTask")) $("longestTask").textContent = formatDuration(life.longest_task_seconds);
+      if ($("currentStreak")) $("currentStreak").textContent = (streaks.current_streak_days || 0) + ' days';
+      if ($("longestStreak")) $("longestStreak").textContent = (streaks.longest_streak_days || 0) + ' days';
+
+      /* Update usage meters */
+      const monthlyPct = period.tokens_limit ? Math.round((period.tokens_used / period.tokens_limit) * 100) : 0;
+      if ($("monthlyPercent")) $("monthlyPercent").textContent = monthlyPct + '%';
+      if ($("monthlyFill")) { $("monthlyFill").style.width = monthlyPct + '%'; $("monthlyFill").className = 'meter-fill' + (monthlyPct > 85 ? ' danger' : monthlyPct > 60 ? ' warning' : ''); }
+      if ($("monthlyDetail")) $("monthlyDetail").textContent = formatTokens(period.tokens_used) + ' / ' + formatTokens(period.tokens_limit) + ' tokens';
+      if ($("monthlyReset") && period.end_date) $("monthlyReset").textContent = 'Resets ' + period.end_date;
+
+      const dailyPct = period.requests_limit ? Math.round((period.requests_used / period.requests_limit) * 100) : 0;
+      if ($("dailyPercent")) $("dailyPercent").textContent = dailyPct + '%';
+      if ($("dailyFill")) { $("dailyFill").style.width = dailyPct + '%'; $("dailyFill").className = 'meter-fill' + (dailyPct > 85 ? ' danger' : dailyPct > 60 ? ' warning' : ''); }
+      if ($("dailyDetail")) $("dailyDetail").textContent = (period.requests_used || 0) + ' / ' + (period.requests_limit || 0) + ' requests';
+
+      const toolPct = period.tool_calls_limit ? Math.round((period.tool_calls_used / period.tool_calls_limit) * 100) : 0;
+      if ($("toolCallPercent")) $("toolCallPercent").textContent = toolPct + '%';
+      if ($("toolCallFill")) { $("toolCallFill").style.width = toolPct + '%'; $("toolCallFill").className = 'meter-fill' + (toolPct > 85 ? ' danger' : toolPct > 60 ? ' warning' : ''); }
+      if ($("toolCallDetail")) $("toolCallDetail").textContent = (period.tool_calls_used || 0) + ' / ' + (period.tool_calls_limit || 0) + ' calls';
+
+      /* Update insights */
+      if ($("fastModePercent")) $("fastModePercent").textContent = (insights.fast_mode_percent || 0) + '%';
+      if ($("fastModeBar")) $("fastModeBar").style.width = (insights.fast_mode_percent || 0) + '%';
+      if ($("reasoningLevel")) $("reasoningLevel").textContent = insights.most_reasoning_level ? insights.most_reasoning_level.charAt(0).toUpperCase() + insights.most_reasoning_level.slice(1) + ' - ' + (insights.reasoning_percent || 0) + '%' : 'None';
+      if ($("reasoningBar")) $("reasoningBar").style.width = (insights.reasoning_percent || 0) + '%';
+      if ($("skillsExplored")) $("skillsExplored").textContent = (insights.skills_explored && insights.skills_explored.length) ? insights.skills_explored.join(', ') : 'None';
+      if ($("totalSkills")) $("totalSkills").textContent = (insights.total_skills_used || 0) > 0 ? insights.total_skills_used : 'None';
+
+      /* Update model usage list */
+      const modelList = $("modelUsageList");
+      if (modelList && Object.keys(models).length > 0) {
+        const sorted = Object.entries(models).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
+        const maxTokens = sorted[0][1].total_tokens || 1;
+        modelList.innerHTML = sorted.map(([name, info], i) => {
+          const pct = Math.round((info.total_tokens / maxTokens) * 100);
+          return '<div class="model-usage-item">' +
+            '<span class="model-usage-rank">' + (i + 1) + '</span>' +
+            '<div class="model-usage-bar-container">' +
+            '<div class="model-usage-name">' + esc(name) + '</div>' +
+            '<div class="model-usage-bar"><div class="model-usage-fill" style="width:' + pct + '%"></div></div>' +
+            '</div>' +
+            '<span class="model-usage-percent">' + formatTokens(info.total_tokens) + '</span>' +
+            '</div>';
+        }).join('');
+      }
+
+      /* Update model breakdown in Usage section */
+      const breakdown = $("modelBreakdown");
+      if (breakdown && Object.keys(models).length > 0) {
+        const sorted = Object.entries(models).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
+        const maxTokens = sorted[0][1].total_tokens || 1;
+        breakdown.innerHTML = sorted.map(([name, info]) => {
+          const pct = Math.round((info.total_tokens / maxTokens) * 100);
+          return '<div class="model-breakdown-item">' +
+            '<div class="model-breakdown-header">' +
+            '<span class="model-breakdown-name">' + esc(name) + '</span>' +
+            '<span class="model-breakdown-tokens">' + formatTokens(info.total_tokens) + ' tokens</span>' +
+            '</div>' +
+            '<div class="model-breakdown-bar"><div class="model-breakdown-fill" style="width:' + pct + '%"></div></div>' +
+            '</div>';
+        }).join('');
+      }
+
+      /* Render activity chart with current range */
+      const activeTab = document.querySelector('.activity-tab.active');
+      const range = activeTab ? activeTab.dataset.range : 'daily';
+      renderActivityChart(u.daily_usage || {}, range);
+    }
+
+    /* ── Load usage stats from bridge ── */
+    function loadUsageStats() {
+      callBridge(["getUsageStats", "get_usage_stats"], []).then(data => {
+        if (!data) return;
+        try {
+          const u = typeof data === 'string' ? JSON.parse(data) : data;
+          _cachedUsageData = u;
+          applyUsageData(u);
+        } catch (e) { console.error('[USAGE] parse error:', e); }
+      }).catch(() => { /* no bridge — use defaults */ });
+    }
+
+    /* ── Render activity chart (supports daily/weekly/cumulative) ── */
+    function renderActivityChart(dailyUsage, range) {
+      const bars = $("chartBars");
+      if (!bars) return;
+      range = range || 'daily';
+
+      const allDays = Object.keys(dailyUsage).sort();
+      if (allDays.length === 0) {
+        bars.innerHTML = '<div class="empty-state-small"><p>No activity data yet</p></div>';
+        return;
+      }
+
+      let points = [];
+
+      if (range === 'daily') {
+        /* Last 14 days */
+        const days = allDays.slice(-14);
+        points = days.map(d => ({
+          label: d.slice(5), /* MM-DD */
+          value: (dailyUsage[d] || {}).tokens || 0
+        }));
+      } else if (range === 'weekly') {
+        /* Aggregate into weekly buckets (last 8 weeks) */
+        const weeks = {};
+        allDays.forEach(d => {
+          const dt = new Date(d);
+          const weekStart = new Date(dt);
+          weekStart.setDate(dt.getDate() - dt.getDay());
+          const key = weekStart.toISOString().slice(0, 10);
+          if (!weeks[key]) weeks[key] = 0;
+          weeks[key] += (dailyUsage[d] || {}).tokens || 0;
+        });
+        const weekKeys = Object.keys(weeks).sort().slice(-8);
+        points = weekKeys.map(w => {
+          const dt = new Date(w);
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          return { label: months[dt.getMonth()] + ' ' + dt.getDate(), value: weeks[w] };
+        });
+      } else if (range === 'cumulative') {
+        /* Monthly aggregation (last 12 months) */
+        const months = {};
+        allDays.forEach(d => {
+          const key = d.slice(0, 7); /* YYYY-MM */
+          if (!months[key]) months[key] = 0;
+          months[key] += (dailyUsage[d] || {}).tokens || 0;
+        });
+        const monthKeys = Object.keys(months).sort().slice(-12);
+        const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        points = monthKeys.map(m => {
+          const dt = new Date(m + '-01');
+          return { label: monthNames[dt.getMonth()], value: months[m] };
+        });
+      }
+
+      if (points.length === 0) {
+        bars.innerHTML = '<div class="empty-state-small"><p>No activity data yet</p></div>';
+        return;
+      }
+
+      const maxVal = Math.max(...points.map(p => p.value), 1);
+      bars.innerHTML = points.map(p => {
+        const pct = Math.round((p.value / maxVal) * 100);
+        return '<div class="chart-column">' +
+          '<div class="chart-bar" style="height:' + Math.max(pct, 2) + '%" title="' + p.label + ': ' + formatTokens(p.value) + '"></div>' +
+          '<span class="chart-label">' + p.label + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    /* ── Activity tab toggle ── */
+    document.querySelectorAll('.activity-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.activity-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const range = tab.dataset.range;
+        if (_cachedUsageData) {
+          renderActivityChart(_cachedUsageData.daily_usage || {}, range);
+        } else {
+          loadUsageStats();
+        }
+      });
+    });
+
+    /* ── Edit Profile modal (using CSS classes) ── */
+    function closeEditProfileModal() {
+      const existing = document.querySelector('.edit-profile-modal');
+      if (existing) existing.remove();
+    }
+
+    const editBtn = $("editProfileBtn");
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        closeEditProfileModal(); /* close any existing */
+        const currentName = $("profileName")?.textContent || 'User';
+        const currentUsername = $("profileUsername")?.textContent?.replace('@', '') || 'user';
+        const currentInitials = $("profileAvatar")?.textContent || 'HA';
+        /* Extract the first #hex color from the background style */
+        const bgStyle = $("profileAvatar")?.style.background || '';
+        const colorMatch = bgStyle.match(/#[0-9a-fA-F]{6}/);
+        const currentColor = colorMatch ? colorMatch[0] : '#f97316';
+        const colors = ['#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#f59e0b', '#ec4899', '#06b6d4'];
+
+        const overlay = document.createElement('div');
+        overlay.className = 'edit-profile-modal';
+        overlay.innerHTML =
+          '<div class="ep-card">' +
+          '<h2>Edit Profile</h2>' +
+          '<div class="ep-avatar-wrap">' +
+          '<div class="ep-avatar" id="editAvatarPreview" style="background:linear-gradient(135deg,' + currentColor + ',' + currentColor + ')">' + currentInitials + '</div>' +
+          '<div class="ep-colors">' +
+          colors.map(c => '<button class="ep-color-dot' + (c === currentColor ? ' selected' : '') + '" data-color="' + c + '" style="background:' + c + '"></button>').join('') +
+          '</div></div>' +
+          '<div class="ep-field"><label>Display Name</label><input type="text" id="editDisplayName" value="' + esc(currentName) + '"></div>' +
+          '<div class="ep-field"><label>Username</label><input type="text" id="editUsername" value="' + esc(currentUsername) + '"></div>' +
+          '<div class="ep-actions">' +
+          '<button class="setting-btn" id="epCancelBtn">Cancel</button>' +
+          '<button class="setting-btn primary-btn" id="epSaveBtn">Save</button>' +
+          '</div></div>';
+
+        document.body.appendChild(overlay);
+
+        /* Color dot selection */
+        overlay.querySelectorAll('.ep-color-dot').forEach(dot => {
+          dot.addEventListener('click', () => {
+            overlay.querySelectorAll('.ep-color-dot').forEach(d => d.classList.remove('selected'));
+            dot.classList.add('selected');
+            const c = dot.dataset.color;
+            const avatar = overlay.querySelector('#editAvatarPreview');
+            if (avatar) avatar.style.background = 'linear-gradient(135deg,' + c + ',' + c + ')';
+          });
+        });
+
+        /* Cancel */
+        overlay.querySelector('#epCancelBtn')?.addEventListener('click', closeEditProfileModal);
+
+        /* Backdrop click */
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) closeEditProfileModal(); });
+
+        /* Save */
+        overlay.querySelector('#epSaveBtn')?.addEventListener('click', () => {
+          const name = $("editDisplayName")?.value || 'User';
+          const username = $("editUsername")?.value || 'user';
+          const selectedDot = overlay.querySelector('.ep-color-dot.selected') || overlay.querySelector('.ep-color-dot');
+          const color = selectedDot?.dataset?.color || '#f97316';
+          const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+          /* Update UI */
+          if ($("profileAvatar")) { $("profileAvatar").textContent = initials; $("profileAvatar").style.background = 'linear-gradient(135deg, ' + color + ', ' + color + ')'; }
+          if ($("profileName")) $("profileName").textContent = name;
+          if ($("profileUsername")) $("profileUsername").textContent = '@' + username;
+
+          /* Save to bridge */
+          callBridge(["setProfile", "set_profile"], [JSON.stringify({ display_name: name, username: username, avatar_color: color, avatar_initials: initials })]).catch(() => {});
+          closeEditProfileModal();
+          showToast('Profile saved');
+        });
+      });
+    }
+
+    /* ── Browse plugins link ── */
+    $("browsePluginsLink")?.addEventListener('click', (e) => {
+      e.preventDefault();
+      switchSection('extensions');
+    });
+
+    /* ── Upgrade plan button ── */
+    $("upgradePlanBtn")?.addEventListener('click', () => {
+      showToast('Upgrade plan — coming soon!');
+    });
+
+    /* ── Load profile/usage when bridge connects ── */
+    /* Already called above — load data after a delay */
+    setTimeout(() => { loadProfile(); loadUsageStats(); }, 2000);
+
+    /* ── Refresh profile/usage when switching to those sections ── */
+    document.querySelectorAll('.nav-item[data-section="profile"], .nav-item[data-section="usage"]').forEach(btn => {
+      btn.addEventListener('click', () => { loadProfile(); loadUsageStats(); });
+    });
 
     /* ── Init bridge ── */
     initBridge();
@@ -325,6 +651,40 @@
           { id: "3", title: "Database: PostgreSQL 16", content: "Production uses PostgreSQL 16 on AWS RDS. Connection pooling via pgBouncer.", type: "infrastructure", created_at: new Date(Date.now() - 172800000).toISOString() },
         ];
         renderMemoryList();
+
+        /* Demo profile data */
+        const demoProfile = { display_name: 'hakeemph', username: 'hakeemph', avatar_color: '#f97316', avatar_initials: 'HA', plan: 'Free' };
+        if ($("profileAvatar")) { $("profileAvatar").textContent = demoProfile.avatar_initials; $("profileAvatar").style.background = 'linear-gradient(135deg, ' + demoProfile.avatar_color + ', ' + demoProfile.avatar_color + ')'; }
+        if ($("profileName")) $("profileName").textContent = demoProfile.display_name;
+        if ($("profileUsername")) $("profileUsername").textContent = '@' + demoProfile.username;
+        if ($("profilePlan")) $("profilePlan").textContent = demoProfile.plan;
+
+        /* Demo usage data — generate realistic daily usage for last 30 days */
+        const demoDaily = {};
+        for (let i = 30; i >= 0; i--) {
+          const d = new Date(); d.setDate(d.getDate() - i);
+          const key = d.toISOString().slice(0, 10);
+          /* Simulate: some days heavy, some light, some zero */
+          const base = [0, 0, 8000, 12000, 25000, 45000, 32000, 0, 5000, 18000, 35000, 42000, 28000, 0, 0, 15000, 22000, 38000, 50000, 31000, 0, 9000, 20000, 27000, 41000, 33000, 0, 0, 11000, 19000, 45000];
+          demoDaily[key] = { tokens: base[i] || 0, requests: Math.floor((base[i] || 0) / 3500), tool_calls: Math.floor((base[i] || 0) / 1800), models: {} };
+        }
+
+        const demoUsage = {
+          lifetime: { total_tokens: 209100000, total_requests: 15420, total_tool_calls: 8230, total_sessions: 342, longest_task_seconds: 614 },
+          current_period: { start_date: '2026-06-19', end_date: '2026-07-19', tokens_used: 134000, tokens_limit: 200000, requests_used: 32, requests_limit: 100, tool_calls_used: 440, tool_calls_limit: 500 },
+          streaks: { current_streak_days: 0, longest_streak_days: 2 },
+          daily_usage: demoDaily,
+          model_usage: {
+            'deepseek-v4': { total_tokens: 72000, total_requests: 180 },
+            'gpt-5.4': { total_tokens: 38000, total_requests: 95 },
+            'qwen3.7-plus': { total_tokens: 21000, total_requests: 52 },
+            'claude-opus': { total_tokens: 12000, total_requests: 30 }
+          },
+          insights: { fast_mode_percent: 56, most_reasoning_level: 'medium', reasoning_percent: 53, skills_explored: [], total_skills_used: 0, plugins_used: [] },
+          peak: { peak_tokens_single_session: 58100000 }
+        };
+        _cachedUsageData = demoUsage;
+        applyUsageData(demoUsage);
       }
     }, 1000);
   });

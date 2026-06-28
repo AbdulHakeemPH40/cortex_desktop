@@ -1,7 +1,7 @@
 """
 Model picker options for Cortex AI Agent IDE.
 
-Active providers: DeepSeek · OpenAI · Mistral · Kimi
+Active providers: DeepSeek · OpenAI · Mistral · MiMo
 """
 
 from typing import List, Optional, TypedDict
@@ -68,16 +68,6 @@ def getMistralLargeOption() -> ModelOption:
     }
 
 
-def getKimiK26Option() -> ModelOption:
-    """Get Kimi K2.6 option."""
-    return {
-        'value': 'kimik26',
-        'label': 'Kimi K2.6',
-        'description': 'Moonshot AI, 256K context',
-        'category': 'recommended',
-    }
-
-
 # ---------------------------------------------------------------------------
 # Main option generator
 # ---------------------------------------------------------------------------
@@ -112,7 +102,6 @@ def getModelOptions(
         getGPT55Option(),
         getGPT54Option(),
         getMistralLargeOption(),
-        getKimiK26Option(),
     ]
 
     # Filter by categories if specified
@@ -209,7 +198,6 @@ __all__ = [
     'getGPT54Option',
     'getGPT55Option',
     'getMistralLargeOption',
-    'getKimiK26Option',
     'getModelOptions',
     'filterModelOptionsByAllowlist',
     'getModelOptionByValue',

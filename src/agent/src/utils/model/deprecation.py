@@ -11,7 +11,6 @@ Supports all Cortex IDE providers:
   - DeepSeek
   - Mistral
   - Groq
-  - Ollama
 """
 
 from typing import Dict, Literal, Optional, TypedDict
@@ -22,7 +21,7 @@ from typing import Dict, Literal, Optional, TypedDict
 
 APIProvider = Literal[
     'anthropic', 'openai', 'google', 'deepseek',
-    'mistral', 'groq', 'ollama', 'bedrock', 'vertex', 'azure',
+    'mistral', 'groq', 'bedrock', 'vertex', 'azure',
 ]
 
 

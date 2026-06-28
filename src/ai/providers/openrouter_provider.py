@@ -94,7 +94,7 @@ class OpenRouterProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.OPENROUTER)
-            self.api_key = os.getenv("OPENROUTER_API_KEY", "")
+            self.api_key = self._api_key or ""  # Sync with BaseProvider's _api_key
             self._token_count: Dict[str, int] = {"input": 0, "output": 0}
             self._session = requests.Session()
 

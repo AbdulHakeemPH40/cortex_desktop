@@ -377,7 +377,7 @@ class MimoProvider(BaseProvider):
                 message = result["choices"][0].get("message", {})
 
                 # MiMo reasoning models may surface chain-of-thought in
-                # reasoning_content (same pattern as Kimi K2.6 / DeepSeek).
+                # reasoning_content (same pattern as DeepSeek).
                 content = (
                     message.get("content")
                     or message.get("reasoning_content")

@@ -14,7 +14,6 @@ Multi-LLM support for all Cortex IDE providers:
   - DeepSeek: chat, code, r1
   - Mistral: large, small, codestral
   - Groq: llama3
-  - Ollama: llama3, phi3, qwen
 """
 
 from typing import List, Optional, Set
@@ -37,8 +36,6 @@ MODEL_FAMILIES: Set[str] = {
     'mistrallarge', 'mistral-large', 'mistralsmall', 'mistral-small', 'codestral',
     # Groq
     'llama3groq', 'llama-3-groq',
-    # Ollama
-    'ollama_llama3', 'ollama-llama3', 'ollama_phi3', 'ollama-phi3', 'ollama_qwen', 'ollama-qwen',
 }
 
 
@@ -95,7 +92,7 @@ def modelBelongsToFamily(model: str, family: str) -> bool:
     if familyNoDash in modelNoDash:
         return True
 
-    # Handle underscore differences: 'ollama_llama3' should match 'ollama-llama3'
+    # Handle underscore differences in model names
     modelUnderscoreToDash = normalizedModel.replace('_', '-')
     familyUnderscoreToDash = normalizedFamily.replace('_', '-')
     

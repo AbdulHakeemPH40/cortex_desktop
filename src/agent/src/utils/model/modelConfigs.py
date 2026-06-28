@@ -3,7 +3,7 @@ Model configuration mappings for Cortex AI Agent IDE.
 
 Maps each model to its correct ID across active providers:
   - Anthropic (via OpenRouter) · OpenAI · Google Gemini (via OpenRouter)
-  - DeepSeek · Mistral · SiliconFlow · Kimi · MiMo · Alibaba
+  - DeepSeek · Mistral · SiliconFlow · MiMo · Alibaba
 """
 
 from typing import Dict, List, Literal, Optional, Tuple
@@ -20,7 +20,6 @@ APIProvider = Literal[
     'mistral',      # Mistral API
     'siliconflow',  # SiliconFlow
     'deepseek',     # DeepSeek API
-    'kimi',         # Moonshot AI
     'mimo',         # Xiaomi MiMo
     'alibaba',      # Alibaba Qwen (DashScope)
 ]

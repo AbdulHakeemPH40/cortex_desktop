@@ -6,7 +6,7 @@ why they're being run, and their potential risks. Improves user trust
 and transparency in AI agent operations.
 
 Multi-LLM Support: Works with all providers that support tool use
-(Anthropic, OpenAI, Gemini, DeepSeek, Mistral, Groq, Ollama, SiliconFlow).
+(Anthropic, OpenAI, Gemini, DeepSeek, Mistral, Groq, SiliconFlow).
 
 Risk Levels:
 - LOW: Safe development workflows (ls, cat, git status)

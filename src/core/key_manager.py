@@ -418,8 +418,21 @@ class KeyManager:
         log.info(f"Please set {provider.upper()}_API_KEY in your .env file")
         return False
     
+    # Provider-specific env var names (when they differ from {PROVIDER}_API_KEY)
+    _ENV_VAR_ALIASES = {
+        "alibaba": "DASHSCOPE_API_KEY",
+        "kimi": "MOONSHOT_API_KEY",
+    }
+
     def _get_env_variable(self, provider: str) -> Optional[str]:
         """Get key from environment variable."""
+        # Check provider-specific alias first
+        alias = self._ENV_VAR_ALIASES.get(provider)
+        if alias:
+            key = os.environ.get(alias)
+            if key:
+                return key
+        # Fallback to standard naming
         env_var = f"{provider.upper()}_API_KEY"
         return os.environ.get(env_var)
 
