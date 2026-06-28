@@ -7270,7 +7270,7 @@ class ChatPanel(QWidget):
         if getattr(self, '_scroll_locked', False):
             self._position_new_msg_pill()
             self._new_msg_pill.setVisible(True)
-            self._fade_in_widget(self._new_msg_pill, duration_ms=150, slide_px=0)
+            _fade_in_widget(self._new_msg_pill, duration_ms=150, slide_px=0)
         else:
             self._new_msg_pill.setVisible(False)
 

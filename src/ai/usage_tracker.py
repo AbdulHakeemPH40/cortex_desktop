@@ -6,9 +6,13 @@ All data stored locally in ~/.cortex/usage.json and ~/.cortex/profile.json.
 
 import json
 import os
+import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
+# Regex patterns for invalid/test model IDs that should not be tracked
+_INVALID_MODEL_RE = re.compile(r'^(test|mock|fake|placeholder|unknown|default)', re.IGNORECASE)
 
 
 class UsageTracker:
@@ -23,6 +27,11 @@ class UsageTracker:
         self.profile_file = self.data_dir / "profile.json"
         self._usage = self._load_json(self.usage_file, self._default_usage())
         self._profile = self._load_json(self.profile_file, self._default_profile())
+        # Clean up any stale test/placeholder model entries on startup
+        try:
+            self.cleanup_invalid_models()
+        except Exception:
+            pass
 
     # ── JSON Helpers ──────────────────────────────────────────────
 
@@ -43,7 +52,19 @@ class UsageTracker:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
     def _save_usage(self):
+        self._clean_invalid_models_in_place()
         self._save_json(self.usage_file, self._usage)
+
+    def _clean_invalid_models_in_place(self):
+        """Remove invalid model entries from in-memory data (no save, no recursion)."""
+        for model_id in list(self._usage.get("model_usage", {}).keys()):
+            if not self._is_valid_model(model_id):
+                del self._usage["model_usage"][model_id]
+        for day_data in self._usage.get("daily_usage", {}).values():
+            models = day_data.get("models", {})
+            for model_id in list(models.keys()):
+                if not self._is_valid_model(model_id):
+                    del models[model_id]
 
     def _save_profile(self):
         self._save_json(self.profile_file, self._profile)
@@ -140,8 +161,20 @@ class UsageTracker:
 
     # ── Usage Tracking Methods ────────────────────────────────────
 
+    @staticmethod
+    def _is_valid_model(model: str) -> bool:
+        """Return True if the model ID looks like a real model, not a test/placeholder."""
+        if not model or not isinstance(model, str):
+            return False
+        if len(model) < 2 or len(model) > 80:
+            return False
+        return _INVALID_MODEL_RE.search(model) is None
+
     def record_token_usage(self, model: str, input_tokens: int, output_tokens: int):
         """Called after every AI response."""
+        # Skip tracking for test/placeholder model IDs
+        if not self._is_valid_model(model):
+            return
         total = input_tokens + output_tokens
         today = date.today().isoformat()
 
@@ -406,10 +439,12 @@ class UsageTracker:
         }
 
     def get_model_breakdown(self) -> List[dict]:
-        """Return per-model usage sorted by total tokens desc."""
+        """Return per-model usage sorted by total tokens desc (filters invalid models)."""
         models = self._usage.get("model_usage", {})
         result = []
         for model_id, data in models.items():
+            if not self._is_valid_model(model_id):
+                continue
             result.append({
                 "model": model_id,
                 "tokens": data.get("total_tokens", 0),
@@ -417,6 +452,22 @@ class UsageTracker:
             })
         result.sort(key=lambda x: x["tokens"], reverse=True)
         return result
+
+    def cleanup_invalid_models(self):
+        """Remove any test/placeholder model entries from usage data."""
+        changed = False
+        for model_id in list(self._usage.get("model_usage", {}).keys()):
+            if not self._is_valid_model(model_id):
+                del self._usage["model_usage"][model_id]
+                changed = True
+        for day_data in self._usage.get("daily_usage", {}).values():
+            models = day_data.get("models", {})
+            for model_id in list(models.keys()):
+                if not self._is_valid_model(model_id):
+                    del models[model_id]
+                    changed = True
+        if changed:
+            self._save_usage()
 
     def get_insights(self) -> dict:
         """Return activity insights."""

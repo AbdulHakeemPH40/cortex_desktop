@@ -1795,6 +1795,11 @@ class CortexMainWindow(QMainWindow):
         # The slot handles both via default parameters for perf/cost.
         self._ai_chat.model_changed.connect(self._on_model_changed)
 
+        # Mode selection (Agent/Ask/Plan) — controls tool access
+        if hasattr(self._ai_chat, 'input_area') and hasattr(self._ai_chat.input_area, 'mode_changed'):
+            self._ai_chat.input_area.mode_changed.connect(self._on_mode_changed)
+            log.info("[MAIN] mode_changed signal connected")
+
         # Active signal connections (webview-only)
         if not getattr(self, '_is_native_chat', False):
             self._ai_chat.generate_plan_requested.connect(self._on_generate_plan)
@@ -5515,6 +5520,23 @@ class CortexMainWindow(QMainWindow):
                     log.info(f"[MainWindow] Settings synced model button to: {model_label}")
         except Exception as e:
             log.warning(f"[MainWindow] _on_settings_model_changed failed: {e}")
+
+    def _on_mode_changed(self, mode: str):
+        """Handle mode change (Agent/Ask/Plan) → update agent tool access."""
+        try:
+            if hasattr(self, '_ai_agent') and self._ai_agent:
+                self._ai_agent.set_interaction_mode(mode)
+                log.info(f"[MainWindow] Mode changed to: {mode}")
+                # Show toast in chat
+                if hasattr(self, '_ai_chat') and self._ai_chat:
+                    if mode == 'Ask':
+                        self._ai_chat.add_system_message("🔒 Ask mode — read-only. Write/Edit/Bash tools are disabled.")
+                    elif mode == 'Plan':
+                        self._ai_chat.add_system_message("📋 Plan mode — planning only. Use Agent mode to execute code.")
+                    else:
+                        self._ai_chat.add_system_message("⚡ Agent mode — full access to all tools.")
+        except Exception as e:
+            log.warning(f"[MainWindow] _on_mode_changed failed: {e}")
 
     def _on_ai_stop_requested(self):
         """Handle stop request from AI (via web bridge)."""

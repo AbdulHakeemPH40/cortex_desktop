@@ -1,4 +1,4 @@
-/* CORTEX SETTINGS — JS: Navigation, Modals, Memory Bridge, Live Settings Hydration */
+﻿/* CORTEX SETTINGS — JS: Navigation, Modals, Memory Bridge, Live Settings Hydration */
 (function () {
   "use strict";
 
@@ -346,7 +346,17 @@
     }
 
     /* ── Cached usage data for chart range switching ── */
+    const MODEL_NAMES={'mimo-v2.5':{n:'MiMo V2.5',c:'#f97316'},'mimo-v2.5-pro':{n:'MiMo V2.5 Pro',c:'#f97316'},'deepseek-v4':{n:'DeepSeek V4',c:'#a78bfa'},'deepseek-v4-pro':{n:'DeepSeek V4 Pro',c:'#a78bfa'},'gpt-5.5':{n:'GPT-5.5',c:'#10b981'},'gpt-5.4':{n:'GPT-5.4',c:'#10b981'},'gpt-4o':{n:'GPT-4o',c:'#10b981'},'claude-opus':{n:'Claude Opus',c:'#d77b4a'},'claude-sonnet':{n:'Claude Sonnet',c:'#d77b4a'},'qwen3.7-plus':{n:'Qwen 3.7 Plus',c:'#f59e0b'},'qwen3.6-plus':{n:'Qwen 3.6 Plus',c:'#f59e0b'},'gemini-2.5-pro':{n:'Gemini 2.5 Pro',c:'#4285f4'},'glm-5.2':{n:'GLM 5.2',c:'#eab308'},'mistral-large-latest':{n:'Mistral Large',c:'#f43f5e'}};
+    const _IM=/^(test|mock|fake|placeholder|unknown|default)/i;
+    function isValidModel(id){return id&&typeof id==='string'&&id.length>=2&&id.length<=80&&!_IM.test(id);} function getModelName(id){if(!id)return'Unknown';var m=MODEL_NAMES[id];if(m)return m.n;return id.split(/[-_]/).map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' ');} function getModelColor(id){var m=MODEL_NAMES[id];return m?m.c:'#6b7280';}
     let _cachedUsageData = null;
+
+    /* ── Chart pagination state ── */
+    const ITEMS_PER_PAGE = { daily: 14, weekly: 8, cumulative: 12 };
+    let _chartPage = 9999; /* Start on last page (most recent data), gets clamped in renderActivityChart */
+    let _chartTotalPages = 1;
+    let _chartRange = 'daily';
+    let _allChartPoints = [];
 
     /* ── Load profile data from bridge ── */
     function loadProfile() {
@@ -409,15 +419,15 @@
       /* Update model usage list */
       const modelList = $("modelUsageList");
       if (modelList && Object.keys(models).length > 0) {
-        const sorted = Object.entries(models).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
-        const maxTokens = sorted[0][1].total_tokens || 1;
+        const sorted = Object.entries(models).filter(function(e){return isValidModel(e[0]);}).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
+        const maxTokens = sorted.length > 0 ? sorted[0][1].total_tokens : 1;
         modelList.innerHTML = sorted.map(([name, info], i) => {
           const pct = Math.round((info.total_tokens / maxTokens) * 100);
           return '<div class="model-usage-item">' +
             '<span class="model-usage-rank">' + (i + 1) + '</span>' +
             '<div class="model-usage-bar-container">' +
-            '<div class="model-usage-name">' + esc(name) + '</div>' +
-            '<div class="model-usage-bar"><div class="model-usage-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="model-usage-name">' + esc(getModelName(name)) + '</div>' +
+            '<div class="model-usage-bar"><div class="model-usage-fill" style="width:' + pct + '%;background:' + getModelColor(name) + '"></div></div>' +
             '</div>' +
             '<span class="model-usage-percent">' + formatTokens(info.total_tokens) + '</span>' +
             '</div>';
@@ -427,16 +437,16 @@
       /* Update model breakdown in Usage section */
       const breakdown = $("modelBreakdown");
       if (breakdown && Object.keys(models).length > 0) {
-        const sorted = Object.entries(models).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
-        const maxTokens = sorted[0][1].total_tokens || 1;
+        const sorted = Object.entries(models).filter(function(e){return isValidModel(e[0]);}).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
+        const maxTokens = sorted.length > 0 ? sorted[0][1].total_tokens : 1;
         breakdown.innerHTML = sorted.map(([name, info]) => {
           const pct = Math.round((info.total_tokens / maxTokens) * 100);
           return '<div class="model-breakdown-item">' +
             '<div class="model-breakdown-header">' +
-            '<span class="model-breakdown-name">' + esc(name) + '</span>' +
+            '<span class="model-breakdown-name">' + esc(getModelName(name)) + '</span>' +
             '<span class="model-breakdown-tokens">' + formatTokens(info.total_tokens) + ' tokens</span>' +
             '</div>' +
-            '<div class="model-breakdown-bar"><div class="model-breakdown-fill" style="width:' + pct + '%"></div></div>' +
+            '<div class="model-breakdown-bar"><div class="model-breakdown-fill" style="width:' + pct + '%;background:' + getModelColor(name) + '"></div></div>' +
             '</div>';
         }).join('');
       }
@@ -459,29 +469,31 @@
       }).catch(() => { /* no bridge — use defaults */ });
     }
 
-    /* ── Render activity chart (supports daily/weekly/cumulative) ── */
+    /* ── Render activity chart with pagination ── */
     function renderActivityChart(dailyUsage, range) {
       const bars = $("chartBars");
       if (!bars) return;
       range = range || 'daily';
+      _chartRange = range;
 
       const allDays = Object.keys(dailyUsage).sort();
       if (allDays.length === 0) {
         bars.innerHTML = '<div class="empty-state-small"><p>No activity data yet</p></div>';
+        _allChartPoints = [];
+        updatePagination(1, 1);
         return;
       }
 
       let points = [];
 
       if (range === 'daily') {
-        /* Last 14 days */
-        const days = allDays.slice(-14);
-        points = days.map(d => ({
-          label: d.slice(5), /* MM-DD */
-          value: (dailyUsage[d] || {}).tokens || 0
-        }));
+        /* Only days with actual usage — skip zero-value to avoid gaps */
+        allDays.forEach(d => {
+          const val = (dailyUsage[d] || {}).tokens || 0;
+          if (val > 0) points.push({ label: d.slice(5), value: val });
+        });
       } else if (range === 'weekly') {
-        /* Aggregate into weekly buckets (last 8 weeks) */
+        /* Aggregate into weekly buckets */
         const weeks = {};
         allDays.forEach(d => {
           const dt = new Date(d);
@@ -491,41 +503,135 @@
           if (!weeks[key]) weeks[key] = 0;
           weeks[key] += (dailyUsage[d] || {}).tokens || 0;
         });
-        const weekKeys = Object.keys(weeks).sort().slice(-8);
-        points = weekKeys.map(w => {
-          const dt = new Date(w);
-          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-          return { label: months[dt.getMonth()] + ' ' + dt.getDate(), value: weeks[w] };
+        const weekKeys = Object.keys(weeks).sort();
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        weekKeys.forEach(w => {
+          if (weeks[w] > 0) {
+            const dt = new Date(w);
+            points.push({ label: months[dt.getMonth()] + ' ' + dt.getDate(), value: weeks[w] });
+          }
         });
       } else if (range === 'cumulative') {
-        /* Monthly aggregation (last 12 months) */
+        /* Monthly aggregation */
         const months = {};
         allDays.forEach(d => {
           const key = d.slice(0, 7); /* YYYY-MM */
           if (!months[key]) months[key] = 0;
           months[key] += (dailyUsage[d] || {}).tokens || 0;
         });
-        const monthKeys = Object.keys(months).sort().slice(-12);
+        const monthKeys = Object.keys(months).sort();
         const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        points = monthKeys.map(m => {
-          const dt = new Date(m + '-01');
-          return { label: monthNames[dt.getMonth()], value: months[m] };
+        monthKeys.forEach(m => {
+          if (months[m] > 0) {
+            const dt = new Date(m + '-01');
+            points.push({ label: monthNames[dt.getMonth()], value: months[m] });
+          }
         });
       }
 
+      _allChartPoints = points;
       if (points.length === 0) {
         bars.innerHTML = '<div class="empty-state-small"><p>No activity data yet</p></div>';
+        updatePagination(1, 1);
         return;
       }
 
-      const maxVal = Math.max(...points.map(p => p.value), 1);
-      bars.innerHTML = points.map(p => {
+      /* Calculate pagination */
+      const perPage = ITEMS_PER_PAGE[range] || 14;
+      _chartTotalPages = Math.ceil(points.length / perPage);
+      /* Default to last page (most recent data) */
+      if (_chartPage > _chartTotalPages) _chartPage = _chartTotalPages;
+      if (_chartPage < 1) _chartPage = 1;
+
+      const startIdx = (_chartPage - 1) * perPage;
+      const pagePoints = points.slice(startIdx, startIdx + perPage);
+
+      const maxVal = Math.max(...pagePoints.map(p => p.value), 1);
+      bars.innerHTML = pagePoints.map(p => {
         const pct = Math.round((p.value / maxVal) * 100);
         return '<div class="chart-column">' +
-          '<div class="chart-bar" style="height:' + Math.max(pct, 2) + '%" title="' + p.label + ': ' + formatTokens(p.value) + '"></div>' +
+          '<div class="chart-bar" style="height:' + Math.max(pct, 4) + '%" title="' + p.label + ': ' + formatTokens(p.value) + '"></div>' +
           '<span class="chart-label">' + p.label + '</span>' +
           '</div>';
       }).join('');
+
+      updatePagination(_chartPage, _chartTotalPages);
+    }
+
+    /* ── Update pagination controls ── */
+    function updatePagination(current, total) {
+      const pagination = $("chartPagination");
+      if (!pagination) return;
+
+      if (total <= 1) {
+        pagination.classList.add('hidden');
+        return;
+      }
+      pagination.classList.remove('hidden');
+
+      /* Update nav arrow states */
+      const firstBtn = $("pageFirst");
+      const prevBtn = $("pagePrev");
+      const nextBtn = $("pageNext");
+      const lastBtn = $("pageLast");
+
+      if (firstBtn) firstBtn.disabled = (current <= 1);
+      if (prevBtn) prevBtn.disabled = (current <= 1);
+      if (nextBtn) nextBtn.disabled = (current >= total);
+      if (lastBtn) lastBtn.disabled = (current >= total);
+
+      /* Render page number buttons (show max 5 page numbers) */
+      const pageNumbers = $("pageNumbers");
+      if (pageNumbers) {
+        let pages = [];
+        const maxVisible = 5;
+        let start = Math.max(1, current - Math.floor(maxVisible / 2));
+        let end = Math.min(total, start + maxVisible - 1);
+        if (end - start + 1 < maxVisible) {
+          start = Math.max(1, end - maxVisible + 1);
+        }
+
+        /* Add ellipsis + first page if needed */
+        if (start > 1) {
+          pages.push(1);
+          if (start > 2) pages.push('...');
+        }
+        for (let i = start; i <= end; i++) {
+          pages.push(i);
+        }
+        /* Add ellipsis + last page if needed */
+        if (end < total) {
+          if (end < total - 1) pages.push('...');
+          pages.push(total);
+        }
+
+        pageNumbers.innerHTML = pages.map(p => {
+          if (p === '...') {
+            return '<span style="color:var(--muted);font-size:12px;padding:0 4px;">…</span>';
+          }
+          return '<button class="page-btn' + (p === current ? ' active' : '') + '" data-page="' + p + '">' + p + '</button>';
+        }).join('');
+
+        /* Bind click events on page buttons */
+        pageNumbers.querySelectorAll('.page-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const page = parseInt(btn.dataset.page, 10);
+            if (page && page !== _chartPage) {
+              _chartPage = page;
+              renderActivityChart(_cachedUsageData?.daily_usage || {}, _chartRange);
+            }
+          });
+        });
+      }
+
+      /* Page info text */
+      const pageInfo = $("pageInfo");
+      if (pageInfo) {
+        const perPage = ITEMS_PER_PAGE[_chartRange] || 14;
+        const startItem = (current - 1) * perPage + 1;
+        const endItem = Math.min(current * perPage, _allChartPoints.length);
+        pageInfo.textContent = startItem + '–' + endItem + ' of ' + _allChartPoints.length;
+      }
     }
 
     /* ── Activity tab toggle ── */
@@ -534,12 +640,28 @@
         document.querySelectorAll('.activity-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         const range = tab.dataset.range;
+        /* Reset to last page (most recent data) on range change */
+        _chartPage = 9999; /* will be clamped to last page in renderActivityChart */
         if (_cachedUsageData) {
           renderActivityChart(_cachedUsageData.daily_usage || {}, range);
         } else {
           loadUsageStats();
         }
       });
+    });
+
+    /* ── Pagination nav button handlers ── */
+    $("pageFirst")?.addEventListener('click', () => {
+      if (_chartPage > 1) { _chartPage = 1; renderActivityChart(_cachedUsageData?.daily_usage || {}, _chartRange); }
+    });
+    $("pagePrev")?.addEventListener('click', () => {
+      if (_chartPage > 1) { _chartPage--; renderActivityChart(_cachedUsageData?.daily_usage || {}, _chartRange); }
+    });
+    $("pageNext")?.addEventListener('click', () => {
+      if (_chartPage < _chartTotalPages) { _chartPage++; renderActivityChart(_cachedUsageData?.daily_usage || {}, _chartRange); }
+    });
+    $("pageLast")?.addEventListener('click', () => {
+      if (_chartPage < _chartTotalPages) { _chartPage = _chartTotalPages; renderActivityChart(_cachedUsageData?.daily_usage || {}, _chartRange); }
     });
 
     /* ── Edit Profile modal (using CSS classes) ── */

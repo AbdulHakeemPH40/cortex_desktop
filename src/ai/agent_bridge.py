@@ -10,6 +10,9 @@ import threading
 from typing import Any, Dict, List, Optional, Callable, Tuple, Type, Set, Protocol, cast
 from dataclasses import dataclass
 
+# Usage tracker — records token/tool/session metrics for Settings → Profile UI
+from src.ai.usage_tracker import get_usage_tracker
+
 # CRITICAL: Defer asyncio import to avoid PyInstaller TypeError on Windows.
 # PyInstaller 6.x + Python 3.14 fails with "function() argument 'code' must be code, not str"
 # when asyncio.windows_utils is loaded during module initialization.
@@ -50,7 +53,6 @@ from src.ai.session_task import (
     stop_session_task,
 )
 from src.ai.model_limits import ModelLimits
-from src.ai.usage_tracker import UsageTracker
 import urllib.error
 import urllib.request
 
@@ -2259,8 +2261,8 @@ class CortexAgentBridge(QObject):
 
         # ── Usage Tracker (profile + usage stats for Settings UI) ─────────────
         try:
-            self._usage_tracker = UsageTracker()
-            log.info("[BRIDGE] UsageTracker initialized")
+            self._usage_tracker = get_usage_tracker()
+            log.info("[BRIDGE] UsageTracker initialized (singleton)")
         except Exception as _ut_err:
             log.warning(f"[BRIDGE] UsageTracker init failed: {_ut_err}")
             self._usage_tracker = None
@@ -5404,10 +5406,10 @@ They survive auto-compaction and are ALWAYS active:
                     _turns_since_last_mutation += 1
 
                 # ── Research-mode detector: too many read-only turns ──
-                # When the agent spends 10+ consecutive turns reading/searching
+                # When the agent spends 15+ consecutive turns reading/searching
                 # without writing anything, it's stuck in "research mode".
                 # Inject a hard nudge to force action.
-                if _turns_since_last_mutation >= 10 and _turn_is_read_only and not _has_mutated:
+                if _turns_since_last_mutation >= 15 and _turn_is_read_only and not _has_mutated:
                     _research_nudge_count = getattr(self, '_research_nudge_count', 0)
                     if _research_nudge_count < 2:
                         self._research_nudge_count = _research_nudge_count + 1
@@ -5425,7 +5427,7 @@ They survive auto-compaction and are ALWAYS active:
                         )
                         messages.append(PCM(role="user", content=_research_msg))
                         continue
-                    elif _research_nudge_count >= 2 and _turns_since_last_mutation >= 15:
+                    elif _research_nudge_count >= 2 and _turns_since_last_mutation >= 25:
                         log.warning(
                             f"[BRIDGE] Research-mode hard breaker: {_turns_since_last_mutation} "
                             f"read-only turns — forcing exit"
@@ -5633,6 +5635,18 @@ They survive auto-compaction and are ALWAYS active:
                     clear_snapshot()
             except Exception as _ses_exc:
                 log.warning(f"[SESSION] Exit save failed: {_ses_exc}")
+
+            # ── Usage Tracker: record token usage for this request ──────
+            try:
+                _ut = getattr(self, '_usage_tracker', None)
+                if _ut and full_response:
+                    _prompt_est = len(str(message)) // 4 if message else 0
+                    _completion_est = len(full_response) // 4
+                    _model_id = getattr(self, '_current_model_id', None) or 'unknown'
+                    _ut.record_token_usage(_model_id, _prompt_est, _completion_est)
+                    log.debug(f"[USAGE] Recorded {_prompt_est}+{_completion_est} tokens, model={_model_id}")
+            except Exception as _ut_err:
+                log.debug(f"[USAGE] Token tracking skipped: {_ut_err}")
 
             return full_response
 
@@ -6196,6 +6210,43 @@ They survive auto-compaction and are ALWAYS active:
         """Inner implementation of _execute_single_tool — shielded by the outer method."""
         activity = _TOOL_TO_ACTIVITY_NAME.get(tool_name, tool_name.lower())
 
+        # ── Interaction mode enforcement ─────────────────────────────
+        # Ask mode: read-only — block write/edit/delete/execute tools
+        # Plan mode: planning only — block all except planning tools
+        # Agent mode: full access (default)
+        _mode = getattr(self, '_interaction_mode', 'Agent')
+        if _mode == 'Ask':
+            _ASK_BLOCKED = {
+                'Write', 'Edit', 'Bash', 'PowerShell', 'NotebookEdit',
+                'AgentTool', 'SendMessageTool',
+            }
+            if tool_name in _ASK_BLOCKED:
+                error_msg = (
+                    f"Cannot use {tool_name} in Ask mode — Ask mode is read-only. "
+                    f"Switch to Agent mode to use {tool_name}."
+                )
+                log.info(f"[MODE] Blocked {tool_name} in Ask mode")
+                self._safe_emit(self.tool_activity, activity,
+                    self._build_activity_info(activity, tool_name, args, error_msg, "error"), "error")
+                messages.append(PCM(role="tool", content=error_msg, tool_call_id=tool_id))
+                return
+        elif _mode == 'Plan':
+            _PLAN_ALLOWED = {
+                'TodoWrite', 'EnterPlanMode', 'ExitPlanMode', 'PlanBuild',
+                'Read', 'Grep', 'Glob', 'LS', 'SemanticSearch',
+                'AskUserQuestion', 'WebSearch', 'WebFetch',
+            }
+            if tool_name not in _PLAN_ALLOWED:
+                error_msg = (
+                    f"Cannot use {tool_name} in Plan mode — Plan mode is for planning only. "
+                    f"Switch to Agent mode to execute code."
+                )
+                log.info(f"[MODE] Blocked {tool_name} in Plan mode")
+                self._safe_emit(self.tool_activity, activity,
+                    self._build_activity_info(activity, tool_name, args, error_msg, "error"), "error")
+                messages.append(PCM(role="tool", content=error_msg, tool_call_id=tool_id))
+                return
+
         # For Write tool, detect create vs update for proper UI card
         if tool_name == "Write":
             fpath = args.get("file_path", "") or args.get("path", "")
@@ -6253,6 +6304,14 @@ They survive auto-compaction and are ALWAYS active:
 
         try:
             self._tool_call_success[tool_id] = bool(result.success)
+        except Exception:
+            pass
+
+        # ── Usage Tracker: record tool call ────────────────────────
+        try:
+            _ut = getattr(self, '_usage_tracker', None)
+            if _ut:
+                _ut.record_tool_call(tool_name)
         except Exception:
             pass
 

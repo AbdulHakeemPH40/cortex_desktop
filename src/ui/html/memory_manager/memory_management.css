@@ -1469,7 +1469,7 @@ kbd {
 .chart-bars {
     display: flex;
     align-items: flex-end;
-    gap: 6px;
+    gap: 10px;
     width: 100%;
     height: 100%;
 }
@@ -1479,9 +1479,11 @@ kbd {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     height: 100%;
     justify-content: flex-end;
+    max-width: 60px;
+    min-width: 0;
 }
 
 .chart-bar {
@@ -1921,4 +1923,83 @@ kbd {
 .plugin-usage-desc {
     font-size: 11px;
     color: var(--muted);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CHART PAGINATION
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.chart-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.chart-pagination.hidden {
+    display: none;
+}
+
+.page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--font-ui);
+    user-select: none;
+}
+
+.page-btn:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--surface-3);
+}
+
+.page-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.page-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.page-btn.active:hover {
+    background: var(--accent);
+    color: white;
+}
+
+.page-btn.nav-arrow {
+    font-size: 14px;
+    min-width: 28px;
+    height: 28px;
+}
+
+.page-btn.nav-arrow svg {
+    width: 14px;
+    height: 14px;
+}
+
+.chart-page-info {
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0 8px;
+    white-space: nowrap;
+}
 }

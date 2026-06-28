@@ -450,7 +450,7 @@ def _python_grep_fallback_sync(args: List[str], cwd: str) -> List[str]:
         results = _search_file(sp, str(sp))
     elif sp.is_dir():
         for file_path in sp.rglob('*'):
-            if len(results) >= 500:
+            if len(results) >= 2000:
                 break
             if not file_path.is_file():
                 continue
@@ -465,10 +465,10 @@ def _python_grep_fallback_sync(args: List[str], cwd: str) -> List[str]:
             except ValueError:
                 rel = str(file_path)
             results.extend(_search_file(file_path, rel))
-            if len(results) >= 500:
+            if len(results) >= 2000:
                 break
 
-    return results[:500]
+    return results[:2000]
 
 
 def _find_npm_ripgrep() -> Optional[str]:
@@ -951,6 +951,17 @@ class GrepTool:
         head_limit = inp.get("head_limit")
         offset = inp.get("offset", 0)
         multiline = inp.get("multiline", False)
+
+        # Ensure numeric types (LLM may pass strings)
+        if head_limit is not None:
+            try:
+                head_limit = int(head_limit)
+            except (ValueError, TypeError):
+                head_limit = None
+        try:
+            offset = int(offset)
+        except (ValueError, TypeError):
+            offset = 0
         
         absolute_path = expand_path(path) if path else get_cwd()
         # If the path is a file (not a directory), ripgrep cannot use it
@@ -970,7 +981,7 @@ class GrepTool:
         # --------------------------------------------------------------
         # Limit line length to prevent clutter
         # --------------------------------------------------------------
-        args.extend(['--max-columns', '500'])
+        args.extend(['--max-columns', '2000'])
         
         # --------------------------------------------------------------
         # Apply multiline flags only when explicitly requested
