@@ -3,7 +3,7 @@ Agent Safety Guard — Industry-standard agentic loop protections.
 
 Implements:
   P1: Doom-loop detection (MD5 fingerprinting, 3x repeat → pause)
-  P2: Max iteration limit (25 tool calls per turn, configurable)
+  P2: Tool call counter (advisory reminders every 50 calls, never blocks)
   P3: Read-before-edit enforcement (tracks files read, warns before blind edits)
   P4: Stale-read detection (mtime tracking, warns if file changed since last read)
   P5: Search-before-edit enforcement (requires search before editing large files)
@@ -26,7 +26,7 @@ from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 # Constants
 # ============================================================
 
-MAX_TOOL_ITERATIONS = int(os.environ.get("CORTEX_MAX_TOOL_ITERATIONS", "50"))  # P2: Max tool calls per user turn (default 50, configurable via env)
+MAX_TOOL_ITERATIONS = int(os.environ.get("CORTEX_MAX_TOOL_ITERATIONS", "999999"))  # P2: Advisory reminder interval (default unlimited — never blocks, only warns)
 DOOM_LOOP_FINGERPRINT_SIZE = 20   # P1: Last N tool calls to fingerprint
 DOOM_LOOP_REPEAT_LIMIT = 3        # P1: Same fingerprint → warning
 DOOM_LOOP_FORCE_EXIT = 5          # P1: Same fingerprint → forced stop
@@ -93,20 +93,25 @@ SAFETY DIRECTIVES (these NEVER get compacted):
    You have a generous context window. Use it wisely.
    Read when you need to, not by default.
 
-2. DOOM-LOOP DETECTION:
+2. TOOL CALL BUDGET:
+   Use as many tools as needed to complete the task.
+   You'll get periodic reminders but will NEVER be blocked.
+   Be efficient — avoid redundant reads or searches.
+
+3. DOOM-LOOP DETECTION:
    If you call the same tool with the same arguments 3 times,
    STOP and try a completely different approach.
    Repeating a failing command will never make it succeed.
 
-3. READ-BEFORE-EDIT:
+4. READ-BEFORE-EDIT:
    Read a file before editing it. The system tracks reads.
    If you edit without reading, the system will warn you.
 
-4. ERROR RECOVERY:
+5. ERROR RECOVERY:
    If you encounter 3 consecutive errors on the same operation,
    STOP and explain what went wrong to the user.
 
-5. NO SELF-TALK:
+6. NO SELF-TALK:
    Do NOT narrate your process. Just call tools.
    The user sees tool calls automatically.
    Visible text = explanations, summaries, questions ONLY.
@@ -246,33 +251,24 @@ class AgentSafetyGuard:
 
     def check_max_iterations(self) -> Optional[str]:
         """
-        Check if the agent has hit the max tool call limit.
+        Check tool call count — soft warnings only, NEVER blocks.
 
-        Two-stage approach:
-          - 80% threshold: soft warning to start wrapping up
-          - 100% threshold: hard stop
+        The agent is allowed to use as many tools as needed to complete work.
+        Periodic reminders are emitted at intervals so the agent stays aware
+        of its usage, but no hard stop is enforced.
 
         Returns:
-            None if OK, directive message if at/above threshold.
+            None if OK, advisory reminder message at intervals.
         """
         self._state.iteration_count += 1
         count = self._state.iteration_count
 
-        # Hard stop at limit
-        if count >= self.max_iterations:
+        # Periodic reminders every 50 calls (never blocks)
+        if count > 0 and count % 50 == 0:
             return (
-                f"[System: Tool budget exhausted — {count}/{self.max_iterations} tool calls this turn. "
-                f"Summarize what you've accomplished and what remains. "
-                f"The system will auto-continue if there are remaining tasks.]"
-            )
-
-        # Soft warning at 80% threshold
-        warning_threshold = int(self.max_iterations * 0.8)
-        if count >= warning_threshold and not self._state.has_been_warned_about_iterations:
-            self._state.has_been_warned_about_iterations = True
-            return (
-                f"[System: Prioritize remaining work — you've used {count}/{self.max_iterations} tool calls. "
-                f"Focus on the most important tasks and wrap up soon.]"
+                f"[System: {count} tool calls used this turn. "
+                f"Continue working to complete the task. "
+                f"Be efficient — avoid redundant reads or searches.]"
             )
 
         return None
@@ -517,18 +513,10 @@ class AgentSafetyGuard:
         warnings: List[str] = []
         should_proceed = True
 
-        # P2: Max iteration limit
+        # P2: Tool call counter — advisory only, never blocks
         iter_msg = self.check_max_iterations()
         if iter_msg:
-            if self._state.iteration_count >= self.max_iterations:
-                # In AUTO mode, just warn — don't force stop (like Cursor)
-                if is_auto_mode:
-                    warnings.append(iter_msg)
-                else:
-                    return False, [iter_msg]  # FORCE STOP only in ASK mode
-            else:
-                # Soft warning at 80% — always add to warnings (never blocks)
-                warnings.append(iter_msg)
+            warnings.append(iter_msg)
 
         # P1: Doom-loop detection
         doom_msg = self.check_doom_loop(tool_name, args)

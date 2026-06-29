@@ -430,7 +430,7 @@ def main():
     
     app = QApplication(sys.argv)
     app.setApplicationName("Cortex AI Agent")
-    app.setApplicationVersion("1.0.6")
+    app.setApplicationVersion("0.0.01")
     app.setOrganizationName("Cortex")
 
     # Set Application Icon (Taskbar/Alt+Tab)

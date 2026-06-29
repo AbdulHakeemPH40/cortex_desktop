@@ -1535,7 +1535,7 @@ class CortexMainWindow(QMainWindow):
             sb.addWidget(lbl)
 
         # ── Version ──
-        version_lbl = QLabel("  Cortex AI Agent v1.0.6 ")
+        version_lbl = QLabel("  Cortex AI Agent v0.0.01 ")
         version_lbl.setStyleSheet("color: #6272a4; font-size: 11px;")
         sb.addPermanentWidget(version_lbl)
 

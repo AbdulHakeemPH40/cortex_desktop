@@ -10,7 +10,7 @@ Write-Host "   Runtime hook prevents ALL subprocess console windows" -Foreground
 Write-Host ""
 
 # Configuration
-$VERSION = "1.0.17"
+$VERSION = "0.0.01"
 $PROJECT_ROOT = $PSScriptRoot
 $DIST_DIR = Join-Path $PROJECT_ROOT "dist"
 $BUILD_DIR = Join-Path $PROJECT_ROOT "build"
@@ -86,7 +86,7 @@ Write-Host ""
 # Step 3: PyInstaller Build (Main IDE)
 Write-Host "[4/6] Building main IDE executable with PyInstaller..." -ForegroundColor Yellow
 
-$pyinstallerCmd = "pyinstaller cortex.spec --clean --noconfirm"
+$pyinstallerCmd = "python -m PyInstaller cortex.spec --clean --noconfirm"
 Write-Host "  Running: $pyinstallerCmd" -ForegroundColor Gray
 
 Invoke-Expression $pyinstallerCmd

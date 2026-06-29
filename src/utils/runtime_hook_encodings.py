@@ -36,4 +36,10 @@ import encodings.utf_16_le
 
 # Force import of codecs module tree (also commonly missed on Windows).
 import codecs
-import codecs.mbcs  # Windows MBCS codec — critical on Windows builds
+try:
+    import codecs.mbcs  # Windows MBCS codec — critical on Windows builds
+except (ImportError, ModuleNotFoundError):
+    # Python 3.14+ / PyInstaller frozen: codecs is bundled as a flat module,
+    # not a package, so submodule imports fail. MBCS is auto-registered by
+    # the codecs registry on Windows anyway, so this is safe to skip.
+    pass
