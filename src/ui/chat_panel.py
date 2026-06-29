@@ -3450,6 +3450,18 @@ class MessageWidget(QWidget):
                 val = bd.get(key)
                 if isinstance(val, str) and '\x00' in val:
                     bd[key] = val.replace('\x00', '')
+        # After stripping \x00, re-process text to fix any leaked INLINE/FENCED markers
+        # that were saved before restoration completed. streaming_clean() handles these.
+        from src.ui.chat_text import streaming_clean as _stream_clean
+        for key in ('content', 'text'):
+            val = data.get(key)
+            if isinstance(val, str) and ('INLINE' in val or 'FENCED' in val or 'CODEBLOCK' in val):
+                data[key] = _stream_clean(val)
+        for bd in data.get("blocks", []):
+            for key in ('content', 'text'):
+                val = bd.get(key)
+                if isinstance(val, str) and ('INLINE' in val or 'FENCED' in val or 'CODEBLOCK' in val):
+                    bd[key] = _stream_clean(val)
 
         role = data.get("role", "assistant")
         msg = MessageWidget(role=role, parent=None)  # parent set by caller after return
@@ -5026,6 +5038,7 @@ class ChatPanel(QWidget):
         self._scroll_locked = False
         self._autoscroll_pending = False
         self._scroll_lock_threshold = 60  # px from bottom to trigger lock
+        self._scroll_positions: dict[str, tuple[int, int]] = {}  # conv_id → (scroll_value, scroll_max)
         # Reference-counted viewport freeze — prevents premature
         # setUpdatesEnabled(True) from nested _ensure/_flush_* calls
         # that would re-enable painting mid-layout and cause flicker.
@@ -7344,10 +7357,11 @@ class ChatPanel(QWidget):
         self._resize_fit_timer.start()
 
     def _refit_all_bodies(self, prebuilt: list | None = None):
-        """Refit all visible QTextBrowser widgets — batched to avoid UI freeze.
+        """Refit visible QTextBrowser widgets — batched to avoid UI freeze.
 
-        Processes widgets in batches, yielding to the event loop between
-        batches so the UI stays responsive during chat restore.
+        OPTIMIZED: Only refits widgets that are visible in the viewport.
+        Off-screen widgets are skipped, reducing the refit pass from O(n) to
+        O(visible) — critical for large conversations.
 
         Args:
             prebuilt: Optional pre-built list of QTextBrowser widgets to refit.
@@ -7363,24 +7377,44 @@ class ChatPanel(QWidget):
         else:
             all_bodies = [
                 tb for tb in self.findChildren(QTextBrowser)
-                if tb.isVisible()
-                and hasattr(tb, "_fit")
+                if hasattr(tb, "_fit")
                 and not getattr(tb, '_streaming_skip_fit', False)
             ]
         if not all_bodies:
             log.debug("[ChatRestore] No bodies to refit")
             return
 
+        # Filter to only visible widgets (in viewport + buffer zone)
+        bar = self.scroll.verticalScrollBar()
+        viewport_top = bar.value()
+        viewport_bottom = viewport_top + self.scroll.viewport().height()
+        BUFFER = 500  # px buffer above/below viewport
+
+        visible_bodies = []
+        for tb in all_bodies:
+            try:
+                # Map widget position to scroll area coordinates
+                pos = tb.mapTo(self.scroll.widget(), tb.pos())
+                tb_top = pos.y()
+                tb_bottom = tb_top + tb.height()
+                # Check if widget overlaps with viewport + buffer
+                if tb_bottom >= (viewport_top - BUFFER) and tb_top <= (viewport_bottom + BUFFER):
+                    visible_bodies.append(tb)
+            except RuntimeError:
+                continue  # Widget destroyed
+
+        if not visible_bodies:
+            visible_bodies = all_bodies  # Fallback: refit all if none mapped
+
         BATCH = 24
-        total = len(all_bodies)
-        log.info(f"[ChatRestore] Refitting {total} QTextBrowser widgets in batches of {BATCH}")
-        log.info(f"[ChatRestore] Viewport frozen: {self._freeze_depth > 0}")
+        total = len(visible_bodies)
+        log.info(f"[ChatRestore] Refitting {total} visible QTextBrowser widgets (of {len(all_bodies)} total)")
 
         def _refit_batch(start: int):
             end = min(start + BATCH, total)
             for i in range(start, end):
                 try:
-                    all_bodies[i]._fit()
+                    visible_bodies[i]._fit()
                 except Exception as e:
                     log.warning(f"[ChatRestore] Refit failed for widget {i}: {e}")
             if end < total:
@@ -7614,6 +7648,7 @@ class ChatPanel(QWidget):
         Clears existing messages, then rebuilds from the data.
         If no messages, shows empty state (ring logo)."""
         import json; _json = json
+        self._save_scroll_position()
         self.clear_messages()
 
         self._conversation_id = data.get("conversation_id")
@@ -7655,14 +7690,179 @@ class ChatPanel(QWidget):
             if hasattr(tb, "_fit")
         ]
         QTimer.singleShot(0, lambda: self._refit_all_bodies(all_bodies))
-        self._autoscroll()
+        self._restore_scroll_position()
+
+    # ── Scroll Position Save/Restore ─────────────────────────────────────
+
+    def _save_scroll_position(self):
+        """Save current scroll position for the active conversation."""
+        conv_id = getattr(self, '_conversation_id', None)
+        if not conv_id:
+            return
+        try:
+            bar = self.scroll.verticalScrollBar()
+            self._scroll_positions[conv_id] = (bar.value(), bar.maximum())
+        except RuntimeError:
+            pass
+
+    def _restore_scroll_position(self):
+        """Restore saved scroll position for the active conversation."""
+        conv_id = getattr(self, '_conversation_id', None)
+        if not conv_id:
+            return
+        pos = self._scroll_positions.get(conv_id)
+        if pos is None:
+            self._autoscroll()  # Default: scroll to bottom
+            return
+        saved_value, saved_max = pos
+        try:
+            bar = self.scroll.verticalScrollBar()
+            new_max = bar.maximum()
+            if saved_max > 0:
+                ratio = saved_value / saved_max
+                target = int(ratio * new_max)
+            else:
+                target = saved_value
+            QTimer.singleShot(100, lambda: bar.setValue(target))
+        except RuntimeError:
+            pass
+
+    # ── Lazy Loading Helpers (scroll-up pagination) ──────────────────────
+
+    def _show_load_more_indicator(self):
+        """Show a 'Load older messages' label at the top of the chat."""
+        if getattr(self, '_load_more_label', None) is not None:
+            return  # Already shown
+        lbl = QLabel("↑ Scroll up to load older messages")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl.setStyleSheet(
+            f"color:{T['muted']};font-size:{T['font_size_xxs']};"
+            "padding:8px;font-style:italic;background:transparent;"
+        )
+        lbl.setFixedHeight(32)
+        # Insert at top of layout (after any stretch)
+        self.col.insertWidget(0, lbl)
+        self._load_more_label = lbl
+
+    def _hide_load_more_indicator(self):
+        """Remove the 'Load older messages' label."""
+        lbl = getattr(self, '_load_more_label', None)
+        if lbl is not None:
+            try:
+                self.col.removeWidget(lbl)
+                lbl.deleteLater()
+            except RuntimeError:
+                pass
+            self._load_more_label = None
+
+    def _on_scroll_load_more(self, value: int):
+        """Called when scroll position changes — loads older messages near top."""
+        if self._lazy_loaded or not hasattr(self, '_pending_messages'):
+            return
+        if not self._pending_messages:
+            self._lazy_loaded = True
+            self._hide_load_more_indicator()
+            return
+
+        # Load more when scroll is within 100px of top
+        bar = self.scroll.verticalScrollBar()
+        if value > 100:
+            return
+
+        # Load 30 more messages from pending list
+        LOAD_BATCH = 30
+        pending = self._pending_messages
+        if not pending:
+            self._lazy_loaded = True
+            self._hide_load_more_indicator()
+            return
+
+        # Take from end of pending — load complete conversation turns.
+        # A "turn" = consecutive user messages + consecutive AI responses.
+        loaded = set()
+        idx = len(pending) - 1
+
+        while idx >= 0 and len(loaded) < LOAD_BATCH:
+            if pending[idx].get("role") == "assistant":
+                ai_end = idx
+                while idx >= 0 and pending[idx].get("role") == "assistant":
+                    idx -= 1
+                while idx >= 0 and pending[idx].get("role") == "user":
+                    idx -= 1
+                for j in range(idx + 1, ai_end + 1):
+                    loaded.add(j)
+            else:
+                idx -= 1
+
+        if loaded:
+            split_pos = min(loaded)
+        else:
+            split_pos = len(pending)
+        to_load = pending[split_pos:]
+        self._pending_messages = pending[:split_pos]
+
+        # FIX: Trim trailing orphaned user messages from to_load.
+        # These user messages have their AI responses already in the initial
+        # load (below in the chat). Loading them here would show them at the
+        # top without their AI responses — the exact bug the user reported.
+        while to_load and to_load[-1].get("role") == "user":
+            to_load.pop()
+
+        if not to_load:
+            self._lazy_loaded = True
+            self._hide_load_more_indicator()
+            return
+
+        if not self._pending_messages:
+            self._lazy_loaded = True
+            self._hide_load_more_indicator()
+
+        log.info(f"[ChatRestore] Lazy loading {len(to_load)} older messages, {len(self._pending_messages)} remaining")
+
+        # Remember scroll position
+        old_max = bar.maximum()
+        old_value = bar.value()
+
+        # Insert messages at top (after any load-more label)
+        _restored_bodies = []
+        self._freeze_viewport()
+        try:
+            # Remove load-more label temporarily
+            self._hide_load_more_indicator()
+
+            insert_pos = 0
+            for m in to_load:
+                try:
+                    msg_widget = MessageWidget.from_serialized(m, _restoring=True)
+                    if msg_widget:
+                        self.col.insertWidget(insert_pos, msg_widget)
+                        insert_pos += 1
+                        for child in msg_widget.findChildren(QTextBrowser):
+                            if hasattr(child, "_fit"):
+                                _restored_bodies.append(child)
+                except Exception as e:
+                    log.warning(f"[ChatRestore] Lazy load failed for message: {e}")
+        finally:
+            self._thaw_viewport()
+
+        # Re-insert load-more label if more pending
+        if self._pending_messages:
+            self._show_load_more_indicator()
+
+        # Restore scroll position (account for new content above)
+        new_max = bar.maximum()
+        delta = new_max - old_max
+        bar.setValue(old_value + delta)
+
+        # Refit new widgets
+        QTimer.singleShot(0, lambda: self._refit_all_bodies(_restored_bodies))
 
     def load_timeline_async(self, data: dict):
         """Restore chat asynchronously — shows spinner, processes in batches.
 
-        Unlike load_timeline() which blocks the UI, this yields to the Qt event
-        loop every BATCH_SIZE messages so the app stays responsive. A spinner
-        overlay shows progress to the user.
+        LAZY LOADING: Only loads the last 50 messages initially.
+        When user scrolls to top, loads 30 more messages (scroll-up pagination).
+        This matches Cursor's pattern and eliminates the "pull together" effect.
 
         Performance optimizations vs load_timeline():
         - _restoring=True skips per-widget QTimer._fit() calls (hundreds of them)
@@ -7680,17 +7880,60 @@ class ChatPanel(QWidget):
                 return
 
             total = len(valid_msgs)
+            INITIAL_LOAD = 50  # Load last 50 messages initially
+
+            # Store full list for lazy loading on scroll-up
+            self._all_messages = valid_msgs
+            self._lazy_loaded = False  # True when all messages are loaded
+
+            # Determine what to load: last N messages as COMPLETE conversation turns.
+            # A "turn" = consecutive user messages + consecutive AI responses.
+            # Walk backward from end, collecting full turns.
+            if total > INITIAL_LOAD:
+                loaded = set()
+                idx = total - 1
+
+                while idx >= 0 and len(loaded) < INITIAL_LOAD:
+                    if valid_msgs[idx].get("role") == "assistant":
+                        # Found AI at end — walk back through ALL consecutive AIs
+                        ai_end = idx
+                        while idx >= 0 and valid_msgs[idx].get("role") == "assistant":
+                            idx -= 1
+                        # Now walk back through ALL consecutive users
+                        while idx >= 0 and valid_msgs[idx].get("role") == "user":
+                            idx -= 1
+                        # Turn = msgs[idx+1 .. ai_end]
+                        for j in range(idx + 1, ai_end + 1):
+                            loaded.add(j)
+                    else:
+                        idx -= 1  # Orphaned user, skip
+
+                if loaded:
+                    split_idx = min(loaded)
+                else:
+                    split_idx = total - INITIAL_LOAD
+                initial_msgs = valid_msgs[split_idx:]
+                self._pending_messages = valid_msgs[:split_idx]
+                log.info(f"[ChatRestore] Lazy load: {len(loaded)} msgs of {total} (split at #{split_idx}), {len(self._pending_messages)} pending")
+            else:
+                initial_msgs = valid_msgs
+                self._pending_messages = []
+                self._lazy_loaded = True
+
+            load_count = len(initial_msgs)
             self._spinner_overlay.show_overlay(
                 "Restoring your chat conversation\u2026",
                 spinner_key="thought",
                 title="Chat Restore",
-                detail="This may take a few seconds for large conversations.",
-                progress=(0, total)
+                detail=f"Loading {load_count} of {total} messages\u2026",
+                progress=(0, load_count)
             )
+
+            # Save scroll position before clearing
+            self._save_scroll_position()
 
             # Clear existing content and hide empty state
             self.clear_messages()
-            # clear_messages() already creates empty state + stretch, remove them
             if self._empty_state is not None:
                 try:
                     self.col.removeWidget(self._empty_state)
@@ -7699,66 +7942,64 @@ class ChatPanel(QWidget):
                 except RuntimeError:
                     pass
                 self._empty_state = None
-            self._remove_stretch()  # remove centering stretch added by clear_messages()
+            self._remove_stretch()
             _RESTORING_ACTIVE = True
-            self._restoring = True  # skip _virtualize_old_messages during restore
+            self._restoring = True
 
-            BATCH_SIZE = 24  # Process 24 messages per batch for speed
-
-            log.info(f"[ChatRestore] Starting restore: {total} messages, batch_size={BATCH_SIZE}")
-            _restored_bodies = []  # Collect QTextBrowser widgets for prebuilt refit
+            BATCH_SIZE = 24
+            log.info(f"[ChatRestore] Starting restore: {load_count} messages, batch_size={BATCH_SIZE}")
+            _restored_bodies = []
 
             def _process_batch(batch_start: int):
-                batch_end = min(batch_start + BATCH_SIZE, total)
-                log.info(f"[ChatRestore] Processing batch: {batch_start}-{batch_end} of {total}")
-
-                # Freeze viewport only for this batch — allows paint between batches
+                batch_end = min(batch_start + BATCH_SIZE, load_count)
                 self._freeze_viewport()
                 try:
                     for i in range(batch_start, batch_end):
                         try:
-                            m = valid_msgs[i]
+                            m = initial_msgs[i]
                             msg_widget = MessageWidget.from_serialized(m, _restoring=True)
                             if msg_widget:
                                 self.col.addWidget(msg_widget)
-                                # Collect QTextBrowser children for prebuilt refit
                                 for child in msg_widget.findChildren(QTextBrowser):
                                     if hasattr(child, "_fit"):
                                         _restored_bodies.append(child)
-                                log.debug(f"[ChatRestore] Restored message {i}: role={m.get('role', 'unknown')}, blocks={len(m.get('blocks', []))}")
-                            else:
-                                log.warning(f"[ChatRestore] Message {i} returned None widget")
                         except Exception as _msg_err:
-                            import traceback; traceback.print_exc()
                             log.warning(f"[ChatRestore] Failed to restore message {i}: {_msg_err}")
                 except Exception as _batch_err:
                     log.error(f"[ChatRestore] Batch error at {batch_start}: {_batch_err}")
 
-                # Thaw this batch so the UI can paint
                 self._thaw_viewport()
 
-                if batch_end < total:
-                    # More batches — update spinner progress and yield to event loop
-                    self._spinner_overlay.update_progress(batch_end, total)
+                if batch_end < load_count:
+                    self._spinner_overlay.update_progress(batch_end, load_count)
                     QTimer.singleShot(0, lambda: _process_batch(batch_end))
                 else:
-                    # ALL batches done — finalize
-                    log.info(f"[ChatRestore] All {total} messages restored, finalizing...")
+                    # All done — finalize
                     self.container.updateGeometry()
                     self.col.invalidate()
                     self.scroll.viewport().update()
                     self.col.addStretch()
                     _RESTORING_ACTIVE = False
                     self._restoring = False
-                    log.info(f"[ChatRestore] Finalizing: refitting {len(_restored_bodies)} bodies...")
                     self._refit_all_bodies(_restored_bodies)
                     self._spinner_overlay.hide_overlay()
-                    self._autoscroll()
-                    log.info("[ChatRestore] Finalize complete")
+                    self._restore_scroll_position()  # Restore saved position or scroll to bottom
 
-            # Start first batch after a small delay so spinner renders first
+                    # Connect scroll-up trigger for lazy loading older messages
+                    if not self._lazy_loaded:
+                        # FIX: Disconnect first to prevent duplicate signal connections
+                        # when load_timeline_async is called multiple times (chat switches).
+                        try:
+                            self.scroll.verticalScrollBar().valueChanged.disconnect(self._on_scroll_load_more)
+                        except (RuntimeError, TypeError):
+                            pass  # Not connected yet — that's fine
+                        self.scroll.verticalScrollBar().valueChanged.connect(self._on_scroll_load_more)
+                        # Show "Load more" indicator at top
+                        self._show_load_more_indicator()
+                    log.info(f"[ChatRestore] Restore complete: {load_count} messages loaded")
+
             QTimer.singleShot(50, lambda: _process_batch(0))
-            # Safety timeout: if restore hangs, hide spinner after 30s
+            # Safety timeout
             QTimer.singleShot(30000, lambda: (
                 self._spinner_overlay.hide_overlay(),
                 setattr(self, '_restoring', False),
@@ -7766,11 +8007,8 @@ class ChatPanel(QWidget):
             ) if self._restoring else None)
         except Exception as e:
             log.error(f"[ChatRestore] CRASH in load_timeline_async: {e}")
-            import traceback
-            traceback.print_exc()
-            # Try to show the messages anyway using synchronous method
+            import traceback; traceback.print_exc()
             try:
-                log.info("[ChatRestore] Falling back to synchronous load_timeline")
                 self.load_timeline(data)
             except Exception as e2:
                 log.error(f"[ChatRestore] Fallback also failed: {e2}")

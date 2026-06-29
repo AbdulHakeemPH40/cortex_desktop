@@ -298,8 +298,11 @@ class StabilityEngine:
             )
             # Force garbage collection
             gc.collect()
-            # Trigger emergency save
-            self.emergency_save("critical_pressure")
+            # Trigger emergency save — throttled to once per 30 seconds to avoid UI freeze
+            now_ts = time.time()
+            if now_ts - self._last_cleanup_time > 30.0:
+                self._last_cleanup_time = now_ts
+                self.emergency_save("critical_pressure")
 
         elif health.pressure == PressureLevel.HIGH:
             # HIGH: Reduce activity

@@ -4522,6 +4522,7 @@ They survive auto-compaction and are ALWAYS active:
                     _thinking_budget_tokens = int(os.environ.get("CORTEX_THINKING_BUDGET_TOKENS", "32000"))
                     _reasoning_token_count = 0  # approximate token count (chars / 4)
                     _has_received_content_or_tools = False
+                    _thinking_budget_exceeded = False  # flag to prevent repeated warnings
                     try:
                         # Get max_tokens from model_limits
                         # Auto-escalate output cap during auto-continue cycles
@@ -4751,7 +4752,8 @@ They survive auto-compaction and are ALWAYS active:
                                 # token count, not time. When thinking exceeds budget
                                 # without producing content or tool calls, force action.
                                 _reasoning_token_count += len(_reason_chunk) // 4  # approximate
-                                if not _has_received_content_or_tools and _reasoning_token_count > _thinking_budget_tokens:
+                                if not _has_received_content_or_tools and not _thinking_budget_exceeded and _reasoning_token_count > _thinking_budget_tokens:
+                                    _thinking_budget_exceeded = True
                                     log.warning(
                                         f"[BRIDGE] Thinking budget exceeded: {_reasoning_token_count:,} tokens "
                                         f"(budget={_thinking_budget_tokens:,}) — closing thought card, continuing naturally."
@@ -4762,6 +4764,9 @@ They survive auto-compaction and are ALWAYS active:
                                     except Exception:
                                         pass
                                     _thought_started = False
+                                    continue  # SKIP emitting this thinking chunk — stop the stream
+                                if _thinking_budget_exceeded:
+                                    continue  # Drop all thinking chunks after budget exceeded
                                 try:
                                     self._safe_emit(self.response_chunk,
                                         f'<cortex_thought_delta>{_reason_chunk}</cortex_thought_delta>')
