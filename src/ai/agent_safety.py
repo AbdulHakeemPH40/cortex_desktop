@@ -26,7 +26,7 @@ from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 # Constants
 # ============================================================
 
-MAX_TOOL_ITERATIONS = int(os.environ.get("CORTEX_MAX_TOOL_ITERATIONS", "999999"))  # P2: Advisory reminder interval (default unlimited — never blocks, only warns)
+MAX_TOOL_ITERATIONS = 0  # P2: No limit — agent uses unlimited tools (advisory reminders every 50 calls)
 DOOM_LOOP_FINGERPRINT_SIZE = 20   # P1: Last N tool calls to fingerprint
 DOOM_LOOP_REPEAT_LIMIT = 3        # P1: Same fingerprint → warning
 DOOM_LOOP_FORCE_EXIT = 5          # P1: Same fingerprint → forced stop
@@ -181,8 +181,7 @@ class AgentSafetyGuard:
     and manages persistent directives that survive compaction.
     """
 
-    def __init__(self, max_iterations: int = MAX_TOOL_ITERATIONS):
-        self.max_iterations = max_iterations
+    def __init__(self, max_iterations: int = 0):
         self._state = SafetyState()
         # Persistent state across turns (only reset on new user message)
         self._files_read: Dict[str, FileReadRecord] = {}

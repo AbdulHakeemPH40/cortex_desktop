@@ -16,7 +16,7 @@ Features:
 - Clickable links
 - Horizontal rules
 - GitHub issue references (owner/repo#123)
-- Dark/Light theme support
+- Dark theme only
 
 For AI responses, this handles:
 - Python, JavaScript, TypeScript, Go, Rust, etc. code blocks
@@ -793,8 +793,8 @@ class MarkdownViewer(QTextEdit):
         Args:
             theme: "dark"
         """
-        self.renderer.theme = theme
-        self.renderer.colors = LightThemeColors() if theme == "light" else ThemeColors()
+        self.renderer.theme = "dark"
+        self.renderer.colors = ThemeColors()
 
 
 # ============================================================================
@@ -807,7 +807,7 @@ def render_markdown(markdown_text: str, theme: str = "dark") -> QTextDocument:
     
     Args:
         markdown_text: Markdown text to render
-        theme: "dark" or "light"
+        theme: "dark" (only supported theme)
         
     Returns:
         QTextDocument with rendered content

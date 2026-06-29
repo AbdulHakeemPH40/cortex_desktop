@@ -403,11 +403,6 @@
       if ($("dailyFill")) { $("dailyFill").style.width = dailyPct + '%'; $("dailyFill").className = 'meter-fill' + (dailyPct > 85 ? ' danger' : dailyPct > 60 ? ' warning' : ''); }
       if ($("dailyDetail")) $("dailyDetail").textContent = (period.requests_used || 0) + ' / ' + (period.requests_limit || 0) + ' requests';
 
-      const toolPct = period.tool_calls_limit ? Math.round((period.tool_calls_used / period.tool_calls_limit) * 100) : 0;
-      if ($("toolCallPercent")) $("toolCallPercent").textContent = toolPct + '%';
-      if ($("toolCallFill")) { $("toolCallFill").style.width = toolPct + '%'; $("toolCallFill").className = 'meter-fill' + (toolPct > 85 ? ' danger' : toolPct > 60 ? ' warning' : ''); }
-      if ($("toolCallDetail")) $("toolCallDetail").textContent = (period.tool_calls_used || 0) + ' / ' + (period.tool_calls_limit || 0) + ' calls';
-
       /* Update insights */
       if ($("fastModePercent")) $("fastModePercent").textContent = (insights.fast_mode_percent || 0) + '%';
       if ($("fastModeBar")) $("fastModeBar").style.width = (insights.fast_mode_percent || 0) + '%';
@@ -793,7 +788,7 @@
 
         const demoUsage = {
           lifetime: { total_tokens: 209100000, total_requests: 15420, total_tool_calls: 8230, total_sessions: 342, longest_task_seconds: 614 },
-          current_period: { start_date: '2026-06-19', end_date: '2026-07-19', tokens_used: 134000, tokens_limit: 200000, requests_used: 32, requests_limit: 100, tool_calls_used: 440, tool_calls_limit: 500 },
+          current_period: { start_date: '2026-06-19', end_date: '2026-07-19', tokens_used: 134000, tokens_limit: 200000, requests_used: 32, requests_limit: 100, tool_calls_used: 440, tool_calls_limit: 0 },
           streaks: { current_streak_days: 0, longest_streak_days: 2 },
           daily_usage: demoDaily,
           model_usage: {

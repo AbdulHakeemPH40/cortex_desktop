@@ -612,14 +612,6 @@ body {
     background: linear-gradient(135deg, #0e1116, #1a2130)
 }
 
-.light-preview {
-    background: linear-gradient(135deg, #f0f2f5, #fff)
-}
-
-.system-preview {
-    background: linear-gradient(135deg, #0e1116 50%, #f0f2f5 50%)
-}
-
 /* Shortcuts */
 .shortcut-row {
     display: flex;

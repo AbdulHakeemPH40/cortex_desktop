@@ -91,7 +91,7 @@ class UsageTracker:
                 "requests_used": 0,
                 "requests_limit": 100,
                 "tool_calls_used": 0,
-                "tool_calls_limit": 500,
+                "tool_calls_limit": 0,  # No limit — local IDE with user's own API keys
             },
             "streaks": {
                 "current_streak_days": 0,

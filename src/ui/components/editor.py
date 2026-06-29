@@ -963,9 +963,6 @@ class CodeEditor(QPlainTextEdit):
     
     def _apply_editor_theme(self):
         """Apply dark theme colors to editor widget background and text."""
-        if not self._is_dark:
-            print("[Editor] Skipping theme - light mode")
-            return
         
         # Cursor IDE Anysphere Dark theme — matches cursor-ide-design-tokens.md
         bg_color = QColor("#181818")      # editor.background - Cursor IDE dark
@@ -1180,10 +1177,8 @@ class CodeEditor(QPlainTextEdit):
         """Show custom context menu with theme-aware icons."""
         menu = QMenu(self)
         
-        # Determine icon color based on theme
-        # In dark mode: use light/white icons
-        # In light mode: use dark/black icons
-        icon_color = "white" if self._is_dark else "black"
+        # Icon color — dark mode only
+        icon_color = "white"
         
         # Use standard icons from Qt theme - they adapt to the theme
         # For dark mode, we need to use inverted/light versions
@@ -1314,59 +1309,31 @@ class CodeEditor(QPlainTextEdit):
                 main_win.show_status_message(f"Format failed: {result.error_message}", 5000)
     
     def _style_context_menu(self, menu: QMenu):
-        """Apply theme-aware styling to context menu."""
-        if self._is_dark:
-            # Dark mode styling
-            menu.setStyleSheet("""
-                QMenu {
-                    background-color: #2d2d2d;
-                    border: 1px solid #3d3d3d;
-                    padding: 5px;
-                }
-                QMenu::item {
-                    color: #d4d4d4;
-                    padding: 6px 25px 6px 25px;
-                    border-radius: 3px;
-                }
-                QMenu::item:selected {
-                    background-color: #094771;
-                    color: #ffffff;
-                }
-                QMenu::item:disabled {
-                    color: #6d6d6d;
-                }
-                QMenu::separator {
-                    height: 1px;
-                    background-color: #3d3d3d;
-                    margin: 5px 10px;
-                }
-            """)
-        else:
-            # Light mode styling
-            menu.setStyleSheet("""
-                QMenu {
-                    background-color: #f5f5f5;
-                    border: 1px solid #d4d4d4;
-                    padding: 5px;
-                }
-                QMenu::item {
-                    color: #333333;
-                    padding: 6px 25px 6px 25px;
-                    border-radius: 3px;
-                }
-                QMenu::item:selected {
-                    background-color: #0078d4;
-                    color: #ffffff;
-                }
-                QMenu::item:disabled {
-                    color: #999999;
-                }
-                QMenu::separator {
-                    height: 1px;
-                    background-color: #d4d4d4;
-                    margin: 5px 10px;
-                }
-            """)
+        """Apply dark theme styling to context menu."""
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2d2d2d;
+                border: 1px solid #3d3d3d;
+                padding: 5px;
+            }
+            QMenu::item {
+                color: #d4d4d4;
+                padding: 6px 25px 6px 25px;
+                border-radius: 3px;
+            }
+            QMenu::item:selected {
+                background-color: #094771;
+                color: #ffffff;
+            }
+            QMenu::item:disabled {
+                color: #6d6d6d;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #3d3d3d;
+                margin: 5px 10px;
+            }
+        """)
 
     def set_content(self, text: str, language: str = None, file_path: str = ""):
         """Set editor content and file context."""
@@ -1540,9 +1507,9 @@ class CodeEditor(QPlainTextEdit):
         )
 
     def line_number_area_paint_event(self, event):
-        gutter_bg = QColor("#181818") if self._is_dark else QColor("#f1f3f4")  # editor.background - Cursor dark
-        num_color = QColor("#505050") if self._is_dark else QColor("#6c757d")  # editorLineNumber.foreground
-        cur_color = QColor("#ffffff") if self._is_dark else QColor("#212529")  # editorLineNumber.activeForeground
+        gutter_bg = QColor("#181818")   # editor.background - Cursor dark
+        num_color = QColor("#505050")   # editorLineNumber.foreground
+        cur_color = QColor("#ffffff")   # editorLineNumber.activeForeground
 
         painter = QPainter(self._line_number_area)
         painter.fillRect(event.rect(), gutter_bg)
@@ -1839,7 +1806,7 @@ class CodeEditor(QPlainTextEdit):
         
         if not self.isReadOnly():
             sel = QTextEdit.ExtraSelection()
-            color = QColor("#292929") if self._is_dark else QColor("#f1f3f4")  # editor.lineHighlightBackground - Cursor
+            color = QColor("#292929")   # editor.lineHighlightBackground - Cursor
             sel.format.setBackground(color)
             sel.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             sel.cursor = self.textCursor()
@@ -1864,7 +1831,7 @@ class CodeEditor(QPlainTextEdit):
         painter = QPainter(self.viewport())
         
         # Guide line color — editorIndentGuide.background
-        guide_color = QColor("#2a2a2a") if self._is_dark else QColor("#e0e0e0")  # sideBar.border - subtle
+        guide_color = QColor("#2a2a2a")   # sideBar.border - subtle
         painter.setPen(QPen(guide_color, 1, Qt.PenStyle.DotLine))
         
         # Get horizontal offset and char width

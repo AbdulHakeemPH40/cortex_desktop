@@ -1030,11 +1030,53 @@ class CortexMainWindow(QMainWindow):
         self._central = central
         self.setCentralWidget(central)
 
-        # === GLOBAL FOCUS FRAME SUPPRESSION ===
+        # === GLOBAL THEME (dark) + FOCUS FRAME SUPPRESSION ===
         self.setStyleSheet("""
-            QMenuBar { outline: none; }
+            QMenuBar {
+                background-color: #141414;
+                color: #d6d6dd;
+                border-bottom: 1px solid #2a2a2a;
+                padding: 2px 0px;
+                font-size: 13px;
+                outline: none;
+            }
+            QMenuBar::item {
+                background: transparent;
+                padding: 4px 10px;
+                border-radius: 3px;
+            }
+            QMenuBar::item:selected {
+                background-color: #292929;
+                color: #ffffff;
+            }
+            QMenuBar::item:pressed {
+                background-color: #228df2;
+                color: #ffffff;
+            }
             QMenuBar::item:focus { background: transparent; outline: none; border: none; }
-            QMenu { outline: none; }
+            QMenu {
+                background-color: #141414;
+                border: 1px solid #2a2a2a;
+                border-radius: 4px;
+                padding: 4px 0px;
+                outline: none;
+            }
+            QMenu::item {
+                padding: 6px 24px 6px 16px;
+                border-radius: 3px;
+                margin: 1px 4px;
+                color: #d6d6dd;
+                font-size: 13px;
+            }
+            QMenu::item:selected {
+                background-color: #228df2;
+                color: #ffffff;
+            }
+            QMenu::separator {
+                height: 1px;
+                background: #2a2a2a;
+                margin: 4px 8px;
+            }
             QMenu::item:focus { background: transparent; outline: none; border: none; }
             QWidget#panelToggleBar QPushButton:focus {
                 outline: none;
@@ -1535,7 +1577,7 @@ class CortexMainWindow(QMainWindow):
             sb.addWidget(lbl)
 
         # ── Version ──
-        version_lbl = QLabel("  Cortex AI Agent v0.0.01 ")
+        version_lbl = QLabel("  Cortex AI Agent v0.0.2 ")
         version_lbl.setStyleSheet("color: #6272a4; font-size: 11px;")
         sb.addPermanentWidget(version_lbl)
 
@@ -2390,7 +2432,7 @@ class CortexMainWindow(QMainWindow):
                 label = QLabel()
                 label.setPixmap(pixmap)
                 label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                label.setStyleSheet("background-color: white; border: 1px solid #ccc;")
+                label.setStyleSheet("background-color: #1e1e1e; border: 1px solid #3d3d3d;")
                 
                 layout.addWidget(label)
             
@@ -6000,13 +6042,6 @@ class CortexMainWindow(QMainWindow):
         if hasattr(self, '_saved_content'):
             self._saved_content.pop(file_path, None)
         self._update_status_file(None)
-
-    # def _apply_initial_theme(self):
-    #     from PyQt6.QtWidgets import QApplication
-    #     app = QApplication.instance()
-    #     theme = self._settings.theme
-    #     self._theme_manager.apply(theme, app)
-    #     self._theme_btn.setText("☀️" if theme == "light" else "🌙")
 
     def _restore_session(self):
         # Check if session restore is enabled in settings

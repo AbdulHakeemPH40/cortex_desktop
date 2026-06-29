@@ -102,44 +102,24 @@ class ProblemsWidget(QWidget):
         
     def _update_style(self):
         """Update widget styling."""
-        if self._is_dark:
-            self.list_widget.setStyleSheet("""
-                QListWidget {
-                    background-color: #1e1e1e;
-                    border: none;
-                    outline: 0;
-                }
-                QListWidget::item {
-                    color: #d4d4d4;
-                    padding: 6px 8px;
-                    border-bottom: 1px solid #2d2d30;
-                }
-                QListWidget::item:hover {
-                    background-color: #2a2d2e;
-                }
-                QListWidget::item:selected {
-                    background-color: #094771;
-                }
-            """)
-        else:
-            self.list_widget.setStyleSheet("""
-                QListWidget {
-                    background-color: #ffffff;
-                    border: none;
-                    outline: 0;
-                }
-                QListWidget::item {
-                    color: #1a1a1a;
-                    padding: 6px 8px;
-                    border-bottom: 1px solid #e9ecef;
-                }
-                QListWidget::item:hover {
-                    background-color: #e8f0fe;
-                }
-                QListWidget::item:selected {
-                    background-color: #cce5ff;
-                }
-            """)
+        self.list_widget.setStyleSheet("""
+            QListWidget {
+                background-color: #1e1e1e;
+                border: none;
+                outline: 0;
+            }
+            QListWidget::item {
+                color: #d4d4d4;
+                padding: 6px 8px;
+                border-bottom: 1px solid #2d2d30;
+            }
+            QListWidget::item:hover {
+                background-color: #2a2d2e;
+            }
+            QListWidget::item:selected {
+                background-color: #094771;
+            }
+        """)
             
     def add_problem(self, problem: Problem):
         """Add a problem to the list."""
@@ -248,17 +228,11 @@ class ProblemsWidget(QWidget):
             # Store problem data
             item.setData(Qt.ItemDataRole.UserRole, problem)
             
-            # Color based on severity
-            if self._is_dark:
-                if problem.severity == ProblemSeverity.ERROR:
-                    item.setForeground(QColor("#f48771"))
-                elif problem.severity == ProblemSeverity.WARNING:
-                    item.setForeground(QColor("#d7ba7d"))
-            else:
-                if problem.severity == ProblemSeverity.ERROR:
-                    item.setForeground(QColor("#dc3545"))
-                elif problem.severity == ProblemSeverity.WARNING:
-                    item.setForeground(QColor("#ffc107"))
+            # Color based on severity (dark mode only)
+            if problem.severity == ProblemSeverity.ERROR:
+                item.setForeground(QColor("#f48771"))
+            elif problem.severity == ProblemSeverity.WARNING:
+                item.setForeground(QColor("#d7ba7d"))
                     
             self.list_widget.addItem(item)
             

@@ -103,7 +103,7 @@ class PermissionCardRenderer:
             .permission-card {{
                 border: 2px solid #f59e0b;
                 border-radius: 12px;
-                background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+                background: linear-gradient(135deg, #422006 0%, #78350f 100%);
                 margin: 16px 0;
                 overflow: hidden;
                 font-family: system-ui, -apple-system, sans-serif;
@@ -126,22 +126,20 @@ class PermissionCardRenderer:
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                background: white;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                background: #1e1e1e;
             }}
             
             .permission-title {{
                 margin: 0;
                 font-size: 16px;
                 font-weight: 600;
-                color: #92400e;
+                color: #fbbf24;
             }}
             
             .permission-subtitle {{
                 margin: 4px 0 0 0;
                 font-size: 13px;
-                color: #a16207;
+                color: #f59e0b;
             }}
             
             .permission-content {{
@@ -156,7 +154,7 @@ class PermissionCardRenderer:
                 margin: 0 0 8px 0;
                 font-size: 13px;
                 font-weight: 600;
-                color: #374151;
+                color: #d4d4d4;
                 text-transform: uppercase;
                 letter-spacing: 0.5px;
             }}
@@ -168,12 +166,12 @@ class PermissionCardRenderer:
             }}
             
             .perm-tag {{
-                background: white;
+                background: #2d2d2d;
                 border: 1px solid #f59e0b;
                 padding: 4px 12px;
                 border-radius: 20px;
                 font-size: 12px;
-                color: #92400e;
+                color: #fbbf24;
             }}
             
             .permission-columns {{
@@ -184,7 +182,7 @@ class PermissionCardRenderer:
             }}
             
             .permission-risks, .permission-safeguards {{
-                background: white;
+                background: #1e1e1e;
                 padding: 12px;
                 border-radius: 8px;
             }}
@@ -198,13 +196,13 @@ class PermissionCardRenderer:
             }}
             
             .permission-risks h4 {{
-                color: #dc2626;
+                color: #fca5a5;
                 margin: 0 0 8px 0;
                 font-size: 12px;
             }}
             
             .permission-safeguards h4 {{
-                color: #059669;
+                color: #6ee7b7;
                 margin: 0 0 8px 0;
                 font-size: 12px;
             }}
@@ -213,7 +211,7 @@ class PermissionCardRenderer:
                 margin: 0;
                 padding-left: 16px;
                 font-size: 12px;
-                color: #4b5563;
+                color: #d1d5db;
             }}
             
             .permission-risks li, .permission-safeguards li {{
@@ -231,9 +229,9 @@ class PermissionCardRenderer:
                 flex-direction: column;
                 align-items: flex-start;
                 padding: 10px 12px;
-                border: 2px solid #e5e7eb;
+                border: 2px solid #3d3d3d;
                 border-radius: 8px;
-                background: white;
+                background: #2d2d2d;
                 cursor: pointer;
                 transition: all 0.2s;
                 text-align: left;
@@ -246,18 +244,18 @@ class PermissionCardRenderer:
             
             .scope-btn.active {{
                 border-color: #3b82f6;
-                background: #eff6ff;
+                background: #1e3a5f;
             }}
             
             .scope-label {{
                 font-weight: 600;
                 font-size: 13px;
-                color: #374151;
+                color: #d4d4d4;
             }}
             
             .scope-desc {{
                 font-size: 11px;
-                color: #6b7280;
+                color: #9ca3af;
                 margin-top: 2px;
             }}
             
@@ -387,7 +385,7 @@ class PermissionCardRenderer:
                 left: 2px;
                 width: 18px;
                 height: 18px;
-                background: linear-gradient(135deg, #9ca3af, #6b7280);
+                background: linear-gradient(135deg, #6b7280, #4b5563);
                 border-radius: 50%;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
@@ -409,7 +407,7 @@ class PermissionCardRenderer:
                 align-items: center;
                 gap: 7px;
                 font-size: 12px;
-                color: #6b7280;
+                color: #9ca3af;
                 font-weight: 500;
             }}
         </style>

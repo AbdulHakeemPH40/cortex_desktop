@@ -471,6 +471,16 @@ def streaming_clean(text: str) -> str:
         _code_blocks.append(m.group(0))
         return f'\x00CODEBLOCK{len(_code_blocks) - 1}\x00'
     text = re.sub(r'```[\s\S]*?```', _stash, text)
+    # Stash tables FIRST — before inline code stashing, so backtick content
+    # inside table cells (e.g. `QMenuBar`, `#141414`) is protected.  Without
+    # this order, the inline regex consumes table backticks, the table stash
+    # captures \x00INLINE{n}\x00 markers, and those markers leak as visible
+    # text when tables are restored after inline restore.
+    _tables: list[str] = []
+    def _stash_table(m):
+        _tables.append(m.group(0))
+        return f'\x00TABLE{len(_tables) - 1}\x00'
+    text = re.sub(r'(?:^[ \t]*\|.+[ \t]*\n){2,}', _stash_table, text, flags=re.MULTILINE)
     # Stash inline code spans (`...`) to protect tree chars like `<src/`
     _inline_spans: list[str] = []
     def _stash_inline(m):
@@ -483,12 +493,6 @@ def streaming_clean(text: str) -> str:
         _links.append(m.group(0))
         return f'\x00LINK{len(_links) - 1}\x00'
     text = re.sub(r'\[[^\]]*\]\([^)]*\)', _stash_link, text)
-    # Stash tables to protect from tag stripping (2+ consecutive pipe rows)
-    _tables: list[str] = []
-    def _stash_table(m):
-        _tables.append(m.group(0))
-        return f'\x00TABLE{len(_tables) - 1}\x00'
-    text = re.sub(r'(?:^[ \t]*\|.+[ \t]*\n){2,}', _stash_table, text, flags=re.MULTILINE)
     # Strip known control tags (task_summary, file_edited, etc.) even when
     # the closing tag hasn't arrived yet during streaming.  Without this,
     # <task_summary>{"title":...}</task_summary> leaks as raw text because

@@ -569,7 +569,6 @@
             // Connect Python -> JS (theme update) — dark mode only
             window.pyTerminal.update_theme.connect(function(is_dark) {
                 document.body.style.backgroundColor = '#0c0c0c';
-                document.body.classList.remove('light-mode');
                 term.options.theme = {
                     background: '#0c0c0c',
                     foreground: '#cccccc',

@@ -84,7 +84,7 @@ class ModernMessageBubble(QFrame):
         self.setLineWidth(0)
     
     def _apply_style(self):
-        """Apply styling based on message type."""
+        """Apply dark theme styling based on message type."""
         styles = {
             self.MESSAGE_TYPE_USER: {
                 "bg": "#3b82f6",
@@ -95,40 +95,40 @@ class ModernMessageBubble(QFrame):
                 "align": "right"
             },
             self.MESSAGE_TYPE_ASSISTANT: {
-                "bg": "#f3f4f6",
-                "fg": "#1f2937",
+                "bg": "#2d2d2d",
+                "fg": "#d4d4d4",
                 "icon": "🤖",
                 "sender": "Assistant",
                 "radius": "12px",
                 "align": "left"
             },
             self.MESSAGE_TYPE_TOOL: {
-                "bg": "#dbeafe",
-                "fg": "#1e40af",
+                "bg": "#1e3a5f",
+                "fg": "#93c5fd",
                 "icon": "🔧",
                 "sender": "Tool",
                 "radius": "8px",
                 "align": "left"
             },
             self.MESSAGE_TYPE_SYSTEM: {
-                "bg": "#fef3c7",
-                "fg": "#92400e",
+                "bg": "#422006",
+                "fg": "#fbbf24",
                 "icon": "ℹ️",
                 "sender": "System",
                 "radius": "8px",
                 "align": "center"
             },
             self.MESSAGE_TYPE_ERROR: {
-                "bg": "#fee2e2",
-                "fg": "#991b1b",
+                "bg": "#450a0a",
+                "fg": "#fca5a5",
                 "icon": "❌",
                 "sender": "Error",
                 "radius": "8px",
                 "align": "left"
             },
             self.MESSAGE_TYPE_PERMISSION: {
-                "bg": "#fffbeb",
-                "fg": "#92400e",
+                "bg": "#422006",
+                "fg": "#fbbf24",
                 "icon": "🔒",
                 "sender": "Permission",
                 "radius": "12px",
@@ -288,9 +288,9 @@ class ToolExecutionCard(QFrame):
         """Display execution result."""
         self._result_label.setText(result)
         if is_error:
-            self._result_label.setStyleSheet("color: #dc2626; background-color: #fee2e2; padding: 8px; border-radius: 4px;")
+            self._result_label.setStyleSheet("color: #fca5a5; background-color: #450a0a; padding: 8px; border-radius: 4px;")
         else:
-            self._result_label.setStyleSheet("color: #166534; background-color: #dcfce7; padding: 8px; border-radius: 4px;")
+            self._result_label.setStyleSheet("color: #6ee7b7; background-color: #064e3b; padding: 8px; border-radius: 4px;")
         self._result_widget.show()
 
 
@@ -379,15 +379,15 @@ class QuickActionsWidget(QWidget):
             btn.setFont(QFont("Inter", 9))
             btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #f3f4f6;
-                    border: 1px solid #d1d5db;
+                    background-color: #2d2d2d;
+                    border: 1px solid #3d3d3d;
                     border-radius: 16px;
                     padding: 6px 12px;
-                    color: #374151;
+                    color: #d4d4d4;
                 }
                 QPushButton:hover {
-                    background-color: #e5e7eb;
-                    border-color: #9ca3af;
+                    background-color: #3d3d3d;
+                    border-color: #6b7280;
                 }
             """)
             btn.clicked.connect(lambda checked, aid=action_id: self.action_triggered.emit(aid))
@@ -421,8 +421,8 @@ class EnhancedChatInput(QWidget):
         input_container = QFrame()
         input_container.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border: 1px solid #d1d5db;
+                background-color: #1e1e1e;
+                border: 1px solid #3d3d3d;
                 border-radius: 12px;
             }
         """)
