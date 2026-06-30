@@ -392,16 +392,6 @@
             LLM usage (MiMo, DeepSeek, OpenAI, etc.) is tracked locally on your desktop.
           </div>
         </div>
-            </div>
-            <div class="meter-bar">
-              <div class="meter-fill" id="dailyFill" style="width: 0%"></div>
-            </div>
-            <div class="meter-footer">
-              <span id="dailyDetail">0 / 0 requests</span>
-              <span id="dailyReset" class="meter-reset">Resets tomorrow</span>
-            </div>
-          </div>
-        </div>
 
         <!-- Server Usage (when logged in) -->
         <div class="settings-card" id="serverUsageCard" style="display:none;">
@@ -983,7 +973,7 @@
     </div>
   </div>
 
-  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script src="qrc:///qtwebchannel/qwebchannel.js" onerror="console.warn('qrc qwebchannel.js failed to load')"></script>
   <script>
     window.__memMgrDebug = { loaded: false, errors: [] };
     window.onerror = function(msg, src, line) { window.__memMgrDebug.errors.push({msg,src,line}); return false; };

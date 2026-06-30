@@ -247,6 +247,9 @@
               } catch (e) { console.error("[SETTINGS] getSettings parse error:", e); }
             });
           }
+          /* Load profile and usage data after bridge connects */
+          loadProfile();
+          loadUsageStats();
         }
       });
     } catch (e) { if (++bridgeInitAttempts < 20) scheduleBridgeInitRetry(); }
@@ -533,6 +536,26 @@
         }).join('');
       }
 
+      /* Update local usage list (AI Model Usage) */
+      const localList = $("localUsageList");
+      if (localList && Object.keys(models).length > 0) {
+        const sorted = Object.entries(models).filter(function(e){return isValidModel(e[0]);}).sort((a, b) => (b[1].total_tokens || 0) - (a[1].total_tokens || 0));
+        const maxTokens = sorted.length > 0 ? sorted[0][1].total_tokens : 1;
+        localList.innerHTML = sorted.map(([name, info], i) => {
+          const pct = Math.round((info.total_tokens / maxTokens) * 100);
+          return '<div style="display:flex;align-items:center;gap:12px;padding:8px 0;' + (i < sorted.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.05);' : '') + '">' +
+            '<span style="font-size:12px;color:#8b949e;width:20px;">' + (i + 1) + '</span>' +
+            '<div style="flex:1;">' +
+            '<div style="font-size:13px;color:#e5e7eb;margin-bottom:4px;">' + esc(getModelName(name)) + '</div>' +
+            '<div style="height:4px;background:rgba(255,255,255,0.05);border-radius:2px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:' + getModelColor(name) + ';border-radius:2px;"></div></div>' +
+            '</div>' +
+            '<span style="font-size:12px;color:#8b949e;min-width:60px;text-align:right;">' + formatTokens(info.total_tokens) + '</span>' +
+            '</div>';
+        }).join('');
+      } else if (localList) {
+        localList.innerHTML = '<div class="empty-state-small"><p>No model usage data yet</p></div>';
+      }
+
       /* Update model breakdown in Usage section */
       const breakdown = $("modelBreakdown");
       if (breakdown && Object.keys(models).length > 0) {
@@ -572,15 +595,32 @@
           const usage = server.usage || {};
           
           /* Update plan card with server data */
-          if (sub.plan && sub.plan !== 'none') {
-            const planNames = { 'pro': 'Pro', 'pro_yearly': 'Pro (Yearly)', 'free': 'Free' };
-            const planPrices = { 'pro': '$10/mo', 'pro_yearly': '$80/yr', 'free': '$0/mo' };
-            if ($("planName")) $("planName").textContent = (planNames[sub.plan] || sub.plan) + ' plan';
-            if ($("planPrice")) $("planPrice").textContent = planPrices[sub.plan] || '';
-            
-            // Show plan features
-            const planFeatures = $("planFeatures");
+          const hasPlan = sub.plan && sub.plan !== 'none' && sub.plan !== 'free';
+          const planNames = { 'pro': 'Pro', 'pro_yearly': 'Pro (Yearly)', 'starter': 'Starter', 'free': 'Free' };
+          const planPrices = { 'pro': '$10/mo', 'pro_yearly': '$80/yr', 'starter': '$10/mo' };
+          
+          if ($("planName")) {
+            $("planName").textContent = hasPlan ? (planNames[sub.plan] || sub.plan) : 'Free';
+          }
+          if ($("planPrice")) {
+            $("planPrice").textContent = hasPlan ? (planPrices[sub.plan] || '') : '';
+          }
+          
+          // Show/hide upgrade button and features
+          const upgradeBtn = $("upgradePlanBtn");
+          const planFeatures = $("planFeatures");
+          const serviceCard = $("serviceUsageCard");
+          
+          if (hasPlan) {
+            // User has subscription - hide upgrade, show features
+            if (upgradeBtn) upgradeBtn.style.display = 'none';
             if (planFeatures) planFeatures.style.display = 'block';
+            if (serviceCard) serviceCard.style.display = 'block';
+          } else {
+            // No subscription - show upgrade, hide features
+            if (upgradeBtn) upgradeBtn.style.display = 'inline-block';
+            if (planFeatures) planFeatures.style.display = 'none';
+            if (serviceCard) serviceCard.style.display = 'none';
           }
           
           /* Show credits if available */
@@ -912,7 +952,11 @@
     initBridge();
 
     /* ── Load profile data on init (check if logged in) ── */
-    loadProfile();
+    // Wait a bit for bridge to connect, then load data
+    setTimeout(() => {
+      loadProfile();
+      loadUsageStats();
+    }, 500);
 
     /* ── Standalone demo data (only when no bridge) ── */
     setTimeout(() => {
