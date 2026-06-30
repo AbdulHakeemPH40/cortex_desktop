@@ -1792,7 +1792,8 @@ class AgentWorker(QThread):
                 if self._loop is not None and self._loop.is_running():
                     self._loop.call_soon_threadsafe(self._loop.stop)
                 # Small delay to let pending I/O settle before closing
-                import time as _t; _t.sleep(0.05)
+                import time
+                time.sleep(0.05)
             except Exception:
                 pass
             try:
@@ -3839,6 +3840,22 @@ They survive auto-compaction and are ALWAYS active:
         }
         return _defaults.get(provider_enum, original_model)
 
+    # ── Proxy routing: Check if model should use subscription proxy ──
+    
+    # Models that can be proxied through Cortex server (included in subscription)
+    _PROXY_MODELS = {
+        "deepseek-v4-pro-promo",
+        "deepseek-v4-pro-base",
+        "deepseek-v4-pro",
+        "mimo-v2.5-pro",
+        "mimo-v2.5",
+        "mistral-large-latest",
+    }
+    
+    def _should_use_proxy(self, model_id: str) -> bool:
+        """All LLM models are BYOK — proxy not needed."""
+        return False
+
     # ============================================================
     # MULTI-TURN AGENTIC LOOP  (the core of the bridge)
     # ============================================================
@@ -3976,6 +3993,11 @@ They survive auto-compaction and are ALWAYS active:
                 )
 
             log.info(f"[BRIDGE] provider={provider_type.value} model={model}")
+
+            # ── Proxy routing: Use Cortex server for included models ──
+            _use_proxy = self._should_use_proxy(model_id)
+            if _use_proxy:
+                log.info(f"[BRIDGE] Model {model_id} will use subscription proxy")
 
             # ── Build initial message list ─────────────────────
             # Fast-path: for very simple messages (e.g. greetings), skip the heavy
@@ -4628,89 +4650,240 @@ They survive auto-compaction and are ALWAYS active:
                         except Exception as _san_err:
                             log.warning(f"[BRIDGE] Sanitizer failed (non-fatal): {_san_err} — sending messages as-is")
 
-                        for chunk in provider.chat_stream(
-                            messages, model=model, max_tokens=stream_max_tokens, tools=active_tool_defs, **_chat_kwargs
-                        ):
-                            # Respect a stop request from the user
-                            if self._stop_requested:
-                                log.info("[BRIDGE] Stream interrupted by stop request")
-                                break
-                            # Yield to the event loop every N chunks so stop/cancel
-                            # signals are delivered without per-chunk overhead.
-                            _chunk_batch += 1
-                            if _chunk_batch >= _CHUNK_BATCH_SIZE:
-                                _chunk_batch = 0
-                                await asyncio.sleep(0)
-                            if isinstance(chunk, str) and chunk.startswith("__TOOL_CALL_DELTA__:"):
-                                _has_received_content_or_tools = True  # stop thinking timeout
-                                delta_list = json.loads(chunk[20:])
-                                # DIAGNOSTIC: Log tool call deltas at INFO for Write/Edit, DEBUG for others
-                                for _td in delta_list:
-                                    _fn = _td.get("function", {})
-                                    _args_val = _fn.get("arguments", "")
-                                    _tname = _fn.get("name", "")
-                                    _is_write_edit = _tname in ("Write", "Edit")
-                                    if _args_val:
-                                        if _is_write_edit:
-                                            log.info(f"[TOOL-DELTA] {_tname} args chunk: idx={_td.get('index')}, args_len={len(_args_val) if isinstance(_args_val, str) else 'N/A'}")
-                                        else:
-                                            log.debug(f"[TOOL-DELTA] idx={_td.get('index')}, name={_tname}, args_len={len(_args_val) if isinstance(_args_val, str) else 'N/A'}")
-                                    elif _is_write_edit:
-                                        # EMPTY args delta for Write/Edit — normal during streaming
-                                        # Arguments arrive in subsequent chunks, this is expected behavior
-                                        log.debug(f"[TOOL-DELTA] {_tname} args pending idx={_td.get('index')} — waiting for arguments")
-                                # Emit exploreStart on first tool call delta
-                                if not _explore_started and delta_list:
-                                    _explore_started = True
-                                    try:
-                                        self._safe_emit(self.exploreStart)
-                                    except Exception:
-                                        pass
-                                for td in delta_list:
-                                    idx = td.get("index", 0)
-                                    if idx not in tool_acc:
-                                        tool_acc[idx] = {"id": "", "name": "", "arguments": ""}
-                                    if td.get("id"):
-                                        tool_acc[idx]["id"] = td["id"]
-                                    if td.get("function", {}).get("name"):
-                                        tool_acc[idx]["name"] = td["function"]["name"]
-                                    if td.get("function", {}).get("arguments"):
-                                        tool_acc[idx]["arguments"] += td["function"]["arguments"]
+                        # Initialize pending tool calls list (used by both proxy and direct paths)
+                        pending: List[Dict[str, Any]] = []
+
+                        # ── PROXY PATH: Use Cortex server for subscription models ──
+                        if _use_proxy:
+                            try:
+                                from src.core.cortex_api import get_api_client
+                                api = get_api_client()
+                                
+                                # Check if user is logged in with valid token
+                                if not api.is_logged_in() or not api.access_token:
+                                    error_msg = (
+                                        "**Login Required for Subscription Models**\n\n"
+                                        "Your subscription requires authentication. Please:\n"
+                                        "1. Go to Settings → Profile\n"
+                                        "2. Click 'Sign in with Browser'\n"
+                                        "3. Complete login\n\n"
+                                        "Or add your own API key in Settings → Models & Providers"
+                                    )
+                                    self._safe_emit(self.response_chunk, error_msg)
+                                    return ""
+                                
+                                # Get license key from server subscription
+                                sub_info = api.get_subscription()
+                                log.info(f"[PROXY] Subscription info: {sub_info}")
+                                license_key = ""
+                                if sub_info:
+                                    license_key = sub_info.get("license_key", "")
+                                
+                                log.info(f"[PROXY] License key found: {bool(license_key)}, length: {len(license_key)}")
+                                
+                                if not license_key:
+                                    error_msg = (
+                                        "**Subscription License Key Missing**\n\n"
+                                        "Your subscription doesn't have a license key assigned.\n"
+                                        "Please contact support or try logging out and back in.\n\n"
+                                        "Or add your own API key in Settings → Models & Providers"
+                                    )
+                                    self._safe_emit(self.response_chunk, error_msg)
+                                    return ""
+                                
+                                # Convert messages to format for proxy (preserve tool_call_id and tool_calls)
+                                proxy_messages = []
+                                for m in messages:
+                                    msg_dict = {}
+                                    if hasattr(m, 'role'):
+                                        msg_dict["role"] = m.role
+                                    elif isinstance(m, dict):
+                                        msg_dict["role"] = m.get("role", "user")
                                     
-                                    # ── Streaming Write/Edit: show live file-creation card ──
-                                    _tname = tool_acc[idx].get("name", "")
-                                    if _tname in ("Write", "Edit") and idx not in _streaming_write_announced:
-                                        _streaming_write_announced.add(idx)
-                                        # Try to extract file_path from partial args
-                                        _partial_args = tool_acc[idx].get("arguments", "")
-                                        _fp = ""
-                                        try:
-                                            _fp_match = re.search(r'"file_path"\s*:\s*"([^"]+)"', _partial_args)
-                                            if _fp_match:
-                                                _fp = _fp_match.group(1)
-                                        except Exception:
-                                            pass
-                                        _activity_type = "write_file_streaming" if _tname == "Write" else "edit_file_streaming"
-                                        _info = json.dumps({
-                                            "file_path": _fp or "(streaming)",
-                                            "tool": _tname,
-                                            "size": len(_partial_args),
-                                        })
-                                        try:
-                                            self._safe_emit(self.tool_activity, _activity_type, _info, "streaming")
-                                        except Exception:
-                                            pass
-                                        _streaming_last_size[idx] = len(_partial_args)
-                                        log.info(
-                                            f"[STREAM-WRITE] Started streaming card for {_tname}: "
-                                            f"fp={_fp or '?unknown?'}, initial_size={len(_partial_args)}"
+                                    # Content
+                                    content = getattr(m, 'content', None) if hasattr(m, 'content') else (m.get('content') if isinstance(m, dict) else None)
+                                    if content:
+                                        msg_dict["content"] = content
+                                    
+                                    # Tool calls (assistant messages)
+                                    tool_calls = getattr(m, 'tool_calls', None) if hasattr(m, 'tool_calls') else (m.get('tool_calls') if isinstance(m, dict) else None)
+                                    if tool_calls:
+                                        msg_dict["tool_calls"] = tool_calls
+                                    
+                                    # Tool call ID (tool result messages)
+                                    tool_call_id = getattr(m, 'tool_call_id', None) if hasattr(m, 'tool_call_id') else (m.get('tool_call_id') if isinstance(m, dict) else None)
+                                    if tool_call_id:
+                                        msg_dict["tool_call_id"] = tool_call_id
+                                    
+                                    # Name (tool messages)
+                                    name = getattr(m, 'name', None) if hasattr(m, 'name') else (m.get('name') if isinstance(m, dict) else None)
+                                    if name:
+                                        msg_dict["name"] = name
+                                    
+                                    if msg_dict.get("content") or msg_dict.get("tool_calls") or msg_dict.get("tool_call_id"):
+                                        proxy_messages.append(msg_dict)
+                                
+                                log.info(f"[PROXY] Calling proxy: model={model_id}, messages={len(proxy_messages)}, license_key={license_key[:20]}...")
+                                proxy_result = api.proxy_chat(
+                                    model=model_id,
+                                    messages=proxy_messages,
+                                    license_key=license_key,
+                                    temperature=0.7,
+                                    tools=active_tool_defs if active_tool_defs else None,
+                                )
+                                log.info(f"[PROXY] Proxy result: {proxy_result}")
+                                if proxy_result and proxy_result.get("status") == "success":
+                                    # Extract response from proxy
+                                    choices = proxy_result.get("choices", [])
+                                    if choices:
+                                        msg = choices[0].get("message", {})
+                                        content = msg.get("content", "")
+                                        tool_calls = msg.get("tool_calls", [])
+                                        
+                                        # Handle tool calls from proxy
+                                        if tool_calls:
+                                            _has_received_content_or_tools = True
+                                            # Convert proxy tool_calls to bridge format
+                                            for tc in tool_calls:
+                                                pending.append({
+                                                    "id": tc.get("id", ""),
+                                                    "function": {
+                                                        "name": tc.get("function", {}).get("name", ""),
+                                                        "arguments": tc.get("function", {}).get("arguments", "{}"),
+                                                    }
+                                                })
+                                            log.info(f"[PROXY] Received {len(tool_calls)} tool calls from proxy")
+                                        
+                                        # Handle text content
+                                        if content:
+                                            turn_text = content
+                                            full_response = (full_response or "") + content
+                                            _has_received_content_or_tools = True
+                                            # Emit the response
+                                            self._safe_emit(self.response_chunk, content)
+                                    
+                                    # Log billing info
+                                    billing = proxy_result.get("billing", {})
+                                    log.info(f"[PROXY] Credits used: {billing.get('credits_deducted', 0)}, remaining: {billing.get('credits_remaining', 0)}")
+                                else:
+                                    # Proxy failed - check if user has own API key as fallback
+                                    from src.core.key_manager import KeyManager
+                                    km = KeyManager()
+                                    has_own_key = False
+                                    for prefix, km_name in [("deepseek", "deepseek"), ("mimo", "mimo"), ("mistral", "mistral")]:
+                                        if model_id.lower().startswith(prefix):
+                                            if km.get_key(km_name):
+                                                has_own_key = True
+                                                break
+                                    
+                                    if has_own_key:
+                                        log.warning(f"[PROXY] Proxy failed, falling back to BYOK")
+                                        _use_proxy = False  # Fall through to direct call
+                                    else:
+                                        error_msg = (
+                                            "**Subscription Model Unavailable**\n\n"
+                                            "Could not connect to Cortex server. Please:\n"
+                                            "• Check your internet connection\n"
+                                            "• Verify your subscription is active\n"
+                                            "• Or add your own API key in Settings → Models & Providers"
                                         )
-                                    elif _tname in ("Write", "Edit") and idx in _streaming_write_announced:
-                                        # Periodic progress update every ~8KB of new content
-                                        _cur_size = len(tool_acc[idx].get("arguments", ""))
-                                        _last_size = _streaming_last_size.get(idx, 0)
-                                        if _cur_size - _last_size >= 2048:
-                                            _streaming_last_size[idx] = _cur_size
+                                        self._safe_emit(self.response_chunk, error_msg)
+                                        return ""
+                            except Exception as proxy_err:
+                                log.warning(f"[PROXY] Proxy error: {proxy_err}")
+                                # Check if user has own API key as fallback
+                                from src.core.key_manager import KeyManager
+                                km = KeyManager()
+                                has_own_key = False
+                                for prefix, km_name in [("deepseek", "deepseek"), ("mimo", "mimo"), ("mistral", "mistral")]:
+                                    if model_id.lower().startswith(prefix):
+                                        if km.get_key(km_name):
+                                            has_own_key = True
+                                            break
+                                
+                                if has_own_key:
+                                    log.warning(f"[PROXY] Proxy error, falling back to BYOK")
+                                    _use_proxy = False
+                                else:
+                                    error_msg = (
+                                        "**Subscription Model Unavailable**\n\n"
+                                        f"Error: {str(proxy_err)[:100]}\n\n"
+                                        "Please add your own API key in Settings → Models & Providers"
+                                    )
+                                    self._safe_emit(self.response_chunk, error_msg)
+                                    return ""
+                        
+                        # ── DIRECT PATH: Use provider directly (BYOK) ──
+                        if not _use_proxy:
+                            # Check if provider has API key
+                            if not provider._api_key:
+                                # No API key available - show helpful error
+                                model_display = model_id.replace("-", " ").title()
+                                error_msg = (
+                                    f"**{model_display} — API Key Required**\n\n"
+                                    f"No API key found for this model.\n\n"
+                                    f"**Options:**\n"
+                                    f"• Add your own key in Settings → Models & Providers\n"
+                                    f"• Subscribe to Cortex for included models (DeepSeek, MiMo)\n\n"
+                                    f"[Get API Keys →](https://platform.openai.com/api-keys)"
+                                )
+                                self._safe_emit(self.response_chunk, error_msg)
+                                return ""
+                            
+                            for chunk in provider.chat_stream(
+                                messages, model=model, max_tokens=stream_max_tokens, tools=active_tool_defs, **_chat_kwargs
+                            ):
+                                # Respect a stop request from the user
+                                if self._stop_requested:
+                                    log.info("[BRIDGE] Stream interrupted by stop request")
+                                    break
+                                # Yield to the event loop every N chunks so stop/cancel
+                                # signals are delivered without per-chunk overhead.
+                                _chunk_batch += 1
+                                if _chunk_batch >= _CHUNK_BATCH_SIZE:
+                                    _chunk_batch = 0
+                                    await asyncio.sleep(0)
+                                if isinstance(chunk, str) and chunk.startswith("__TOOL_CALL_DELTA__:"):
+                                    _has_received_content_or_tools = True  # stop thinking timeout
+                                    delta_list = json.loads(chunk[20:])
+                                    # DIAGNOSTIC: Log tool call deltas at INFO for Write/Edit, DEBUG for others
+                                    for _td in delta_list:
+                                        _fn = _td.get("function", {})
+                                        _args_val = _fn.get("arguments", "")
+                                        _tname = _fn.get("name", "")
+                                        _is_write_edit = _tname in ("Write", "Edit")
+                                        if _args_val:
+                                            if _is_write_edit:
+                                                log.info(f"[TOOL-DELTA] {_tname} args chunk: idx={_td.get('index')}, args_len={len(_args_val) if isinstance(_args_val, str) else 'N/A'}")
+                                            else:
+                                                log.debug(f"[TOOL-DELTA] idx={_td.get('index')}, name={_tname}, args_len={len(_args_val) if isinstance(_args_val, str) else 'N/A'}")
+                                        elif _is_write_edit:
+                                            # EMPTY args delta for Write/Edit — normal during streaming
+                                            # Arguments arrive in subsequent chunks, this is expected behavior
+                                            log.debug(f"[TOOL-DELTA] {_tname} args pending idx={_td.get('index')} — waiting for arguments")
+                                    # Emit exploreStart on first tool call delta
+                                    if not _explore_started and delta_list:
+                                        _explore_started = True
+                                        try:
+                                            self._safe_emit(self.exploreStart)
+                                        except Exception:
+                                            pass
+                                    for td in delta_list:
+                                        idx = td.get("index", 0)
+                                        if idx not in tool_acc:
+                                            tool_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                                        if td.get("id"):
+                                            tool_acc[idx]["id"] = td["id"]
+                                        if td.get("function", {}).get("name"):
+                                            tool_acc[idx]["name"] = td["function"]["name"]
+                                        if td.get("function", {}).get("arguments"):
+                                            tool_acc[idx]["arguments"] += td["function"]["arguments"]
+                                        
+                                        # ── Streaming Write/Edit: show live file-creation card ──
+                                        _tname = tool_acc[idx].get("name", "")
+                                        if _tname in ("Write", "Edit") and idx not in _streaming_write_announced:
+                                            _streaming_write_announced.add(idx)
+                                            # Try to extract file_path from partial args
                                             _partial_args = tool_acc[idx].get("arguments", "")
                                             _fp = ""
                                             try:
@@ -4723,23 +4896,52 @@ They survive auto-compaction and are ALWAYS active:
                                             _info = json.dumps({
                                                 "file_path": _fp or "(streaming)",
                                                 "tool": _tname,
-                                                "size": _cur_size,
-                                                "progress": True,
+                                                "size": len(_partial_args),
                                             })
                                             try:
                                                 self._safe_emit(self.tool_activity, _activity_type, _info, "streaming")
                                             except Exception:
                                                 pass
-                            elif isinstance(chunk, str) and chunk.startswith("__REASONING_DELTA__:"):
-                                _reason_chunk = chunk[len("__REASONING_DELTA__:"):]
-                                turn_reasoning += _reason_chunk
-                                # Reasoning is stored in turn_reasoning (→ reasoning_content in
-                                # the assistant message). It is NOT added to turn_text or
-                                # full_response — doing so would leak internal monologue into the
-                                # conversation history, causing the AI to see its own thoughts as
-                                # prior output and hallucinate/repeat them on subsequent turns.
-                                # Reasoning streams to the thought card UI via response_chunk tags
-                                # (parsed by native_chat_bridge → thinking_delta → chat_panel).
+                                            _streaming_last_size[idx] = len(_partial_args)
+                                            log.info(
+                                                f"[STREAM-WRITE] Started streaming card for {_tname}: "
+                                                f"fp={_fp or '?unknown?'}, initial_size={len(_partial_args)}"
+                                            )
+                                        elif _tname in ("Write", "Edit") and idx in _streaming_write_announced:
+                                            # Periodic progress update every ~8KB of new content
+                                            _cur_size = len(tool_acc[idx].get("arguments", ""))
+                                            _last_size = _streaming_last_size.get(idx, 0)
+                                            if _cur_size - _last_size >= 2048:
+                                                _streaming_last_size[idx] = _cur_size
+                                                _partial_args = tool_acc[idx].get("arguments", "")
+                                                _fp = ""
+                                                try:
+                                                    _fp_match = re.search(r'"file_path"\s*:\s*"([^"]+)"', _partial_args)
+                                                    if _fp_match:
+                                                        _fp = _fp_match.group(1)
+                                                except Exception:
+                                                    pass
+                                                _activity_type = "write_file_streaming" if _tname == "Write" else "edit_file_streaming"
+                                                _info = json.dumps({
+                                                    "file_path": _fp or "(streaming)",
+                                                    "tool": _tname,
+                                                    "size": _cur_size,
+                                                    "progress": True,
+                                                })
+                                                try:
+                                                    self._safe_emit(self.tool_activity, _activity_type, _info, "streaming")
+                                                except Exception:
+                                                    pass
+                                elif isinstance(chunk, str) and chunk.startswith("__REASONING_DELTA__:"):
+                                    _reason_chunk = chunk[len("__REASONING_DELTA__:"):]
+                                    turn_reasoning += _reason_chunk
+                                    # Reasoning is stored in turn_reasoning (→ reasoning_content in
+                                    # the assistant message). It is NOT added to turn_text or
+                                    # full_response — doing so would leak internal monologue into the
+                                    # conversation history, causing the AI to see its own thoughts as
+                                    # prior output and hallucinate/repeat them on subsequent turns.
+                                    # Reasoning streams to the thought card UI via response_chunk tags
+                                    # (parsed by native_chat_bridge → thinking_delta → chat_panel).
                                 # Emit thoughtStart on first reasoning chunk.
                                 if not _thought_started:
                                     _thought_started = True
@@ -4949,19 +5151,20 @@ They survive auto-compaction and are ALWAYS active:
                     log.info("[BRIDGE] Agentic loop aborted by stop request")
                     break
 
-                # Assemble pending tool calls
-                pending: List[Dict[str, Any]] = []
-                for idx in sorted(tool_acc):
-                    tc = tool_acc[idx]
-                    if tc["name"]:
-                        pending.append({
-                            "index": idx,
-                            "id":    tc["id"] or str(_uuid.uuid4()),
-                            "function": {
-                                "name":      tc["name"],
-                                "arguments": tc["arguments"],
-                            },
-                        })
+                # Assemble pending tool calls from direct provider response
+                # (Skip if proxy already added tool calls)
+                if not pending:
+                    for idx in sorted(tool_acc):
+                        tc = tool_acc[idx]
+                        if tc["name"]:
+                            pending.append({
+                                "index": idx,
+                                "id":    tc["id"] or str(_uuid.uuid4()),
+                                "function": {
+                                    "name":      tc["name"],
+                                    "arguments": tc["arguments"],
+                                },
+                            })
 
                 # If no tool calls → check if we should force action or exit
                 if not pending:
@@ -5650,6 +5853,12 @@ They survive auto-compaction and are ALWAYS active:
                     _model_id = getattr(self, '_current_model_id', None) or 'unknown'
                     _ut.record_token_usage(_model_id, _prompt_est, _completion_est)
                     log.debug(f"[USAGE] Recorded {_prompt_est}+{_completion_est} tokens, model={_model_id}")
+                    
+                    # Record reasoning if thinking was used
+                    _turn_reasoning = getattr(self, '_last_turn_reasoning', None)
+                    if _turn_reasoning and len(_turn_reasoning) > 10:
+                        _ut.record_reasoning_level("high")
+                        log.debug(f"[USAGE] Recorded reasoning: {len(_turn_reasoning)} chars")
             except Exception as _ut_err:
                 log.debug(f"[USAGE] Token tracking skipped: {_ut_err}")
 
@@ -9228,7 +9437,9 @@ They survive auto-compaction and are ALWAYS active:
         error_msgs: List[str] = []
 
         # ── Tier 0: MiMo Native Web Search (built-in web_search tool) ──────
-        mimo_key = os.environ.get("MIMO_API_KEY", "")
+        from src.core.key_manager import KeyManager
+        km = KeyManager()
+        mimo_key = km.get_key("mimo") or ""
         if mimo_key:
             try:
                 from src.ai.providers.mimo_provider import get_mimo_provider
@@ -9254,7 +9465,7 @@ They survive auto-compaction and are ALWAYS active:
             )
 
         # ── Tier 1: SerpAPI — Google search (best quality) ─────────────────
-        serpapi_key = os.environ.get("SERPAPI_API_KEY", "")
+        serpapi_key = km.get_key("serpapi") or ""
         if serpapi_key:
             try:
                 encoded = urllib.parse.quote(query)
@@ -9462,7 +9673,7 @@ They survive auto-compaction and are ALWAYS active:
 
         # ── Tier 4: Brave Search API (free tier, 2,000 queries/month) ────
         if not results:
-            brave_key = os.environ.get("BRAVE_API_KEY", "")
+            brave_key = km.get_key("brave") or ""
             if brave_key:
                 try:
                     encoded = urllib.parse.quote(query)
@@ -10667,9 +10878,47 @@ They survive auto-compaction and are ALWAYS active:
         """
         import threading
 
+        # Check Mistral access type
+        def _get_mistral_access_type():
+            """Returns: 'byok', 'subscription', or None"""
+            # Check if user has own Mistral key (BYOK)
+            try:
+                from src.core.key_manager import KeyManager
+                km = KeyManager()
+                if km.get_key("mistral"):
+                    return "byok"
+            except Exception:
+                pass
+            
+            # Check if user has subscription
+            try:
+                from src.core.cortex_api import get_api_client
+                api = get_api_client()
+                if api.has_subscription():
+                    return "subscription"
+            except Exception:
+                pass
+            
+            return None
+
+        access_type = _get_mistral_access_type()
+        
+        if access_type is None:
+            # Show subscription required message
+            error_msg = (
+                "🔒 **Image/OCR Feature Requires Subscription**\n\n"
+                "Image analysis and OCR (text extraction from images) are available with a Cortex subscription.\n\n"
+                "**Options:**\n"
+                "• Subscribe to Cortex Pro ($10/mo)\n"
+                "• Or add your own Mistral API key in Settings → Models & Providers\n\n"
+                "[View Plans →](/pricing)"
+            )
+            self._safe_emit(self.response_chunk, error_msg)
+            return
+
         def _vision_thread():
             try:
-                log.info("[VISION] Sending image to Mistral for OCR + visual context...")
+                log.info(f"[VISION] Sending image to Mistral for OCR (access_type={access_type})...")
                 vision_prompt = (
                     "Analyze this screenshot thoroughly. Provide TWO sections:\n\n"
                     "## TEXT CONTENT\n"
@@ -10694,59 +10943,55 @@ They survive auto-compaction and are ALWAYS active:
 
                 vision_messages = [
                     {"role": "user", "content": [
-                        {"type": "text", "text": vision_prompt},
-                        *[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}
-                          for img in images]
+                        {"type": "image_url", "image_url": {"url": images[0]}},
+                        {"type": "text", "text": vision_prompt}
                     ]}
                 ]
 
-                from src.ai.providers import get_provider_registry, ProviderType
-                registry = get_provider_registry()
-                mistral = registry.get_provider(ProviderType.MISTRAL)
+                # Route based on access type
+                if access_type == "subscription":
+                    # Use proxy for subscription users
+                    from src.core.cortex_api import get_api_client
+                    api = get_api_client()
+                    result = api.proxy_service(
+                        "mistral_ocr",
+                        image_url=images[0],
+                        prompt=vision_prompt,
+                    )
+                    if result and result.get("status") == "success":
+                        vision_response = result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
+                    else:
+                        vision_response = None
+                else:
+                    # Use direct Mistral provider for BYOK
+                    from src.ai.providers import get_provider_registry
+                    registry = get_provider_registry()
+                    mistral = registry.get_provider("mistral")
+                    
+                    vision_response = ""
+                    for chunk in mistral.chat_stream(vision_messages, model="mistral-large-latest", max_tokens=3000):
+                        if isinstance(chunk, str) and not chunk.startswith("__"):
+                            vision_response += chunk
 
-                if not mistral:
-                    log.warning("[VISION] Mistral provider not available")
-                    # Check if current model supports vision before sending images
+                # Handle response
+                if not vision_response:
+                    log.warning("[VISION] OCR failed or returned empty")
                     if self._current_model_supports_vision():
+                        self.response_chunk.emit("\n\n*Vision extraction failed — sending image directly to model.*\n")
                         self.process_message(message, images=images)
                     else:
                         self.response_chunk.emit(
-                            "\n\n*Image attached but Mistral vision is unavailable "
-                            "and the current model does not support image input. "
-                            "Please switch to a vision-capable model (e.g., mimo-v2.5) "
-                            "or configure Mistral API key for image processing.*\n"
-                        )
-                        self.response_complete.emit("")
-                    return
-
-                # Step 1: Stream Mistral extraction to user so they see what was recognized
-                self.response_chunk.emit("**🔍 Image Recognition:**\n\n")
-                vision_response = ""
-                for chunk in mistral.chat_stream(vision_messages, model="mistral-large-latest", max_tokens=3000):
-                    if self._stop_requested:
-                        return
-                    vision_response += chunk
-                    self.response_chunk.emit(chunk)
-
-                if not vision_response.strip():
-                    log.warning("[VISION] Mistral returned empty response")
-                    if self._current_model_supports_vision():
-                        self.response_chunk.emit("\n\n*Vision extraction empty — sending image directly to model.*\n")
-                        self.process_message(message, images=images)
-                    else:
-                        self.response_chunk.emit(
-                            "\n\n*Vision extraction empty and current model does not support images. "
+                            "\n\n*Vision extraction failed and current model does not support images. "
                             "Please try again or switch to a vision-capable model.*\n"
                         )
                     self.response_complete.emit("")
                     return
 
-                log.info(f"[VISION] Mistral OCR complete: {len(vision_response)} chars")
+                log.info(f"[VISION] OCR complete: {len(vision_response)} chars")
 
-                # Separator — do NOT emit response_complete here.
-                # The stop button must stay active through both vision + model steps.
-                # response_complete triggers on_turn_done → set_generating(False) which
-                # would hide the stop button between the two steps.
+                # Emit the OCR result
+                self.response_chunk.emit("**🔍 Image Recognition:**\n\n")
+                self.response_chunk.emit(vision_response)
                 self.response_chunk.emit("\n\n---\n\n**Now processing with your selected model...**\n")
 
                 # Step 2: Inject vision result as context into conversation history

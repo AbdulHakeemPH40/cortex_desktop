@@ -38,6 +38,9 @@
     mimoKey: "ai.mimo_key",
     openrouterKey: "ai.openrouter_key",
     alibabaKey: "ai.alibaba_key",
+    kimiKey: "ai.kimi_key",
+    mistralKey: "ai.mistral_key",
+    siliconflowKey: "ai.siliconflow_key",
     /* Personalization */
     systemInstructions: "ai.system_instructions",
     verbosity: "ai.verbosity",
@@ -360,19 +363,108 @@
 
     /* ── Load profile data from bridge ── */
     function loadProfile() {
+      /* First check auth status */
+      callBridge(["getAuthStatus"], []).then(authData => {
+        let auth = {};
+        try { auth = typeof authData === 'string' ? JSON.parse(authData) : authData || {}; } catch(e) {}
+        
+        const isLoggedIn = auth.logged_in || false;
+        
+        /* Show/hide login card vs profile hero */
+        const loginCard = $("loginCard");
+        const profileHero = $("profileHero");
+        
+        if (loginCard) loginCard.style.display = isLoggedIn ? 'none' : 'block';
+        if (profileHero) profileHero.style.display = isLoggedIn ? 'flex' : 'none';
+        
+        /* If logged in, populate profile from auth data */
+        if (isLoggedIn && auth.user) {
+          const u = auth.user;
+          const name = u.display_name || u.email?.split('@')[0] || 'User';
+          const email = u.email || '';
+          const initials = name.charAt(0).toUpperCase() + (name.split(' ')[1]?.charAt(0) || '').toUpperCase();
+          
+          /* Plan display — use plan_display from API or fallback */
+          const planMap = { 'starter': 'Starter', 'pro': 'Pro' };
+          const planText = u.plan_display || planMap[u.plan] || 'Free';
+          
+          if ($("profileAvatar")) $("profileAvatar").textContent = initials;
+          if ($("profileName")) $("profileName").textContent = name;
+          if ($("profileEmail")) $("profileEmail").textContent = email;
+          if ($("profilePlan")) $("profilePlan").textContent = planText;
+          if ($("serverStatus")) $("serverStatus").textContent = 'Connected';
+        }
+      }).catch(() => {});
+      
+      /* Also fetch full profile from server for more details */
       callBridge(["getProfile", "get_profile"], []).then(data => {
         if (!data) return;
         try {
           const p = typeof data === 'string' ? JSON.parse(data) : data;
           const profile = p.profile || p;
-          if ($("profileAvatar")) $("profileAvatar").textContent = profile.avatar_initials || 'HA';
-          if ($("profileAvatar")) $("profileAvatar").style.background = `linear-gradient(135deg, ${profile.avatar_color || '#f97316'}, ${profile.avatar_color || '#fb923c'})`;
-          if ($("profileName")) $("profileName").textContent = profile.display_name || 'User';
-          if ($("profileUsername")) $("profileUsername").textContent = '@' + (profile.username || 'user');
-          if ($("profilePlan")) $("profilePlan").textContent = profile.plan || 'Free';
+          const auth = p.auth || {};
+          
+          /* Use server data if available */
+          const displayName = auth.display_name || profile.display_name || '';
+          const email = auth.email || profile.email || '';
+          
+          /* Plan display — use plan_display from API or fallback */
+          const planMap = { 'pro': 'Pro', 'pro_yearly': 'Pro (Yearly)' };
+          const planText = auth.plan_display || profile.plan_display || planMap[auth.plan || profile.plan] || 'Free';
+          
+          if (displayName && $("profileName")) $("profileName").textContent = displayName;
+          if (email && $("profileEmail")) $("profileEmail").textContent = email;
+          if ($("profilePlan")) $("profilePlan").textContent = planText;
+          
+          /* Update avatar initials */
+          if (displayName && $("profileAvatar")) {
+            const parts = displayName.split(' ');
+            const initials = parts[0].charAt(0).toUpperCase() + (parts[1]?.charAt(0) || '').toUpperCase();
+            $("profileAvatar").textContent = initials;
+          }
         } catch (e) { console.error('[PROFILE] parse error:', e); }
       }).catch(() => { /* no bridge — use defaults */ });
     }
+
+    /* ── Auth functions ── */
+    function startBrowserLogin() {
+      const status = $("loginStatus");
+      const error = $("loginError");
+      if (status) status.textContent = 'Checking server connection...';
+      if (error) error.style.display = 'none';
+      
+      callBridge(["startLogin"], []).then(ok => {
+        if (ok) {
+          if (status) status.textContent = 'Browser opened. Complete login there, then return here.';
+        } else {
+          if (status) status.textContent = '';
+          if (error) {
+            error.textContent = 'Cannot connect to server. Make sure Django is running on 127.0.0.1:8753';
+            error.style.display = 'block';
+          }
+        }
+      }).catch(() => {
+        if (status) status.textContent = '';
+        if (error) {
+          error.textContent = 'Login failed. Check server connection.';
+          error.style.display = 'block';
+        }
+      });
+    }
+    
+    function logoutUser() {
+      callBridge(["logout"], []).then(() => {
+        loadProfile();
+        loadUsageStats();
+      }).catch(() => {});
+    }
+    
+    /* Expose auth functions to global scope for inline onclick handlers */
+    window.startBrowserLogin = startBrowserLogin;
+    window.logoutUser = logoutUser;
+    window.openUpgradePage = openUpgradePage;
+    window.loadProfile = loadProfile;
+    window.loadUsageStats = loadUsageStats;
 
     /* ── Apply usage data to UI (shared by bridge + demo) ── */
     function applyUsageData(u) {
@@ -404,12 +496,24 @@
       if ($("dailyDetail")) $("dailyDetail").textContent = (period.requests_used || 0) + ' / ' + (period.requests_limit || 0) + ' requests';
 
       /* Update insights */
-      if ($("fastModePercent")) $("fastModePercent").textContent = (insights.fast_mode_percent || 0) + '%';
-      if ($("fastModeBar")) $("fastModeBar").style.width = (insights.fast_mode_percent || 0) + '%';
-      if ($("reasoningLevel")) $("reasoningLevel").textContent = insights.most_reasoning_level ? insights.most_reasoning_level.charAt(0).toUpperCase() + insights.most_reasoning_level.slice(1) + ' - ' + (insights.reasoning_percent || 0) + '%' : 'None';
-      if ($("reasoningBar")) $("reasoningBar").style.width = (insights.reasoning_percent || 0) + '%';
-      if ($("skillsExplored")) $("skillsExplored").textContent = (insights.skills_explored && insights.skills_explored.length) ? insights.skills_explored.join(', ') : 'None';
-      if ($("totalSkills")) $("totalSkills").textContent = (insights.total_skills_used || 0) > 0 ? insights.total_skills_used : 'None';
+      const fastMode = insights.fast_mode_percent || 0;
+      if ($("fastModePercent")) $("fastModePercent").textContent = fastMode > 0 ? fastMode + '%' : 'N/A';
+      if ($("fastModeBar")) $("fastModeBar").style.width = fastMode + '%';
+      
+      const reasoningLevel = insights.most_reasoning_level || 'none';
+      const reasoningPercent = insights.reasoning_percent || 0;
+      if ($("reasoningLevel")) {
+        if (reasoningLevel === 'none' || reasoningPercent === 0) {
+          $("reasoningLevel").textContent = 'Not tracked';
+        } else {
+          $("reasoningLevel").textContent = reasoningLevel.charAt(0).toUpperCase() + reasoningLevel.slice(1) + ' - ' + reasoningPercent + '%';
+        }
+      }
+      if ($("reasoningBar")) $("reasoningBar").style.width = reasoningPercent + '%';
+      
+      const skillsExplored = insights.skills_explored || [];
+      if ($("skillsExplored")) $("skillsExplored").textContent = skillsExplored.length > 0 ? skillsExplored.slice(0, 5).join(', ') + (skillsExplored.length > 5 ? '...' : '') : 'None yet';
+      if ($("totalSkills")) $("totalSkills").textContent = (insights.total_skills_used || 0) > 0 ? insights.total_skills_used : '0';
 
       /* Update model usage list */
       const modelList = $("modelUsageList");
@@ -460,8 +564,57 @@
           const u = typeof data === 'string' ? JSON.parse(data) : data;
           _cachedUsageData = u;
           applyUsageData(u);
+          
+          /* Update server data if available */
+          const server = u.server || {};
+          const sub = server.subscription || {};
+          const credits = server.credits || {};
+          const usage = server.usage || {};
+          
+          /* Update plan card with server data */
+          if (sub.plan && sub.plan !== 'none') {
+            const planNames = { 'pro': 'Pro', 'pro_yearly': 'Pro (Yearly)', 'free': 'Free' };
+            const planPrices = { 'pro': '$10/mo', 'pro_yearly': '$80/yr', 'free': '$0/mo' };
+            if ($("planName")) $("planName").textContent = (planNames[sub.plan] || sub.plan) + ' plan';
+            if ($("planPrice")) $("planPrice").textContent = planPrices[sub.plan] || '';
+            
+            // Show plan features
+            const planFeatures = $("planFeatures");
+            if (planFeatures) planFeatures.style.display = 'block';
+          }
+          
+          /* Show credits if available */
+          if (credits.monthly_allocation > 0) {
+            const creditsInfo = $("creditsInfo");
+            if (creditsInfo) creditsInfo.style.display = 'block';
+            if ($("creditBalance")) $("creditBalance").textContent = '$' + (credits.balance || 0).toFixed(2);
+            if ($("creditsUsed")) $("creditsUsed").textContent = '$' + (credits.used_this_month || 0).toFixed(2);
+          }
+          
+          /* Show server usage card */
+          if (usage.tokens_this_month > 0) {
+            const serverCard = $("serverUsageCard");
+            if (serverCard) serverCard.style.display = 'block';
+            const serverInfo = $("serverUsageInfo");
+            if (serverInfo) {
+              serverInfo.innerHTML = 
+                'Tokens this month: <strong>' + formatTokens(usage.tokens_this_month) + '</strong><br>' +
+                'Requests this month: <strong>' + (usage.requests_this_month || 0) + '</strong>';
+            }
+          }
         } catch (e) { console.error('[USAGE] parse error:', e); }
       }).catch(() => { /* no bridge — use defaults */ });
+    }
+    
+    function openUpgradePage() {
+      callBridge(["getAuthStatus"], []).then(data => {
+        let auth = {};
+        try { auth = typeof data === 'string' ? JSON.parse(data) : data || {}; } catch(e) {}
+        const serverUrl = auth.server_url || 'http://127.0.0.1:8753';
+        window.pyBridge?.openExternal?.(serverUrl + '/pricing/') || window.open(serverUrl + '/pricing/', '_blank');
+      }).catch(() => {
+        window.open('http://127.0.0.1:8753/pricing/', '_blank');
+      });
     }
 
     /* ── Render activity chart with pagination ── */
@@ -757,6 +910,9 @@
 
     /* ── Init bridge ── */
     initBridge();
+
+    /* ── Load profile data on init (check if logged in) ── */
+    loadProfile();
 
     /* ── Standalone demo data (only when no bridge) ── */
     setTimeout(() => {

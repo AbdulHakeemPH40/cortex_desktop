@@ -104,14 +104,14 @@ class BaseProvider(ABC):
             pass
 
     def _load_api_key(self):
-        """Load API key from KeyManager (encrypted) with fallback to env var."""
+        """Load API key from KeyManager ONLY (Windows Credential Manager - encrypted)."""
         import os
         sources = self._KEY_SOURCES.get(self.provider_type)
         if not sources:
             return
         env_var, km_name = sources
 
-        # 1. Try KeyManager (encrypted storage)
+        # Try KeyManager (Windows Credential Manager - encrypted storage)
         try:
             from src.core.key_manager import KeyManager
             km = KeyManager()
@@ -123,15 +123,8 @@ class BaseProvider(ABC):
         except Exception as e:
             log.debug(f"[{self.provider_type.value}] KeyManager unavailable: {e}")
 
-        # 2. Fallback to environment variable
-        if env_var:
-            key = os.getenv(env_var, "")
-            if key:
-                self._api_key = key
-                log.debug(f"[{self.provider_type.value}] Loaded API key from env ${env_var}")
-                return
-
-        log.debug(f"[{self.provider_type.value}] No API key found")
+        # NO .env fallback - keys must be stored in Windows Credential Manager
+        log.debug(f"[{self.provider_type.value}] No API key found. Add key in Settings → Models & Providers")
 
     @property
     @abstractmethod

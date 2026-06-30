@@ -357,7 +357,7 @@ class OpenRouterProvider(BaseProvider):
         if not self.api_key:
             raise ValueError(
                 "OPENROUTER_API_KEY not configured. "
-                "Get one at https://openrouter.ai/keys and add it to your .env file."
+                "Get one at https://openrouter.ai/keys and add it in Settings → Models & Providers"
             )
 
         headers = {

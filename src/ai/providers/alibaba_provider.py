@@ -10,7 +10,7 @@ Docs:
     https://modelstudio.console.alibabacloud.com/  (API / costing-balance tabs)
 
 API key:
-    Set DASHSCOPE_API_KEY (preferred) or QWEN_API_KEY in your .env.
+    Set DASHSCOPE_API_KEY via Settings → Models & Providers (stored in Windows Credential Manager).
 
 Model tiers exposed:
     • Free quota models — 1,000,000 tokens free (e.g. qwen3.7-plus)

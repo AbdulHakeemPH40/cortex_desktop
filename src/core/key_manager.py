@@ -95,8 +95,6 @@ class KeyManager:
                 success = self._store_windows_credential(provider, api_key)
             elif storage_backend == "encrypted_file":
                 success = self._store_encrypted_file(provider, api_key)
-            elif storage_backend == "env":
-                success = self._store_env_variable(provider, api_key)
             else:
                 log.error(f"Unknown storage backend: {storage_backend}")
                 return False
@@ -143,17 +141,15 @@ class KeyManager:
         # Try to get from storage backends
         key = None
         
-        # Try Windows Credential Manager
+        # Try Windows Credential Manager (primary)
         if not key:
             key = self._get_windows_credential(provider)
         
-        # Try encrypted file
+        # Try encrypted file (secondary)
         if not key:
             key = self._get_encrypted_file(provider)
         
-        # Try environment variable
-        if not key:
-            key = self._get_env_variable(provider)
+        # NO .env fallback - keys must be stored in Windows Credential Manager
         
         if key:
             # Convert bytes to string if needed
@@ -169,7 +165,7 @@ class KeyManager:
             self._cache_ttl[provider] = datetime.now()
             log.debug(f"Retrieved {provider} key from storage (length={len(key)})")
         else:
-            log.warning(f"No API key found for {provider}")
+            log.debug(f"No API key found for {provider}. Add key in Settings → Models & Providers")
         
         return key
     

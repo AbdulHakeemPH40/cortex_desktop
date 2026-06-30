@@ -88,6 +88,11 @@ DEFAULT_SETTINGS = {
         "only_when_unfocused": True,        # Only toast when IDE is not the active window
         "sound_alerts": False,              # Play a sound when tasks complete
     },
+    "server": {
+        "url": "http://127.0.0.1:8753",     # Cortex Django server URL
+        "auto_sync": True,                  # Auto-sync usage data to server
+        "sync_interval_minutes": 5,         # How often to sync
+    },
 }
 
 

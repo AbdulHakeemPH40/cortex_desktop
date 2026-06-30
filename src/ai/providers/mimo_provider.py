@@ -146,9 +146,12 @@ class MimoProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.MIMO)
-            self._api_key = os.getenv("MIMO_API_KEY", "")
+            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            self._api_key = km.get_key("mimo") or ""
             if not self._api_key:
-                log.warning("MIMO_API_KEY not configured for Mimo provider")
+                log.warning("MIMO_API_KEY not configured. Add key in Settings → Models & Providers")
             self._session = requests.Session()
             self._max_retries = self._get_int_env("CORTEX_MIMO_MAX_RETRIES", 4, minimum=1, maximum=5)
             self._retry_delay = 1.0

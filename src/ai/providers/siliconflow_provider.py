@@ -22,9 +22,12 @@ class SiliconFlowProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.SILICONFLOW)
-            self._api_key = os.getenv("SILICONFLOW_API_KEY", "")
+            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            self._api_key = km.get_key("siliconflow") or ""
             if not self._api_key:
-                log.warning("SiliconFlow API key not configured")
+                log.warning("SiliconFlow API key not configured. Add key in Settings → Models & Providers")
             self._session = requests.Session()
             self._max_retries = 2
             self._retry_delay = 1.0

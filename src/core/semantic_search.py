@@ -55,15 +55,45 @@ class SemanticSearch:
         self.embeddings_cache: Dict[str, List[float]] = {}
         self.file_metadata: Dict[str, Dict] = {}
         
-        # Initialize embeddings provider
-        self.embeddings_provider = get_siliconflow_embeddings()
+        # Check cloud embeddings access (subscription or own key)
+        self._has_cloud_access = self._check_embeddings_access()
+        
+        # Initialize embeddings provider (with fallback to hash-based)
+        if self._has_cloud_access:
+            self.embeddings_provider = get_siliconflow_embeddings()
+            log.info(f"[SemanticSearch] Using cloud embeddings (SiliconFlow)")
+        else:
+            # Use hash-based fallback (always available, no API key needed)
+            from src.core.embeddings import EmbeddingsGenerator
+            self.embeddings_provider = EmbeddingsGenerator(backend='hash')
+            log.info(f"[SemanticSearch] Using hash-based fallback embeddings (no subscription)")
         
         # Load existing index
         self.load_index()
         
         log.info(f"Semantic search initialized for {self.project_root}")
-        model_info = self.embeddings_provider.get_model_info()
-        log.info(f"Using model: {model_info['model_name']} ({model_info['dimensions']} dims)")
+    
+    def _check_embeddings_access(self) -> bool:
+        """Check if user has access to embeddings (subscription or own SiliconFlow key)."""
+        # Check if user has own SiliconFlow key
+        try:
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            if km.get_key("siliconflow"):
+                return True
+        except Exception:
+            pass
+        
+        # Check if user has subscription
+        try:
+            from src.core.cortex_api import get_api_client
+            api = get_api_client()
+            if api.is_logged_in() and api.user_info and api.user_info.get("has_subscription", False):
+                return True
+        except Exception:
+            pass
+        
+        return False
     
     def index_file(self, file_path: str, force: bool = False) -> bool:
         """
@@ -76,6 +106,9 @@ class SemanticSearch:
         Returns:
             True if successfully indexed
         """
+        if not self.embeddings_provider:
+            return False
+        
         file_path = str(Path(file_path).resolve())
         
         # Check if already indexed and not modified
@@ -174,21 +207,34 @@ class SemanticSearch:
         
         return stats
     
-    def search(self, query: str, top_k: int = 10, min_similarity: float = 0.3) -> List[SearchResult]:
+    def search(self, query: str, top_k: int = 10, min_similarity: float = None) -> List[SearchResult]:
         """
         Search codebase semantically.
         
         Args:
             query: Search query (natural language)
             top_k: Number of results to return
-            min_similarity: Minimum similarity threshold
+            min_similarity: Minimum similarity threshold (auto-adjusted based on backend)
         
         Returns:
             List of SearchResult objects
         """
+        if not self.embeddings_provider:
+            log.warning("[SemanticSearch] No embeddings provider available")
+            return []
+        
         if not self.embeddings_cache:
             log.warning("No embeddings indexed yet")
             return []
+        
+        # Auto-adjust threshold based on backend
+        if min_similarity is None:
+            # Check if we're actually using cloud embeddings
+            from src.core.siliconflow_embeddings import SiliconFlowEmbeddings
+            if isinstance(self.embeddings_provider, SiliconFlowEmbeddings) and self.embeddings_provider.api_key:
+                min_similarity = 0.3  # Cloud embeddings are semantic
+            else:
+                min_similarity = -1.0  # Hash-based fallback (return all results)
         
         # Generate query embedding
         log.debug(f"Searching for: {query}")

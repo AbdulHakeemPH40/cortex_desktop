@@ -151,6 +151,7 @@ class MemoryManagerBridge(QObject):
     data_changed = pyqtSignal(str)
     toast_requested = pyqtSignal(str, str)
     model_changed = pyqtSignal(str, str)  # (model_id, model_label)
+    login_complete = pyqtSignal(object)   # Emits user_info dict or None
 
     def __init__(self, project_root: str, settings=None, parent=None):
         super().__init__(parent)
@@ -169,6 +170,14 @@ class MemoryManagerBridge(QObject):
 
         if self._active_scope not in ("project", "global"):
             self._active_scope = "project"
+        
+        # Register login callback with auth manager (persists across dialog recreations)
+        try:
+            from src.core.auth_manager import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_on_login_callback(self._on_login_complete)
+        except Exception:
+            pass
         
         # Initialize semantic search
         self._semantic_searcher = None
@@ -722,12 +731,14 @@ class MemoryManagerBridge(QObject):
 
     # API key fields that should be stored in KeyManager (encrypted)
     _API_KEY_FIELDS = {
-        "ai.openai_key":     "openai",
-        "ai.deepseek_key":   "deepseek",
-        "ai.mistral_key":    "mistral",
-        "ai.mimo_key":       "mimo",
-        "ai.openrouter_key": "openrouter",
-        "ai.alibaba_key":    "alibaba",
+        "ai.openai_key":       "openai",
+        "ai.deepseek_key":     "deepseek",
+        "ai.mistral_key":      "mistral",
+        "ai.mimo_key":         "mimo",
+        "ai.openrouter_key":   "openrouter",
+        "ai.alibaba_key":      "alibaba",
+        "ai.kimi_key":         "kimi",
+        "ai.siliconflow_key":  "siliconflow",
     }
 
     @pyqtSlot(str, str)
@@ -788,37 +799,163 @@ class MemoryManagerBridge(QObject):
 
     @pyqtSlot(result=str)
     def getProfile(self) -> str:
-        """Return profile data as JSON string."""
+        """Return profile data as JSON string. Merges server + local data."""
         try:
             from src.ai.usage_tracker import get_usage_tracker
             tracker = get_usage_tracker()
-            return json.dumps(tracker.get_profile())
+            local_profile = tracker.get_profile()
+            
+            # Try to get server profile
+            try:
+                from src.core.cortex_api import get_api_client
+                api = get_api_client()
+                if api.is_logged_in():
+                    server_profile = api.get_profile()
+                    if server_profile:
+                        # Merge server data into local
+                        local_profile["profile"]["display_name"] = server_profile.get("display_name", local_profile["profile"].get("display_name"))
+                        local_profile["profile"]["email"] = server_profile.get("email", local_profile["profile"].get("email"))
+                        local_profile["auth"]["logged_in"] = True
+                        local_profile["auth"]["email"] = server_profile.get("email")
+                        local_profile["auth"]["has_subscription"] = server_profile.get("has_subscription", False)
+                        local_profile["auth"]["plan"] = server_profile.get("plan")
+                        local_profile["auth"]["plan_display"] = server_profile.get("plan_display")
+                        local_profile["auth"]["subscription_status"] = server_profile.get("subscription_status")
+            except Exception as e:
+                log.debug(f"[MemoryManager] Server profile fetch failed (offline?): {e}")
+            
+            return json.dumps(local_profile)
         except Exception as e:
             log.warning(f"[MemoryManager] getProfile failed: {e}")
             return "{}"
 
     @pyqtSlot(result=str)
     def getUsageStats(self) -> str:
-        """Return usage stats as JSON string."""
+        """Return usage stats as JSON string. Merges server + local data."""
         try:
             from src.ai.usage_tracker import get_usage_tracker
             tracker = get_usage_tracker()
-            return json.dumps(tracker.get_usage_stats())
+            local_stats = tracker.get_usage_stats()
+            
+            # Try to get server usage
+            try:
+                from src.core.cortex_api import get_api_client
+                api = get_api_client()
+                if api.is_logged_in():
+                    server_usage = api.get_usage_summary()
+                    if server_usage:
+                        # Merge server limits into local stats
+                        local_stats["server"] = {
+                            "subscription": server_usage.get("subscription", {}),
+                            "credits": server_usage.get("credits", {}),
+                            "usage": server_usage.get("usage", {}),
+                        }
+            except Exception as e:
+                log.debug(f"[MemoryManager] Server usage fetch failed (offline?): {e}")
+            
+            return json.dumps(local_stats)
         except Exception as e:
             log.warning(f"[MemoryManager] getUsageStats failed: {e}")
             return "{}"
 
     @pyqtSlot(str)
     def setProfile(self, data_json: str):
-        """Update profile fields from JSON."""
+        """Update profile fields from JSON. Syncs to server if logged in."""
         try:
             from src.ai.usage_tracker import get_usage_tracker
             tracker = get_usage_tracker()
             data = json.loads(data_json)
             tracker.update_profile_bulk(data)
             log.info(f"[MemoryManager] Profile updated: {list(data.keys())}")
+            
+            # Sync to server if logged in
+            try:
+                from src.core.cortex_api import get_api_client
+                api = get_api_client()
+                if api.is_logged_in():
+                    server_data = {}
+                    if "display_name" in data:
+                        server_data["display_name"] = data["display_name"]
+                    if "email" in data:
+                        server_data["email"] = data["email"]
+                    if server_data:
+                        api.update_profile(server_data)
+            except Exception as e:
+                log.debug(f"[MemoryManager] Server profile sync failed: {e}")
         except Exception as e:
             log.warning(f"[MemoryManager] setProfile failed: {e}")
+
+    # ── Auth Bridge Methods ───────────────────────────────────────
+
+    @pyqtSlot(result=str)
+    def getAuthStatus(self) -> str:
+        """Return auth status as JSON string. Fetches fresh user data from server."""
+        try:
+            from src.core.cortex_api import get_api_client
+            api = get_api_client()
+            
+            user_data = api.user_info or {}
+            
+            # If logged in, fetch fresh profile from server to get plan details
+            if api.is_logged_in():
+                try:
+                    server_profile = api.get_profile()
+                    if server_profile:
+                        # Merge server data into user_data (server has plan info)
+                        user_data.update(server_profile)
+                except Exception:
+                    pass
+            
+            return json.dumps({
+                "logged_in": api.is_logged_in(),
+                "user": user_data,
+                "server_url": api.base_url,
+            })
+        except Exception as e:
+            log.warning(f"[MemoryManager] getAuthStatus failed: {e}")
+            return json.dumps({"logged_in": False, "error": str(e)})
+
+    @pyqtSlot(result=bool)
+    def startLogin(self) -> bool:
+        """Start OAuth2 login flow. Opens browser."""
+        try:
+            from src.core.auth_manager import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_on_login_callback(self._on_login_complete)
+            return auth.start_login(use_browser=True)
+        except Exception as e:
+            log.error(f"[MemoryManager] startLogin failed: {e}")
+            return False
+
+    @pyqtSlot(str, str, result=bool)
+    def loginWithCredentials(self, email: str, password: str) -> bool:
+        """Direct login with email + password."""
+        try:
+            from src.core.auth_manager import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_on_login_callback(self._on_login_complete)
+            return auth.login_with_credentials(email, password)
+        except Exception as e:
+            log.error(f"[MemoryManager] loginWithCredentials failed: {e}")
+            return False
+
+    @pyqtSlot(result=bool)
+    def logout(self) -> bool:
+        """Logout and clear tokens."""
+        try:
+            from src.core.auth_manager import get_auth_manager
+            auth = get_auth_manager()
+            auth.logout()
+            return True
+        except Exception as e:
+            log.error(f"[MemoryManager] logout failed: {e}")
+            return False
+
+    def _on_login_complete(self, user_info):
+        """Callback when login completes — emit signal for main thread UI update."""
+        log.info(f"[MemoryManager] Login complete: {user_info}")
+        # Emit signal to safely update UI on main thread
+        self.login_complete.emit(user_info)
 
     @pyqtSlot(str, str, str, result=str)
     def getUsageForRange(self, start_date: str, end_date: str, granularity: str) -> str:
@@ -974,6 +1111,7 @@ class MemoryManagerDialog(QDialog):
         self._view.loadFinished.connect(self._on_page_loaded)
         self._bridge.data_changed.connect(self._push_state_to_page)
         self._bridge.toast_requested.connect(self._show_toast)
+        self._bridge.login_complete.connect(self._handle_login_complete)
 
         layout.addWidget(self._view)
         self._load_page()
@@ -988,6 +1126,42 @@ class MemoryManagerDialog(QDialog):
             return
         log.warning("[MemoryManager] Safety fallback triggered — page did not load in 3s")
         self._load_html_fallback()
+
+    def _handle_login_complete(self, user_info):
+        """Handle login complete on main thread — bring window to focus and refresh UI."""
+        log.info(f"[MemoryManager] _handle_login_complete called on main thread")
+        try:
+            from PyQt6.QtWidgets import QApplication
+            # Get the main window
+            main_window = None
+            for w in QApplication.topLevelWidgets():
+                if w.__class__.__name__ == "MainWindow":
+                    main_window = w
+                    break
+            if main_window is None:
+                main_window = self.window()
+
+            if main_window:
+                main_window.showNormal()
+                main_window.raise_()
+                main_window.activateWindow()
+                # Windows-specific: force foreground
+                try:
+                    import ctypes
+                    hwnd = int(main_window.winId())
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                except Exception:
+                    pass
+
+            # Refresh the webview to show logged-in state
+            if self._view and self._page_loaded:
+                self._view.page().runJavaScript("if(typeof loadProfile==='function') loadProfile();")
+                self._view.page().runJavaScript("if(typeof loadUsageStats==='function') loadUsageStats();")
+                log.info("[MemoryManager] Triggered UI refresh after login")
+            else:
+                log.warning(f"[MemoryManager] Cannot refresh UI: _view={self._view}, _page_loaded={self._page_loaded}")
+        except Exception as e:
+            log.error(f"[MemoryManager] _handle_login_complete error: {e}")
 
     def _load_page(self):
         html_path = (

@@ -5,11 +5,14 @@ All data stored locally in ~/.cortex/usage.json and ~/.cortex/profile.json.
 """
 
 import json
+import logging
 import os
 import re
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
+log = logging.getLogger("usage_tracker")
 
 # Regex patterns for invalid/test model IDs that should not be tracked
 _INVALID_MODEL_RE = re.compile(r'^(test|mock|fake|placeholder|unknown|default)', re.IGNORECASE)
@@ -54,6 +57,33 @@ class UsageTracker:
     def _save_usage(self):
         self._clean_invalid_models_in_place()
         self._save_json(self.usage_file, self._usage)
+        self._sync_to_server()
+
+    def _sync_to_server(self):
+        """Sync usage data to Django server if logged in. Non-blocking."""
+        try:
+            from src.core.cortex_api import get_api_client
+            api = get_api_client()
+            if not api.is_logged_in():
+                return
+            # Run sync in background to avoid blocking
+            import threading
+            threading.Thread(
+                target=self._do_sync,
+                args=(api,),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass  # Offline or not configured
+
+    def _do_sync(self, api):
+        """Actually sync to server (runs in background thread)."""
+        try:
+            result = api.sync_usage(self._usage.get("daily_usage", {}))
+            if result:
+                log.debug(f"[UsageTracker] Synced to server: {result}")
+        except Exception as e:
+            log.debug(f"[UsageTracker] Server sync failed: {e}")
 
     def _clean_invalid_models_in_place(self):
         """Remove invalid model entries from in-memory data (no save, no recursion)."""
@@ -240,6 +270,11 @@ class UsageTracker:
         if duration_seconds > self._usage["lifetime"]["longest_task_seconds"]:
             self._usage["lifetime"]["longest_task_seconds"] = duration_seconds
 
+        # Track skills/tools explored
+        if tool_name and tool_name not in self._usage["insights"]["skills_explored"]:
+            self._usage["insights"]["skills_explored"].append(tool_name)
+            self._usage["insights"]["total_skills_used"] = len(self._usage["insights"]["skills_explored"])
+
         self._update_streaks(today)
         self._save_usage()
 
@@ -269,7 +304,18 @@ class UsageTracker:
     def record_reasoning_level(self, level: str):
         """Called when reasoning level is used. level: low/medium/high."""
         self._usage["insights"]["most_reasoning_level"] = level
+        # Calculate reasoning percent based on total requests that used reasoning
+        total_requests = self._usage["lifetime"]["total_requests"] or 1
+        reasoning_requests = self._usage["insights"].get("_reasoning_requests", 0) + 1
+        self._usage["insights"]["_reasoning_requests"] = reasoning_requests
+        self._usage["insights"]["reasoning_percent"] = min(100, int((reasoning_requests / total_requests) * 100))
         self._save_usage()
+
+    def record_plugin_used(self, plugin_name: str):
+        """Called when a plugin is used."""
+        if plugin_name and plugin_name not in self._usage["insights"]["plugins_used"]:
+            self._usage["insights"]["plugins_used"].append(plugin_name)
+            self._save_usage()
 
     # ── Query Methods ─────────────────────────────────────────────
 

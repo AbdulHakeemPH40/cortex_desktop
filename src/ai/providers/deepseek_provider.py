@@ -30,7 +30,11 @@ class DeepSeekProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.DEEPSEEK)
-            self.api_key = self._api_key or ""  # Sync with BaseProvider's _api_key
+            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            self.api_key = km.get_key("deepseek") or ""
+            self._api_key = self.api_key
             self._base_url = "https://api.deepseek.com/v1"
             self._token_count = {"input": 0, "output": 0}
             self._session = requests.Session()
@@ -319,7 +323,7 @@ class DeepSeekProvider(BaseProvider):
         log.info(f"[DeepSeek] Using model: {model}")
         
         if not self.api_key:
-            raise ValueError("DEEPSEEK_API_KEY not configured. Please add it to .env file.")
+            raise ValueError("DEEPSEEK_API_KEY not configured. Add key in Settings → Models & Providers")
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",

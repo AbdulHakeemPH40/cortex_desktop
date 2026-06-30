@@ -185,21 +185,42 @@
             <h1>Profile</h1>
             <p class="section-desc">Manage your account and view usage statistics.</p>
           </div>
-          <div class="section-actions">
-            <button class="setting-btn" id="editProfileBtn">Edit Profile</button>
-          </div>
         </div>
 
-        <!-- Profile Hero Card -->
-        <div class="settings-card profile-hero">
-          <div class="profile-avatar" id="profileAvatar">HA</div>
+        <!-- Login Card (shown when not logged in) -->
+        <div class="settings-card" id="loginCard" style="display:none;">
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div style="width:56px;height:56px;background:linear-gradient(135deg,#6c5ce7,#a29bfe);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            </div>
+            <div>
+              <h3 style="margin:0 0 4px 0;">Sign in to Cortex</h3>
+              <p style="margin:0;color:#8b949e;font-size:13px;">Sync your profile, usage, and billing across devices.</p>
+            </div>
+          </div>
+          <button class="setting-btn primary" id="loginBrowserBtn" onclick="startBrowserLogin()" style="margin-top:16px;width:100%;padding:12px;font-size:14px;">
+            Sign in with Browser
+          </button>
+          <div id="loginStatus" style="margin-top:12px;color:#8b949e;font-size:12px;"></div>
+          <div id="loginError" style="margin-top:8px;color:#f85149;font-size:12px;display:none;"></div>
+        </div>
+
+        <!-- Profile Hero Card (shown when logged in) -->
+        <div class="settings-card profile-hero" id="profileHero" style="display:none;">
+          <div class="profile-avatar" id="profileAvatar">U</div>
           <div class="profile-info">
-            <h2 class="profile-name" id="profileName">hakeemph</h2>
+            <h2 class="profile-name" id="profileName">User</h2>
             <p class="profile-meta">
-              <span class="profile-username" id="profileUsername">@hakeemph</span>
+              <span class="profile-username" id="profileEmail"></span>
               <span class="profile-separator">·</span>
               <span class="profile-plan" id="profilePlan">Free</span>
             </p>
+          </div>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+            <span id="serverStatus" style="font-size:11px;color:#00c853;">Connected</span>
+            <button class="setting-btn" id="logoutBtn" onclick="logoutUser()" style="padding:8px 16px;font-size:12px;color:#f85149;border-color:rgba(248,81,73,0.3);">
+              Sign Out
+            </button>
           </div>
         </div>
 
@@ -326,32 +347,51 @@
               <span class="plan-name" id="planName">Free plan</span>
               <span class="plan-price" id="planPrice">$0/mo</span>
             </div>
-            <button class="setting-btn primary-btn" id="upgradePlanBtn">Upgrade plan</button>
+            <button class="setting-btn primary-btn" id="upgradePlanBtn" onclick="openUpgradePage()">Upgrade plan</button>
+          </div>
+          <div id="planFeatures" style="margin-top:12px;display:none;">
+            <span style="font-size:13px;color:#8b949e;">Includes: Mistral OCR · SiliconFlow Embeddings · Web Search</span>
           </div>
         </div>
 
-        <!-- Usage Limits -->
+        <!-- Service Usage -->
         <div class="settings-card">
-          <h3>General usage limits</h3>
-
+          <h3>Service Usage (This Month)</h3>
+          
           <div class="usage-meter">
             <div class="meter-header">
-              <span class="meter-label">Monthly token usage</span>
-              <span class="meter-percent" id="monthlyPercent">0%</span>
+              <span class="meter-label">OCR Pages</span>
+              <span class="meter-value" id="ocrPages">0</span>
             </div>
             <div class="meter-bar">
-              <div class="meter-fill" id="monthlyFill" style="width: 0%"></div>
-            </div>
-            <div class="meter-footer">
-              <span id="monthlyDetail">0 / 0 tokens</span>
-              <span id="monthlyReset" class="meter-reset">Resets —</span>
+              <div class="meter-fill" id="ocrFill" style="width: 0%"></div>
             </div>
           </div>
 
           <div class="usage-meter">
             <div class="meter-header">
-              <span class="meter-label">Daily request limit</span>
-              <span class="meter-percent" id="dailyPercent">0%</span>
+              <span class="meter-label">Embeddings Generated</span>
+              <span class="meter-value" id="embeddingsCount">0</span>
+            </div>
+            <div class="meter-bar">
+              <div class="meter-fill" id="embeddingsFill" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div class="usage-meter">
+            <div class="meter-header">
+              <span class="meter-label">Web Searches</span>
+              <span class="meter-value" id="webSearches">0</span>
+            </div>
+            <div class="meter-bar">
+              <div class="meter-fill" id="searchFill" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#8b949e;">
+            LLM usage (MiMo, DeepSeek, OpenAI, etc.) is tracked locally on your desktop.
+          </div>
+        </div>
             </div>
             <div class="meter-bar">
               <div class="meter-fill" id="dailyFill" style="width: 0%"></div>
@@ -360,6 +400,14 @@
               <span id="dailyDetail">0 / 0 requests</span>
               <span id="dailyReset" class="meter-reset">Resets tomorrow</span>
             </div>
+          </div>
+        </div>
+
+        <!-- Server Usage (when logged in) -->
+        <div class="settings-card" id="serverUsageCard" style="display:none;">
+          <h3>Server usage</h3>
+          <div id="serverUsageInfo" style="font-size:13px;color:#8b949e;">
+            Loading server data...
           </div>
         </div>
 
@@ -424,6 +472,28 @@
               <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
             </div>
           </div>
+          <div class="provider-row" style="opacity:0.8">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#f43f5e;color:white">M</div>
+              <div><label>Mistral Large</label>
+                <p>OCR · Image recognition · Vision</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
+            </div>
+          </div>
+          <div class="provider-row" style="opacity:0.8">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#10b981;color:white">S</div>
+              <div><label>SiliconFlow</label>
+                <p>Embeddings only (Qwen3 Embedding)</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
+            </div>
+          </div>
         </div>
         <div class="settings-card">
           <h3>Provider API Keys</h3>
@@ -481,6 +551,28 @@
             </div>
             <div class="provider-key">
               <input type="password" class="setting-input" id="alibabaKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#06b6d4;color:white">K</div>
+              <div><label>Kimi (Moonshot)</label>
+                <p>K2.6 multimodal · 256K ctx</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="kimiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <div class="provider-row">
+            <div class="provider-info">
+              <div class="provider-logo" style="background:#f43f5e;color:white">M</div>
+              <div><label>Mistral — BYOK</label>
+                <p>Use your own key (overrides subscription)</p>
+              </div>
+            </div>
+            <div class="provider-key">
+              <input type="password" class="setting-input" id="mistralKey" placeholder="sk-... (optional)"><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
             </div>
           </div>
         </div>

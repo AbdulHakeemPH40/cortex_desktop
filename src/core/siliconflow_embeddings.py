@@ -81,23 +81,18 @@ class SiliconFlowEmbeddings:
             log.warning("SILICONFLOW_API_KEY not set. Using hash-based fallback.")
     
     def _get_api_key(self) -> Optional[str]:
-        """Get API key from environment or key manager."""
-        # First try environment variable
-        api_key = os.getenv("SILICONFLOW_API_KEY", "")
-        
-        if api_key:
-            return api_key
-        
-        # Try key manager if available
+        """Get API key from KeyManager ONLY (Windows Credential Manager)."""
+        # Try key manager (Windows Credential Manager - encrypted)
         try:
-            from src.core.key_manager import get_key_manager
-            key_manager = get_key_manager()
-            api_key = key_manager.get_key("siliconflow")
+            from src.core.key_manager import KeyManager
+            km = KeyManager()
+            api_key = km.get_key("siliconflow")
             if api_key:
                 return api_key
-        except ImportError:
+        except Exception:
             pass
         
+        # NO .env fallback - subscription required for embeddings
         return None
     
     def generate_embedding(self, text: str) -> EmbeddingResult:
