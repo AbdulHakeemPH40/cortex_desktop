@@ -74,17 +74,8 @@ class SemanticSearch:
         log.info(f"Semantic search initialized for {self.project_root}")
     
     def _check_embeddings_access(self) -> bool:
-        """Check if user has access to embeddings (subscription or own SiliconFlow key)."""
-        # Check if user has own SiliconFlow key
-        try:
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
-            if km.get_key("siliconflow"):
-                return True
-        except Exception:
-            pass
-        
-        # Check if user has subscription
+        """Check if user has access to embeddings (subscription required)."""
+        # Subscription required — server holds the SiliconFlow API key
         try:
             from src.core.cortex_api import get_api_client
             api = get_api_client()

@@ -275,11 +275,11 @@ class CortexAPIClient:
     def sync_usage(self, service_usage: Dict) -> Optional[Dict]:
         """Sync subscription service usage to server.
 
-        Only sends Mistral (OCR) and SiliconFlow (embeddings) usage.
+        Sends Mistral (OCR), SiliconFlow (embeddings), and web search usage.
         LLM usage stays local.
 
         Args:
-            service_usage: {"ocr_pages": int, "embedding_tokens": int}
+            service_usage: {"ocr_pages": int, "embedding_tokens": int, "web_searches": int}
         """
         return self._request("POST", "/api/v1/usage/sync/", json_data={
             "service_usage": service_usage,

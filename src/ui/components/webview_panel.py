@@ -223,12 +223,13 @@ class WebviewPanel(QWidget):
         self._page.setBackgroundColor(QColor(30, 30, 30))  # #1e1e1e
         self._view.setStyleSheet("background: #1e1e1e; border: none;")
 
-        # Enable localStorage + clipboard + cross-directory file access
+        # Enable localStorage + cross-directory file access
+        # NOTE: JavascriptCanAccessClipboard intentionally DISABLED —
+        # Monaco editor uses the Python bridge (copyToClipboard slot) for clipboard.
+        # Enabling it causes Qt/Chromium to spam "qt.qpa.mime: Retrying to obtain clipboard"
+        # when the OS clipboard is locked or unavailable (especially under memory pressure).
         self._view.settings().setAttribute(
             self._view.settings().WebAttribute.LocalStorageEnabled, True
-        )
-        self._view.settings().setAttribute(
-            self._view.settings().WebAttribute.JavascriptCanAccessClipboard, True
         )
         self._view.settings().setAttribute(
             self._view.settings().WebAttribute.LocalContentCanAccessFileUrls, True

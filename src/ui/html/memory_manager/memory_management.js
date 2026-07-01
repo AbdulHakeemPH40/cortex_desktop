@@ -518,6 +518,17 @@
       if ($("skillsExplored")) $("skillsExplored").textContent = skillsExplored.length > 0 ? skillsExplored.slice(0, 5).join(', ') + (skillsExplored.length > 5 ? '...' : '') : 'None yet';
       if ($("totalSkills")) $("totalSkills").textContent = (insights.total_skills_used || 0) > 0 ? insights.total_skills_used : '0';
 
+      /* Update service usage meters (subscription-only: OCR, Embeddings, Web Search) */
+      const ocrUsed = period.ocr_pages_used || 0;
+      const embedUsed = period.embedding_tokens_used || 0;
+      const searchUsed = period.web_searches_used || 0;
+      if ($("ocrPages")) $("ocrPages").textContent = ocrUsed;
+      if ($("ocrFill")) { $("ocrFill").style.width = Math.min(ocrUsed, 100) + '%'; }
+      if ($("embeddingsCount")) $("embeddingsCount").textContent = embedUsed;
+      if ($("embeddingsFill")) { $("embeddingsFill").style.width = Math.min(Math.round(embedUsed / 10), 100) + '%'; }
+      if ($("webSearches")) $("webSearches").textContent = searchUsed;
+      if ($("searchFill")) { $("searchFill").style.width = Math.min(searchUsed * 5, 100) + '%'; }
+
       /* Update model usage list */
       const modelList = $("modelUsageList");
       if (modelList && Object.keys(models).length > 0) {

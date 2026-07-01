@@ -420,16 +420,17 @@
 
         async function _doPaste() {
             try {
-                const text = await navigator.clipboard.readText();
-                if (text && window.pyTerminal) {
+                // Use Python bridge for clipboard instead of navigator.clipboard.readText()
+                // to avoid Qt/Chromium "qt.qpa.mime: Retrying to obtain clipboard" spam.
+                if (window.pyTerminal) {
                     if (_contextMenuTimer) clearTimeout(_contextMenuTimer);
                     _isPasting = true;
                     _startIgnoreOnData();
-                    window.pyTerminal.receive_input(text);
+                    window.pyTerminal.paste_from_clipboard();
                     _contextMenuTimer = setTimeout(() => { _isPasting = false; _contextMenuTimer = null; }, 100);
                 }
             } catch (err) {
-                console.error('[TERMINAL] Failed to read clipboard:', err);
+                console.error('[TERMINAL] Failed to paste:', err);
             }
         }
 

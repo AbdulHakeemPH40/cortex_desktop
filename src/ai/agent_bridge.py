@@ -4875,9 +4875,6 @@ They survive auto-compaction and are ALWAYS active:
                                 if _chunk_batch >= _CHUNK_BATCH_SIZE:
                                     _chunk_batch = 0
                                     await asyncio.sleep(0)
-                                # ── RAW CHUNK DEBUG: log every yielded value from provider ──
-                                _raw_preview = repr(chunk[:120]) if isinstance(chunk, str) else repr(chunk)[:120]
-                                log.info(f"[RAW-CHUNK] idx={_chunk_batch} type={type(chunk).__name__} len={len(chunk) if isinstance(chunk, str) else '?'} preview={_raw_preview}")
                                 if isinstance(chunk, str) and chunk.startswith("__TOOL_CALL_DELTA__:"):
                                     _has_received_content_or_tools = True  # stop thinking timeout
                                     delta_list = json.loads(chunk[20:])
@@ -7480,19 +7477,44 @@ They survive auto-compaction and are ALWAYS active:
         if _fpath_img:
             _ext = os.path.splitext(_fpath_img)[1].lower()
             if _ext in _IMAGE_EXTENSIONS and os.path.isfile(_fpath_img):
-                log.info(f"[VISION-READ] Image file detected: {_fpath_img} — sending to Mistral")
+                log.info(f"[VISION-READ] Image file detected: {_fpath_img}")
+
+                # ── Subscription check: vision is subscription-only ──
+                _has_vision_access = False
+                try:
+                    from src.core.cortex_api import get_api_client
+                    _api = get_api_client()
+                    _has_vision_access = _api.has_subscription()
+                except Exception:
+                    pass
+
+                if not _has_vision_access:
+                    self.signals.tool_end.emit(
+                        f"tool_{self._tool_counter}", "error", None
+                    )
+                    return ToolResult(
+                        tool_id=tool_id, result=None, success=False,
+                        error=(
+                            "Image/OCR requires a Cortex subscription. "
+                            "Subscribe at Settings → Billing to enable image analysis."
+                        ),
+                    )
+
                 try:
                     # Read image as base64
                     import base64 as _b64
                     with open(_fpath_img, 'rb') as _f:
                         _img_data = _b64.b64encode(_f.read()).decode('utf-8')
 
+                    # Ensure data URI prefix
+                    _img_data_uri = f"data:image/{_ext.lstrip('.')};base64,{_img_data}"
+
                     # Emit tool_start with "read" type to show spinner
                     self._tool_counter += 1
                     _read_tool_id = f"tool_{self._tool_counter}"
                     self.signals.tool_start.emit(_read_tool_id, "read", {"path": os.path.basename(_fpath_img)})
 
-                    # Send to Mistral for vision/OCR
+                    # Send to Mistral via Django proxy (subscription-only)
                     _vision_prompt = (
                         f"Analyze this image file: {os.path.basename(_fpath_img)}\n"
                         f"Transcribe ALL visible text exactly (code, labels, errors, line numbers). "
@@ -7501,30 +7523,29 @@ They survive auto-compaction and are ALWAYS active:
                         f"Do NOT provide solutions — only describe what is visible."
                     )
 
-                    _vision_messages = [
-                        {"role": "user", "content": [
-                            {"type": "text", "text": _vision_prompt},
-                            {"type": "image_url", "image_url": {"url": f"data:image/{_ext.lstrip('.')};base64,{_img_data}"}}
-                        ]}
-                    ]
+                    from src.core.cortex_api import get_api_client
+                    _proxy_api = get_api_client()
+                    _result = _proxy_api.proxy_service(
+                        "mistral_ocr",
+                        image_url=_img_data_uri,
+                        prompt=_vision_prompt,
+                    )
 
-                    # Get Mistral provider
-                    from src.ai.providers import get_provider_registry, ProviderType
-                    _registry = get_provider_registry()
-                    _mistral = _registry.get_provider(ProviderType.MISTRAL)
+                    if _result and _result.get("status") == "success":
+                        _vision_response = _result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
+                    else:
+                        _vision_response = None
 
-                    if _mistral:
-                        _vision_response = ""
-                        for chunk in _mistral.chat_stream(_vision_messages, model="mistral-large-latest", max_tokens=3000):
-                            if self._stop_requested:
-                                self.signals.tool_end.emit(_read_tool_id, "error", None)
-                                return ToolResult(tool_id=tool_id, result=None, success=False, error="Stopped by user")
-                            _vision_response += chunk
-
-                        # Emit tool_end to stop spinner
+                    # Emit tool_end to stop spinner
+                    if _vision_response:
                         self.signals.tool_end.emit(_read_tool_id, "ok", None)
-
                         log.info(f"[VISION-READ] Mistral OCR complete: {len(_vision_response)} chars")
+                        # Track OCR page usage
+                        try:
+                            from src.ai.usage_tracker import get_usage_tracker
+                            get_usage_tracker().record_ocr_pages(1)
+                        except Exception:
+                            pass
                         return ToolResult(tool_id=tool_id, result={
                             "path": _fpath_img,
                             "content": f"[Image: {os.path.basename(_fpath_img)}]\n\n{_vision_response}",
@@ -7532,11 +7553,10 @@ They survive auto-compaction and are ALWAYS active:
                             "lines_read": _vision_response.count('\n') + 1,
                         })
                     else:
-                        log.warning("[VISION-READ] Mistral provider not available")
                         self.signals.tool_end.emit(_read_tool_id, "error", None)
                         return ToolResult(
                             tool_id=tool_id, result=None, success=False,
-                            error="Cannot read image: Mistral provider not available for vision processing."
+                            error="Image OCR failed via subscription proxy."
                         )
 
                 except Exception as _img_err:
@@ -9529,6 +9549,12 @@ They survive auto-compaction and are ALWAYS active:
                     results = proxy_result.get("results", [])
                     if results:
                         log.info(f"[WebSearch] Subscription proxy returned {len(results)} results for '{query}'")
+                        # Track web search usage
+                        try:
+                            from src.ai.usage_tracker import get_usage_tracker
+                            get_usage_tracker().record_web_searches(1)
+                        except Exception:
+                            pass
                         return ToolResult(
                             tool_id=tool_id,
                             result=json.dumps({"results": results, "query": query, "source": "serpapi_proxy"}),
@@ -9833,6 +9859,13 @@ They survive auto-compaction and are ALWAYS active:
                 formatted += f"   {r['snippet']}\n"
             formatted += "\n"
         formatted += "\nREMINDER: Include sources above in your response using markdown hyperlinks."
+
+        # Track web search usage
+        try:
+            from src.ai.usage_tracker import get_usage_tracker
+            get_usage_tracker().record_web_searches(1)
+        except Exception:
+            pass
 
         return ToolResult(tool_id=tool_id, result={
             "query": query,
@@ -10979,19 +11012,9 @@ They survive auto-compaction and are ALWAYS active:
         """
         import threading
 
-        # Check Mistral access type
+        # Check Mistral access type — subscription only (server holds the API key)
         def _get_mistral_access_type():
-            """Returns: 'byok', 'subscription', or None"""
-            # Check if user has own Mistral key (BYOK)
-            try:
-                from src.core.key_manager import KeyManager
-                km = KeyManager()
-                if km.get_key("mistral"):
-                    return "byok"
-            except Exception:
-                pass
-            
-            # Check if user has subscription
+            """Returns: 'subscription' or None. Vision/OCR is subscription-only."""
             try:
                 from src.core.cortex_api import get_api_client
                 api = get_api_client()
@@ -11010,8 +11033,7 @@ They survive auto-compaction and are ALWAYS active:
                 "🔒 **Image/OCR Feature Requires Subscription**\n\n"
                 "Image analysis and OCR (text extraction from images) are available with a Cortex subscription.\n\n"
                 "**Options:**\n"
-                "• Subscribe to Cortex Pro ($10/mo)\n"
-                "• Or add your own Mistral API key in Settings → Models & Providers\n\n"
+                "• Subscribe to Cortex Pro ($10/mo)\n\n"
                 "[View Plans →](/pricing)"
             )
             self._safe_emit(self.response_chunk, error_msg)
@@ -11020,6 +11042,33 @@ They survive auto-compaction and are ALWAYS active:
         def _vision_thread():
             try:
                 log.info(f"[VISION] Sending image to Mistral for OCR (access_type={access_type})...")
+
+                # ── Ensure image data has proper data URI prefix ──────
+                # Raw base64 from clipboard/inject is missing the required
+                # 'data:image/<format>;base64,' prefix that Mistral demands.
+                _img_raw = images[0] if images else ''
+                if _img_raw and not _img_raw.startswith('data:'):
+                    # Auto-detect format from base64 header (PNG=\x89PNG, JPEG=\xff\xd8, GIF=GIF8, WEBP=RIFF)
+                    try:
+                        import base64 as _b64detect
+                        _decoded_head = _b64detect.b64decode(_img_raw[:32])
+                        if _decoded_head[:4] == b'\x89PNG':
+                            _img_fmt = 'png'
+                        elif _decoded_head[:2] == b'\xff\xd8':
+                            _img_fmt = 'jpeg'
+                        elif _decoded_head[:4] == b'GIF8':
+                            _img_fmt = 'gif'
+                        elif _decoded_head[:4] == b'RIFF':
+                            _img_fmt = 'webp'
+                        else:
+                            _img_fmt = 'png'  # safe default
+                    except Exception:
+                        _img_fmt = 'png'
+                    _img_data_uri = f"data:image/{_img_fmt};base64,{_img_raw}"
+                    log.info(f"[VISION] Prepended data URI prefix: data:image/{_img_fmt};base64,... ({len(_img_raw)} chars)")
+                else:
+                    _img_data_uri = _img_raw  # already a data URI or URL
+
                 vision_prompt = (
                     "Analyze this screenshot thoroughly. Provide TWO sections:\n\n"
                     "## TEXT CONTENT\n"
@@ -11044,35 +11093,23 @@ They survive auto-compaction and are ALWAYS active:
 
                 vision_messages = [
                     {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": images[0]}},
+                        {"type": "image_url", "image_url": {"url": _img_data_uri}},
                         {"type": "text", "text": vision_prompt}
                     ]}
                 ]
 
-                # Route based on access type
-                if access_type == "subscription":
-                    # Use proxy for subscription users
-                    from src.core.cortex_api import get_api_client
-                    api = get_api_client()
-                    result = api.proxy_service(
-                        "mistral_ocr",
-                        image_url=images[0],
-                        prompt=vision_prompt,
-                    )
-                    if result and result.get("status") == "success":
-                        vision_response = result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
-                    else:
-                        vision_response = None
+                # Route through Django proxy (subscription-only, server holds Mistral key)
+                from src.core.cortex_api import get_api_client
+                api = get_api_client()
+                result = api.proxy_service(
+                    "mistral_ocr",
+                    image_url=_img_data_uri,
+                    prompt=vision_prompt,
+                )
+                if result and result.get("status") == "success":
+                    vision_response = result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
                 else:
-                    # Use direct Mistral provider for BYOK
-                    from src.ai.providers import get_provider_registry
-                    registry = get_provider_registry()
-                    mistral = registry.get_provider("mistral")
-                    
-                    vision_response = ""
-                    for chunk in mistral.chat_stream(vision_messages, model="mistral-large-latest", max_tokens=3000):
-                        if isinstance(chunk, str) and not chunk.startswith("__"):
-                            vision_response += chunk
+                    vision_response = None
 
                 # Handle response
                 if not vision_response:
@@ -11089,6 +11126,13 @@ They survive auto-compaction and are ALWAYS active:
                     return
 
                 log.info(f"[VISION] OCR complete: {len(vision_response)} chars")
+
+                # Track OCR page usage
+                try:
+                    from src.ai.usage_tracker import get_usage_tracker
+                    get_usage_tracker().record_ocr_pages(1)
+                except Exception:
+                    pass
 
                 # Emit the OCR result
                 self.response_chunk.emit("**🔍 Image Recognition:**\n\n")

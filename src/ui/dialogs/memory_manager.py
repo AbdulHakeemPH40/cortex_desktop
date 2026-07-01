@@ -1248,7 +1248,9 @@ class MemoryManagerDialog(QDialog):
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanAccessClipboard, True)
+        # NOTE: JavascriptCanAccessClipboard intentionally DISABLED —
+        # Memory manager uses Python bridge for clipboard, not navigator.clipboard.
+        # Enabling it causes Qt/Chromium to spam clipboard retry errors.
 
         self._channel = QWebChannel(self)
         self._channel.registerObject("bridge", self._bridge)

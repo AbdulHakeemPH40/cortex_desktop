@@ -79,7 +79,7 @@ class UsageTracker:
     def _do_sync(self, api):
         """Sync subscription service usage to server (runs in background thread).
         
-        Only sends Mistral (OCR) and SiliconFlow (embeddings) usage.
+        Only sends Mistral (OCR), SiliconFlow (embeddings), and web search usage.
         LLM usage (MiMo, DeepSeek, OpenAI, etc.) stays local.
         """
         try:
@@ -87,8 +87,9 @@ class UsageTracker:
             service_usage = {
                 "ocr_pages": self._usage.get("lifetime", {}).get("ocr_pages", 0),
                 "embedding_tokens": self._usage.get("lifetime", {}).get("embedding_tokens", 0),
+                "web_searches": self._usage.get("lifetime", {}).get("web_searches", 0),
             }
-            if service_usage["ocr_pages"] > 0 or service_usage["embedding_tokens"] > 0:
+            if service_usage["ocr_pages"] > 0 or service_usage["embedding_tokens"] > 0 or service_usage["web_searches"] > 0:
                 result = api.sync_usage(service_usage)
                 if result:
                     log.debug(f"[UsageTracker] Synced to server: {result}")
@@ -125,6 +126,7 @@ class UsageTracker:
                 # Subscription service tracking
                 "ocr_pages": 0,
                 "embedding_tokens": 0,
+                "web_searches": 0,
             },
             "current_period": {
                 "start_date": None,
@@ -138,6 +140,7 @@ class UsageTracker:
                 # Subscription service tracking
                 "ocr_pages_used": 0,
                 "embedding_tokens_used": 0,
+                "web_searches_used": 0,
             },
             "streaks": {
                 "current_streak_days": 0,
@@ -339,6 +342,16 @@ class UsageTracker:
             self._usage["lifetime"]["ocr_pages"] = self._usage["lifetime"].get("ocr_pages", 0) + pages
             self._ensure_period()
             self._usage["current_period"]["ocr_pages_used"] = self._usage["current_period"].get("ocr_pages_used", 0) + pages
+            self._save_usage()
+            # Sync to server
+            self._sync_to_server()
+
+    def record_web_searches(self, count: int = 1):
+        """Called when a web search is performed. Subscription service."""
+        if count > 0:
+            self._usage["lifetime"]["web_searches"] = self._usage["lifetime"].get("web_searches", 0) + count
+            self._ensure_period()
+            self._usage["current_period"]["web_searches_used"] = self._usage["current_period"].get("web_searches_used", 0) + count
             self._save_usage()
             # Sync to server
             self._sync_to_server()

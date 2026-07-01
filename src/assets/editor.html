@@ -826,10 +826,127 @@ if (typeof require !== 'undefined') {
         autoClosingBrackets: 'always',
         autoClosingQuotes: 'always',
         lightbulb: { enabled: false },
+        // Disable Monaco's built-in JS/TS validation — Cortex provides its own
+        // diagnostics via Pyright LSP (Python) and custom providers (other langs).
+        // Monaco's default JS/TS checker shows false-positive red squiggles on
+        // React JSX/TSX and projects with complex tsconfig paths.
+        noSemanticValidation: true,
+        noSyntaxValidation: true,
     });
     // Redundant post-creation disable — belt-and-suspenders against Monaco
     // occasionally ignoring the lightbulb option at create() time.
     editor.updateOptions({ lightbulb: { enabled: false } });
+
+    // ── NUCLEAR OPTION: Disable ALL Monaco built-in diagnostics permanently ──
+    // Monaco's TypeScript/JavaScript language service runs in a web worker and
+    // produces red squiggly underlines INDEPENDENTLY from the editor's
+    // noSemanticValidation/noSyntaxValidation options (those only control display,
+    // not generation). The TS/JS worker ignores those flags entirely for JSX/TSX
+    // files and still fires diagnostics. The only reliable fix is to:
+    //   1. Disable diagnostics at the SOURCE (typescriptDefaults/javascriptDefaults)
+    //   2. Set up a PERSISTENT marker listener that nukes ANY marker that appears
+    //
+    // This applies to ALL languages, not just JS/TS — Cortex handles its own
+    // diagnostics via LSP (Pyright for Python) and custom providers.
+
+    // Layer 1: Disable Monaco's built-in TypeScript/JavaScript language service diagnostics
+    try {
+        if (monaco.languages && monaco.languages.typescript) {
+            var ts = monaco.languages.typescript;
+            // TypeScript defaults
+            if (ts.typescriptDefaults) {
+                ts.typescriptDefaults.setDiagnosticsOptions({
+                    noSemanticValidation: true,
+                    noSyntaxValidation: true,
+                    diagnosticCodesToIgnore: [1001, 1002, 1003, 1005, 1109, 1128, 1160, 1161, 2304, 2307, 2322, 2339, 2345, 2551, 2614, 2693, 2792, 7016, 7026, 7027, 8006, 8010]
+                });
+                ts.typescriptDefaults.setCompilerOptions({
+                    target: ts.ScriptTarget.ESNext,
+                    allowNonTsExtensions: true,
+                    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+                    noEmit: true,
+                    allowJs: true,
+                    jsx: ts.JsxEmit.React,
+                    allowSyntheticDefaultImports: true,
+                    noResolve: true,
+                    noLib: true,
+                    skipLibCheck: true
+                });
+            }
+            // JavaScript defaults
+            if (ts.javascriptDefaults) {
+                ts.javascriptDefaults.setDiagnosticsOptions({
+                    noSemanticValidation: true,
+                    noSyntaxValidation: true,
+                    diagnosticCodesToIgnore: [1001, 1002, 1003, 1005, 1109, 1128, 1160, 1161, 2304, 2307, 2322, 2339, 2345, 2551, 2614, 2693, 2792, 7016, 7026, 7027, 8006, 8010]
+                });
+                ts.javascriptDefaults.setCompilerOptions({
+                    target: ts.ScriptTarget.ESNext,
+                    allowNonTsExtensions: true,
+                    moduleResolution: ts.ModuleResolutionKind.NodeJs,
+                    noEmit: true,
+                    allowJs: true,
+                    allowSyntheticDefaultImports: true,
+                    noResolve: true,
+                    noLib: true,
+                    skipLibCheck: true
+                });
+            }
+        }
+    } catch (e) { console.warn('[Editor] Failed to disable TS/JS defaults diagnostics:', e); }
+
+    // Layer 2: Force-clear ALL markers from ALL owners on the current model
+    function _clearAllMonacoMarkers() {
+        if (!editor) return;
+        var m = editor.getModel();
+        if (m) {
+            // Clear markers from every known owner (not just 'monaco')
+            var owners = ['monaco', 'default', 'typescript', 'javascript', 'ts', 'js',
+                          'typescriptDefaults', 'javascriptDefaults', 'ts.worker', 'js.worker'];
+            for (var i = 0; i < owners.length; i++) {
+                try { monaco.editor.setModelMarkers(m, owners[i], []); } catch (e) {}
+            }
+            // Also clear with empty owner (catches some edge cases)
+            try { monaco.editor.setModelMarkers(m, '', []); } catch (e) {}
+        }
+    }
+    _clearAllMonacoMarkers();
+    // Repeat clears on staggered timers — Monaco's TS/JS worker is async and can
+    // schedule markers 200ms–2s after model creation
+    setTimeout(_clearAllMonacoMarkers, 100);
+    setTimeout(_clearAllMonacoMarkers, 500);
+    setTimeout(_clearAllMonacoMarkers, 1000);
+    setTimeout(_clearAllMonacoMarkers, 2000);
+    setTimeout(_clearAllMonacoMarkers, 5000);
+
+    // Layer 3: PERSISTENT marker change listener — nukes markers the INSTANT they appear
+    // This catches ANY diagnostic source: Monaco's TS/JS worker, extensions, race conditions.
+    // Monaco's onDidChangeMarkers fires whenever setModelMarkers() is called by ANY code.
+    monaco.editor.onDidChangeMarkers(function(uris) {
+        if (!editor) return;
+        var currentModel = editor.getModel();
+        for (var i = 0; i < uris.length; i++) {
+            var uri = uris[i];
+            // Get ALL markers for this URI and clear them immediately
+            var markers = monaco.editor.getModelMarkers({ resource: uri });
+            if (markers && markers.length > 0) {
+                // Group markers by owner, then clear each owner's markers
+                var ownerGroups = {};
+                for (var j = 0; j < markers.length; j++) {
+                    var owner = markers[j].owner || 'unknown';
+                    if (!ownerGroups[owner]) ownerGroups[owner] = [];
+                }
+                // Clear ALL owners for this URI at once
+                var owners = Object.keys(ownerGroups);
+                for (var k = 0; k < owners.length; k++) {
+                    try {
+                        var model = monaco.editor.getModel(uri);
+                        if (model) monaco.editor.setModelMarkers(model, owners[k], []);
+                    } catch (e) {}
+                }
+            }
+        }
+    });
 
     // ── Fix cursor jumping: force Monaco to recalculate char widths after web fonts load ──
     // Monaco measures character widths at creation time. If "Cascadia Code" or "Fira Code"
@@ -1427,6 +1544,19 @@ function setEditorContent(filePath) {
     // If it's the visible file, make sure it's attached to the editor.
     if (filePath === activeFilePath && editor.getModel() !== m) {
         editor.setModel(m);
+        // Force-clear ALL diagnostic markers on model switch — covers all owners
+        // (Monaco's TS/JS worker uses 'typescript'/'javascript' owners, not 'monaco')
+        try {
+            var _owners = ['monaco','default','typescript','javascript','ts','js','typescriptDefaults','javascriptDefaults','ts.worker','js.worker',''];
+            for (var _oi = 0; _oi < _owners.length; _oi++) {
+                try { monaco.editor.setModelMarkers(m, _owners[_oi], []); } catch(e2) {}
+            }
+        } catch (e) {}
+        // Repeat after a short delay — TS/JS worker markers are async
+        setTimeout(function() {
+            try { if (m && !m.isDisposed()) { var _o2 = ['monaco','default','typescript','javascript','ts','js',''];
+                for (var _i = 0; _i < _o2.length; _i++) { try { monaco.editor.setModelMarkers(m, _o2[_i], []); } catch(e3) {} } } } catch(e4) {}
+        }, 300);
     }
     document.getElementById('no-files-hint').style.display = 'none';
     document.getElementById('editor-container').classList.remove('hidden');
@@ -1644,6 +1774,9 @@ function switchToFile(filePath) {
             var m = _getOrCreateModel(targetFile);
             if (m && editor.getModel() !== m) {
                 editor.setModel(m);
+                // Clear ALL built-in diagnostic markers on tab switch
+                try { _clearAllMonacoMarkers(); } catch(e) {}
+                setTimeout(_clearAllMonacoMarkers, 200);
             }
         }
         document.getElementById('no-files-hint').style.display = 'none';
@@ -1666,6 +1799,8 @@ function switchToFile(filePath) {
                     minimap: { enabled: true },
                     wordWrap: 'on',
                     lightbulb: { enabled: false },
+                    noSemanticValidation: true,
+                    noSyntaxValidation: true,
                 });
                 editor.updateOptions({ lightbulb: { enabled: false } });
                 window.editorReady = true;
@@ -1989,6 +2124,7 @@ function renameFileTab(oldPath, newPath, newName) {
         f.model = newModel;
         if (activeFilePath === newPath && editor) {
             editor.setModel(newModel);
+            try { _clearAllMonacoMarkers(); } catch(e) {}
         }
     }
     renderTabs();

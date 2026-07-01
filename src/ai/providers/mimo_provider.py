@@ -687,15 +687,6 @@ class MimoProvider(BaseProvider):
                     content = delta.get("content", "")
                     tool_calls = delta.get("tool_calls", [])
 
-                    # ── RAW SSE DEBUG: log every delta's fields ──────────
-                    log.info(
-                        f"[MIMO-SSE] reasoning={len(reasoning) if reasoning else 0} chars "
-                        f"content={len(content) if content else 0} chars "
-                        f"tool_calls={len(tool_calls) if tool_calls else 0} "
-                        f"preview_r={repr(reasoning[:60]) if reasoning else 'None'} "
-                        f"preview_c={repr(content[:60]) if content else 'None'}"
-                    )
-
                     # ── MiMo reasoning_content fix ─────────────────────
                     # MiMo v2.5 sends the FULL visible response in
                     # reasoning_content even when thinking is disabled.
