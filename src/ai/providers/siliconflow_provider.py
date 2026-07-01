@@ -22,10 +22,14 @@ class SiliconFlowProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.SILICONFLOW)
-            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
+            # Use KeyManager (encrypted file + Windows Credential Manager)
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
             self._api_key = km.get_key("siliconflow") or ""
+            # Ensure string (Windows Credential Manager may return bytes)
+            if isinstance(self._api_key, bytes):
+                self._api_key = self._api_key.decode('utf-8', errors='ignore')
+            self._api_key = self._api_key.strip()
             if not self._api_key:
                 log.warning("SiliconFlow API key not configured. Add key in Settings → Models & Providers")
             self._session = requests.Session()
@@ -231,6 +235,20 @@ class SiliconFlowProvider(BaseProvider):
                             pass
                     time.sleep(self._retry_delay * (2 ** attempt))
                     continue
+                # Handle HTML error pages gracefully (openresty, nginx, etc.)
+                _resp_body = ""
+                if e.response is not None:
+                    try:
+                        _resp_body = (e.response.text or "")[:500]
+                    except Exception:
+                        pass
+                _is_html = "<html" in _resp_body.lower() or "<center>" in _resp_body.lower()
+                if _is_html and status == 400:
+                    log.error(f"SiliconFlow HTTP 400 (HTML error page, likely upstream issue): {_resp_body[:200]}")
+                    raise RuntimeError(
+                        "SiliconFlow API returned an error (HTTP 400). The server may be temporarily unavailable. "
+                        "Try again or switch to a different model."
+                    )
                 log.error(f"SiliconFlow stream HTTP {status}: {e}")
                 raise RuntimeError(f"SiliconFlow HTTP {status}")
             except (socket.gaierror, urllib3.exceptions.NameResolutionError) as dns_err:

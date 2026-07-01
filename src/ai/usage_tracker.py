@@ -77,11 +77,21 @@ class UsageTracker:
             pass  # Offline or not configured
 
     def _do_sync(self, api):
-        """Actually sync to server (runs in background thread)."""
+        """Sync subscription service usage to server (runs in background thread).
+        
+        Only sends Mistral (OCR) and SiliconFlow (embeddings) usage.
+        LLM usage (MiMo, DeepSeek, OpenAI, etc.) stays local.
+        """
         try:
-            result = api.sync_usage(self._usage.get("daily_usage", {}))
-            if result:
-                log.debug(f"[UsageTracker] Synced to server: {result}")
+            # Collect subscription service usage from local tracker
+            service_usage = {
+                "ocr_pages": self._usage.get("lifetime", {}).get("ocr_pages", 0),
+                "embedding_tokens": self._usage.get("lifetime", {}).get("embedding_tokens", 0),
+            }
+            if service_usage["ocr_pages"] > 0 or service_usage["embedding_tokens"] > 0:
+                result = api.sync_usage(service_usage)
+                if result:
+                    log.debug(f"[UsageTracker] Synced to server: {result}")
         except Exception as e:
             log.debug(f"[UsageTracker] Server sync failed: {e}")
 
@@ -104,7 +114,7 @@ class UsageTracker:
     @staticmethod
     def _default_usage() -> dict:
         return {
-            "version": 1,
+            "version": 2,
             "lifetime": {
                 "total_tokens": 0,
                 "total_requests": 0,
@@ -112,6 +122,9 @@ class UsageTracker:
                 "total_sessions": 0,
                 "longest_task_seconds": 0,
                 "first_session": None,
+                # Subscription service tracking
+                "ocr_pages": 0,
+                "embedding_tokens": 0,
             },
             "current_period": {
                 "start_date": None,
@@ -121,7 +134,10 @@ class UsageTracker:
                 "requests_used": 0,
                 "requests_limit": 100,
                 "tool_calls_used": 0,
-                "tool_calls_limit": 0,  # No limit — local IDE with user's own API keys
+                "tool_calls_limit": 0,
+                # Subscription service tracking
+                "ocr_pages_used": 0,
+                "embedding_tokens_used": 0,
             },
             "streaks": {
                 "current_streak_days": 0,
@@ -316,6 +332,26 @@ class UsageTracker:
         if plugin_name and plugin_name not in self._usage["insights"]["plugins_used"]:
             self._usage["insights"]["plugins_used"].append(plugin_name)
             self._save_usage()
+
+    def record_ocr_pages(self, pages: int):
+        """Called when Mistral OCR processes image(s). Subscription service."""
+        if pages > 0:
+            self._usage["lifetime"]["ocr_pages"] = self._usage["lifetime"].get("ocr_pages", 0) + pages
+            self._ensure_period()
+            self._usage["current_period"]["ocr_pages_used"] = self._usage["current_period"].get("ocr_pages_used", 0) + pages
+            self._save_usage()
+            # Sync to server
+            self._sync_to_server()
+
+    def record_embedding_tokens(self, tokens: int):
+        """Called when SiliconFlow generates embeddings. Subscription service."""
+        if tokens > 0:
+            self._usage["lifetime"]["embedding_tokens"] = self._usage["lifetime"].get("embedding_tokens", 0) + tokens
+            self._ensure_period()
+            self._usage["current_period"]["embedding_tokens_used"] = self._usage["current_period"].get("embedding_tokens_used", 0) + tokens
+            self._save_usage()
+            # Sync to server
+            self._sync_to_server()
 
     # ── Query Methods ─────────────────────────────────────────────
 

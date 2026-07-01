@@ -1,6 +1,6 @@
 # Cortex Desktop — Project Index
 
-_Regenerated: 2026-06-29_
+_Regenerated: 2026-07-01_
 
 ## Overview
 
@@ -12,16 +12,16 @@ _Regenerated: 2026-06-29_
 
 | Metric | Value |
 |--------|-------|
-| Python files | 565 (excl. `node_modules/venv/build/dist`) |
+| Python files | 572 (excl. `node_modules/venv/build/dist`) |
 | HTML files | 126 |
 | CSS files | 102 |
-| JS files | 149 (excl. `node_modules`) |
-| Agent tools | 26 |
-| LLM providers | 8 (OpenAI, DeepSeek, Mistral, Alibaba, Kimi, MiMo, OpenRouter, SiliconFlow) |
-| Main entry | `src/main.py` (775 lines) |
-| Main window | `src/main_window.py` (7,085 lines) |
-| Agent bridge | `src/ai/agent_bridge.py` (12,064 lines) |
-| Chat panel | `src/ui/chat_panel.py` (8,089 lines) |
+| JS files | 7 (excl. `node_modules`) |
+| Agent tools | 24 |
+| LLM providers | 7 (OpenAI, DeepSeek, Mistral, Alibaba, MiMo, OpenRouter, SiliconFlow) |
+| Main entry | `src/main.py` (719 lines) |
+| Main window | `src/main_window.py` (6,527 lines) |
+| Agent bridge | `src/ai/agent_bridge.py` (11,365 lines) |
+| Chat panel | `src/ui/chat_panel.py` (7,301 lines) |
 
 ---
 
@@ -53,13 +53,13 @@ main.py
 
 ```
 src/
-├── main.py                      # Entry point (775 lines)
-├── main_window.py               # IDE shell, menu bar, signals (7,085 lines)
+├── main.py                      # Entry point (719 lines)
+├── main_window.py               # IDE shell, menu bar, signals (6,527 lines)
 │
 ├── ai/                          # AI agent core
-│   ├── agent_bridge.py          # Central brain — tool loop, streaming (12,064 lines)
-│   ├── agent_safety.py          # Tool budget, doom-loop, read-before-edit (617 lines)
-│   ├── usage_tracker.py         # Token/request/tool tracking (591 lines)
+│   ├── agent_bridge.py          # Central brain — tool loop, streaming (11,365 lines)
+│   ├── agent_safety.py          # Tool budget, doom-loop, read-before-edit (521 lines)
+│   ├── usage_tracker.py         # Token/request/tool tracking (585 lines)
 │   ├── streaming.py             # SSE event emitter
 │   ├── conversation_compactor.py # Context window compaction
 │   ├── tool_executor.py         # Tool execution engine
@@ -84,7 +84,7 @@ src/
 │       └── siliconflow_provider.py
 │
 ├── ui/                          # UI components
-│   ├── chat_panel.py            # Main chat UI — lazy load, scroll restore (8,089 lines)
+│   ├── chat_panel.py            # Main chat UI — lazy load, scroll restore (7,301 lines)
 │   ├── chat_store.py            # Timeline serialization/persistence
 │   ├── chat_text.py             # Text cleaning, INLINE marker handling (594 lines)
 │   ├── tokens.py                # Design tokens — dark theme (595 lines)
@@ -116,13 +116,13 @@ src/
 │   ├── html/                    # HTML assets
 │   │   ├── sidebar.html         # Sidebar UI
 │   │   ├── ai_chat/             # Mermaid, spinner demo
-│   │   ├── memory_manager/      # Settings page (HTML/CSS/JS)
+│   │   ├── memory_manager/      # Settings page (HTML/CSS/JS) + QWebChannel bridge
 │   │   └── icons/               # SVG icon library (1,246 files)
 │   └── themes/                  # QSS theme files
 │       └── dark.qss             # Dark theme stylesheet
 │
 ├── core/                        # Core systems
-│   ├── crash_persistence.py     # Crash-safe SQLite writes (481 lines)
+│   ├── crash_persistence.py     # Crash-safe SQLite writes (419 lines)
 │   ├── database.py              # Database schema + migrations
 │   ├── chat_history.py          # Chat message persistence
 │   ├── semantic_memory.py       # Vector memory search
@@ -147,7 +147,9 @@ src/
 │   ├── live_server.py           # Dev server
 │   ├── task_graph.py            # Task dependency graph
 │   ├── sandbox_manager.py       # Code sandboxing
-│   └── worker_entrypoint.py     # Worker process entry
+│   ├── worker_entrypoint.py     # Worker process entry
+│   ├── auth_manager.py          # Authentication management
+│   └── cortex_api.py            # Cortex API integration
 │
 ├── config/                      # Configuration
 │   ├── settings.py              # App settings
@@ -187,7 +189,7 @@ src/
 │
 └── agent/                       # Agent framework (internal)
     └── src/
-        ├── tools/               # 26 agent tools
+        ├── tools/               # 24 agent tools
         └── ...                  # Agent internals
 ```
 
@@ -226,6 +228,12 @@ src/
 - Single source of truth for UI theming
 - `build_markdown_css()` — markdown rendering CSS
 - `build_qss()` — Qt stylesheet generation
+
+### Authentication & API (`auth_manager.py`, `cortex_api.py`)
+- User authentication and session management
+- Cortex API integration for cloud services
+- Secure key storage and validation
+- License and subscription management
 
 ---
 

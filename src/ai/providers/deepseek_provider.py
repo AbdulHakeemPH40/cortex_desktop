@@ -19,7 +19,7 @@ from typing import List, Dict, Any, Generator, Optional
 import requests
 import urllib3.exceptions
 from src.utils.logger import get_logger
-from src.ai.providers import BaseProvider, ProviderType, ChatMessage, ChatResponse, ModelInfo
+from src.ai.providers import BaseProvider, ProviderType, ChatMessage, ChatResponse, ModelInfo, load_api_key
 
 log = get_logger("deepseek_provider")
 
@@ -30,10 +30,8 @@ class DeepSeekProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.DEEPSEEK)
-            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
-            self.api_key = km.get_key("deepseek") or ""
+            # Use 3-tier key loading: env var → KeyManager → settings.json
+            self.api_key = load_api_key("deepseek", "DEEPSEEK_API_KEY", "ai.deepseek_key")
             self._api_key = self.api_key
             self._base_url = "https://api.deepseek.com/v1"
             self._token_count = {"input": 0, "output": 0}
@@ -563,6 +561,14 @@ class DeepSeekProvider(BaseProvider):
                     log.warning(f"[DeepSeek] Transient error {status} (attempt {attempt + 1}/{max_retries + 1})")
                     # No sleep here — loop-top already handles backoff
                     continue
+                # Handle HTML error pages gracefully (openresty, nginx, etc.)
+                _is_html = "<html" in _resp_body.lower() or "<center>" in _resp_body.lower()
+                if _is_html and status == 400:
+                    log.error(f"[DeepSeek] HTTP 400 (HTML error page, likely upstream issue): {_resp_body[:200]}")
+                    raise RuntimeError(
+                        "DeepSeek API returned an error (HTTP 400). The server may be temporarily unavailable. "
+                        "Try again or switch to a different model."
+                    )
                 log.error(f"DeepSeek API HTTP {status}: {e}")
                 raise Exception(f"DeepSeek API HTTP {status}: {e} | {_resp_body}" if _resp_body else f"DeepSeek API HTTP {status}: {e}")
             except (socket.gaierror, urllib3.exceptions.NameResolutionError) as dns_err:

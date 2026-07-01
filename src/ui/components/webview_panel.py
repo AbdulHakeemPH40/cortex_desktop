@@ -93,12 +93,7 @@ class _EditorBridge(QObject):
 
     # ---- LSP Bridge Slots (called from JS) ----
 
-    @pyqtSlot(str, str, str, int, int)
-    
-    
-    
-    
-    
+    @pyqtSlot(str, int)
     def onContentDelivered(self, file_path: str, content_length: int):
         """ACK from JS: file content was successfully received and stored in openFiles.
         
@@ -106,9 +101,12 @@ class _EditorBridge(QObject):
         This fixes Race Condition #1 where Python assumed delivery but JS never got it
         (page crash, warmup, QWebChannel dead, switch_to_file called pre-delivery).
         """
-        if self._panel:
-            self._panel._files_delivered_to_js.add(file_path)
-            log.info(f"[WebviewPanel] JS confirmed content delivery: {file_path} ({content_length} chars)")
+        try:
+            if self._panel:
+                self._panel._files_delivered_to_js.add(file_path)
+                log.info(f"[WebviewPanel] JS confirmed content delivery: {file_path} ({content_length} chars)")
+        except Exception as e:
+            log.warning(f"[WebviewPanel] onContentDelivered error (non-fatal): {e}")
 
     @pyqtSlot(str, result=bool)
     def copyToClipboard(self, text: str) -> bool:

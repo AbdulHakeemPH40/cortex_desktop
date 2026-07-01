@@ -719,6 +719,14 @@ class OpenRouterProvider(BaseProvider):
                 if status in (429, 502, 503, 504) and attempt < max_retries:
                     log.warning("[OpenRouter] Transient HTTP %d attempt %d/%d", status, attempt + 1, max_retries + 1)
                     continue
+                # Handle HTML error pages gracefully (openresty, nginx, etc.)
+                _is_html = "<html" in _resp_body.lower() or "<center>" in _resp_body.lower()
+                if _is_html and status == 400:
+                    log.error("[OpenRouter] HTTP 400 (HTML error page, likely upstream issue): %s", _resp_body[:200])
+                    raise RuntimeError(
+                        "OpenRouter API returned an error (HTTP 400). The server may be temporarily unavailable. "
+                        "Try again or switch to a different model."
+                    )
                 # Extract clean error message from JSON body for user display
                 _user_msg = _resp_body
                 try:

@@ -308,6 +308,17 @@ class MemoryManagerBridge(QObject):
             log.error(f"[MemoryManager] Failed to load rules for scope '{scope}': {exc}")
             return json.dumps({"error": str(exc), "scope": scope})
 
+    @pyqtSlot(str)
+    def openExternal(self, url: str):
+        """Open URL in system browser (external)."""
+        try:
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(url))
+            log.info(f"[MemoryManager] Opened external URL: {url}")
+        except Exception as e:
+            log.warning(f"[MemoryManager] Failed to open URL: {e}")
+
     @pyqtSlot(str, str, result=str)
     def saveRules(self, scope: str, content: str):
         scope = (scope or "").strip().lower()
@@ -837,21 +848,23 @@ class MemoryManagerBridge(QObject):
             tracker = get_usage_tracker()
             local_stats = tracker.get_usage_stats()
             
-            # Try to get server usage
-            try:
-                from src.core.cortex_api import get_api_client
-                api = get_api_client()
-                if api.is_logged_in():
+            # Only fetch server data if logged in
+            from src.core.cortex_api import get_api_client
+            api = get_api_client()
+            if api.is_logged_in():
+                try:
                     server_usage = api.get_usage_summary()
                     if server_usage:
-                        # Merge server limits into local stats
                         local_stats["server"] = {
                             "subscription": server_usage.get("subscription", {}),
                             "credits": server_usage.get("credits", {}),
                             "usage": server_usage.get("usage", {}),
                         }
-            except Exception as e:
-                log.debug(f"[MemoryManager] Server usage fetch failed (offline?): {e}")
+                except Exception as e:
+                    log.debug(f"[MemoryManager] Server usage fetch failed: {e}")
+            else:
+                # Not logged in - clear any cached server data
+                local_stats.pop("server", None)
             
             return json.dumps(local_stats)
         except Exception as e:
@@ -972,8 +985,11 @@ class MemoryManagerBridge(QObject):
     def _store_api_key(self, provider: str, api_key: str):
         """Store an API key in KeyManager (encrypted) and hot-reload the provider."""
         try:
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
+            # Sanitize the key before storing (strip null bytes, spaces, quotes)
+            if api_key:
+                api_key = api_key.replace('\x00', '').replace('\u0000', '').replace(' ', '').replace('\n', '').replace('\r', '').strip().strip("'\"")
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
             success = km.store_key(provider, api_key)
             if success:
                 log.info(f"[MemoryManager] Encrypted key stored for {provider}")
@@ -1006,6 +1022,137 @@ class MemoryManagerBridge(QObject):
                     log.info(f"[MemoryManager] Hot-reloaded key for {provider}")
         except Exception as e:
             log.debug(f"[MemoryManager] Hot-reload skipped: {e}")
+
+    @pyqtSlot(str, result=str)
+    def getApiKey(self, provider: str) -> str:
+        """Get a stored API key (masked for display). Returns empty string if not found."""
+        try:
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
+            key = km.get_key(provider)
+            if key:
+                return key
+            return ""
+        except Exception as e:
+            log.warning(f"[MemoryManager] getApiKey error: {e}")
+            return ""
+
+    @pyqtSlot(str, str, result=bool)
+    def setApiKey(self, provider: str, api_key: str) -> bool:
+        """Store an API key securely."""
+        try:
+            self._store_api_key(provider, api_key)
+            return True
+        except Exception as e:
+            log.warning(f"[MemoryManager] setApiKey error: {e}")
+            return False
+
+    @pyqtSlot(str, result=bool)
+    def removeApiKey(self, provider: str) -> bool:
+        """Remove a stored API key."""
+        log.info(f"[MemoryManager] removeApiKey called for {provider}")
+        try:
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
+            
+            # Check if key exists first
+            existing_key = km.get_key(provider)
+            log.info(f"[MemoryManager] Key exists for {provider}: {bool(existing_key)}")
+            
+            success = km.delete_key(provider)
+            log.info(f"[MemoryManager] delete_key result for {provider}: {success}")
+            
+            if success:
+                # Also clear from live provider
+                self._reload_provider_key(provider, "")
+                
+                # Clear settings placeholder
+                settings_map = {
+                    "mimo": ("ai", "mimo_key"),
+                    "deepseek": ("ai", "deepseek_key"),
+                    "openai": ("ai", "openai_key"),
+                    "openrouter": ("ai", "openrouter_key"),
+                    "alibaba": ("ai", "alibaba_key"),
+                    "siliconflow": ("ai", "siliconflow_key"),
+                    "mistral": ("ai", "mistral_key"),
+                }
+                if provider in settings_map and self._settings:
+                    section, key = settings_map[provider]
+                    self._settings.set(section, key, "")
+                    log.info(f"[MemoryManager] Cleared settings for {provider}")
+                
+                log.info(f"[MemoryManager] Successfully removed key for {provider}")
+            else:
+                log.warning(f"[MemoryManager] delete_key returned False for {provider}")
+            
+            return success
+        except Exception as e:
+            log.error(f"[MemoryManager] removeApiKey error for {provider}: {e}")
+            return False
+
+    @pyqtSlot(str, result=str)
+    def testApiKey(self, provider: str) -> str:
+        """Test if a stored API key works. Returns JSON {success: bool, error: str}."""
+        log.info(f"[MemoryManager] testApiKey called for {provider}")
+        try:
+            from src.core.key_manager import get_key_manager
+            from src.ai.providers import get_provider_registry, ProviderType
+            
+            km = get_key_manager()
+            key = km.get_key(provider)
+            if not key:
+                log.info(f"[MemoryManager] testApiKey: no key for {provider}")
+                return json.dumps({"success": False, "error": "No key stored"})
+            
+            # Sanitize the key (strip null bytes, spaces, quotes)
+            if key:
+                key = key.replace('\x00', '').replace('\u0000', '').replace(' ', '').replace('\n', '').replace('\r', '').strip().strip("'\"")
+            
+            log.info(f"[MemoryManager] testApiKey: key prefix={repr(key[:8])}, len={len(key)}")
+            
+            # Try to validate with the provider
+            registry = get_provider_registry()
+            provider_map = {
+                "openai":     ProviderType.OPENAI,
+                "deepseek":   ProviderType.DEEPSEEK,
+                "mistral":    ProviderType.MISTRAL,
+                "mimo":       ProviderType.MIMO,
+                "openrouter": ProviderType.OPENROUTER,
+                "alibaba":    ProviderType.ALIBABA,
+                "siliconflow":ProviderType.SILICONFLOW,
+            }
+            pt = provider_map.get(provider)
+            if pt:
+                p = registry.get_provider(pt)
+                if p and hasattr(p, 'validate_api_key'):
+                    # Use set_api_key() to properly re-detect endpoints (important for MiMo tp-/sk- routing)
+                    old_key = getattr(p, '_api_key', None)
+                    try:
+                        if hasattr(p, 'set_api_key'):
+                            p.set_api_key(key)
+                        else:
+                            p._api_key = key
+                        valid = p.validate_api_key()
+                        log.info(f"[MemoryManager] testApiKey: validate_api_key returned {valid} for {provider}")
+                        if valid:
+                            return json.dumps({"success": True, "error": ""})
+                        else:
+                            return json.dumps({"success": False, "error": "Key validation failed"})
+                    finally:
+                        # Restore old key
+                        if hasattr(p, 'set_api_key'):
+                            p.set_api_key(old_key or '')
+                        else:
+                            p._api_key = old_key
+            
+            # If no validate method, just check key length
+            if len(key) > 8:
+                return json.dumps({"success": True, "error": ""})
+            return json.dumps({"success": False, "error": "Key too short"})
+            
+        except Exception as e:
+            log.warning(f"[MemoryManager] testApiKey error: {e}")
+            return json.dumps({"success": False, "error": str(e)})
 
     @pyqtSlot(str, result=str)
     def getSetting(self, key: str) -> str:
@@ -1053,8 +1200,8 @@ class MemoryManagerBridge(QObject):
     def _load_api_key(self, provider: str) -> str:
         """Load an API key from KeyManager (decrypted)."""
         try:
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
             key = km.get_key(provider)
             return key or ""
         except Exception:

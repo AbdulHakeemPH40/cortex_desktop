@@ -3958,8 +3958,8 @@ class InputArea(QWidget):
         _accent_primary = T.get('accent_primary', '#7c5cff')
         _border_dim = T.get('separator', '#333')
         try:
-            from src.core.key_manager import KeyManager
-            _km = KeyManager()
+            from src.core.key_manager import get_key_manager
+            _km = get_key_manager()
         except Exception:
             _km = None
 
@@ -4097,7 +4097,7 @@ class InputArea(QWidget):
                     )
                     item_btn.clicked.connect(lambda _=False, v=value, n=name: self._set_model(v, n))
                 else:
-                    # BYOK without key — no icon, toast on click
+                    # BYOK without key — no icon, select directly
                     text = f"{name}   {subtitle}"
                     item_btn = QPushButton(text)
                     item_btn.setFlat(True)
@@ -4107,10 +4107,9 @@ class InputArea(QWidget):
                         f"  background:transparent; color:{T['white']}; border:none; font-size:13px; }}"
                         f"QPushButton:hover {{ background:{T['menu_selected']}; color:{T['white']}; }}"
                     )
-                    def _warn_no_key(_checked=False, _v=value, _n=name):
-                        _show_toast(self, f"API key required for {_n} — add in Settings")
+                    def _select_model(_checked=False, _v=value, _n=name):
                         self._set_model(_v, _n)
-                    item_btn.clicked.connect(_warn_no_key)
+                    item_btn.clicked.connect(_select_model)
                 _current_section_items_layout.addWidget(item_btn)
 
         scroll_layout.addStretch()
@@ -5369,6 +5368,7 @@ class ChatPanel(QWidget):
         else:
             self._ensure("prose")
         self._prose_buf += chunk
+        log.info(f"[ChatPanel] on_text: chunk_len={len(chunk)}, total_buf_len={len(self._prose_buf)}, preview={repr(chunk[:80])}")
         # Phase 2C: 50ms debounce = ~20fps — smoother on high-refresh monitors
         if not hasattr(self, '_prose_debounce'):
             self._prose_debounce = QTimer()
@@ -5414,6 +5414,7 @@ class ChatPanel(QWidget):
         display_text = streaming_clean(self._prose_buf)
         display_text, _had_mermaid = _strip_mermaid_for_streaming(display_text)
         if not display_text and not _had_mermaid:
+            log.info(f"[ChatPanel] _flush_prose: display_text empty after clean, buf_len={len(self._prose_buf)}")
             return
 
         # Normalize table markdown before rendering
@@ -5422,6 +5423,8 @@ class ChatPanel(QWidget):
         prev_text = getattr(self._open_block, '_rendered_text', '')
         if display_text == prev_text and not _had_mermaid:
             return
+        
+        log.info(f"[ChatPanel] _flush_prose: rendering {len(display_text)} chars, preview={repr(display_text[:100])}")
 
         already_frozen = self._freeze_depth > 0
         # ── SINGLE FREEZE: batch ALL mutations (mermaid + render + height + scroll) ──

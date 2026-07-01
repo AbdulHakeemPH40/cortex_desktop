@@ -120,13 +120,33 @@ class NativeChatBridge(QObject):
             self.signals.thinking_delta.emit(delta_match.group(1))
             return
 
-        # 2. Thought start tags
-        if self._RE_THOUGHT_START.search(chunk):
+        # 2. Thought start tags — handle chunk that may ALSO contain end tag
+        #    e.g. "<think>reasoning</think>actual text" in a single chunk
+        start_match = self._RE_THOUGHT_START.search(chunk)
+        if start_match:
             self._in_thought = True
-            cleaned = self._RE_THOUGHT_START.sub('', chunk).strip()
-            if cleaned:
-                self.signals.thinking_delta.emit(cleaned)
-            return
+            # Check if the SAME chunk also has a closing tag
+            end_match = self._RE_THOUGHT_END.search(chunk)
+            if end_match:
+                # Extract thinking content (between start and end tags)
+                think_start = start_match.end()
+                think_end = end_match.start()
+                think_content = chunk[think_start:think_end].strip()
+                if think_content:
+                    self.signals.thinking_delta.emit(think_content)
+                # Extract text content (after end tag)
+                after_think = chunk[end_match.end():].strip()
+                self._in_thought = False
+                if after_think:
+                    self._text_emitted = True
+                    self.signals.text_delta.emit(after_think)
+                return
+            else:
+                # Only start tag — stream thinking content
+                cleaned = self._RE_THOUGHT_START.sub('', chunk).strip()
+                if cleaned:
+                    self.signals.thinking_delta.emit(cleaned)
+                return
 
         # 3. Thought end tags
         if self._RE_THOUGHT_END.search(chunk):
@@ -148,6 +168,7 @@ class NativeChatBridge(QObject):
             # Full cleaning happens in ChatPanel.on_turn_done() via _light_clean().
             if chunk.strip():
                 self._text_emitted = True
+                log.info(f"[Bridge] text_delta emit: len={len(chunk)}, preview={repr(chunk[:80])}")
                 self.signals.text_delta.emit(chunk)
 
     def _on_response_complete(self, response: str):

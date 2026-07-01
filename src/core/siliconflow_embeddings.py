@@ -35,12 +35,6 @@ class EmbeddingResult:
 class SiliconFlowEmbeddings:
     """
     Generate embeddings using SiliconFlow API (Qwen models).
-    
-    Models available:
-    - Qwen/Qwen3-Embedding-0.6B ($0.01/1M tokens) - Fast, economical
-    - Qwen/Qwen3-Embedding-4B ($0.02/1M tokens) - Balanced
-    - Qwen/Qwen3-Embedding-8B ($0.04/1M tokens) - Best quality
-    
     No local model needed - calls cloud API.
     True semantic understanding.
     """
@@ -88,6 +82,8 @@ class SiliconFlowEmbeddings:
             km = KeyManager()
             api_key = km.get_key("siliconflow")
             if api_key:
+                # Sanitize: strip null bytes, spaces, newlines (critical for subprocess argv)
+                api_key = api_key.replace('\x00', '').replace('\u0000', '').replace('\n', '').replace('\r', '').strip()
                 return api_key
         except Exception:
             pass
@@ -175,8 +171,10 @@ class SiliconFlowEmbeddings:
         )
 
         try:
+            # Final safety: strip any null bytes from api_key before subprocess (Windows argv rejects nulls)
+            safe_key = self.api_key.replace('\x00', '').replace('\u0000', '').strip() if self.api_key else ''
             proc = _sp.run(
-                [_sys.executable, "-c", script, self.api_key, _json.dumps(payload), self.API_URL],
+                [_sys.executable, "-c", script, safe_key, _json.dumps(payload), self.API_URL],
                 capture_output=True, text=True, timeout=30,
                 creationflags=0x08000000 if _sys.platform == 'win32' else 0,
             )

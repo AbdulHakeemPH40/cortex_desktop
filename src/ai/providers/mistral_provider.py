@@ -44,10 +44,14 @@ class MistralProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.MISTRAL)
-            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
+            # Use KeyManager (encrypted file + Windows Credential Manager)
+            from src.core.key_manager import get_key_manager
+            km = get_key_manager()
             self.api_key = km.get_key("mistral") or ""
+            # Ensure string (Windows Credential Manager may return bytes)
+            if isinstance(self.api_key, bytes):
+                self.api_key = self.api_key.decode('utf-8', errors='ignore')
+            self.api_key = self.api_key.strip()
             self._api_key = self.api_key
             self.base_url = "https://api.mistral.ai/v1"
             # Reuse HTTP connections across calls (reduces TLS/handshake overhead).

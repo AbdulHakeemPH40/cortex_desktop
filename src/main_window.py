@@ -6668,7 +6668,7 @@ class CortexMainWindow(QMainWindow):
         if False and self._live_server and self._live_server.is_running:
             self._live_server.stop()
 
-        # 5b. Shutdown LSP servers — stop background read/stderr threads
+    
         # Without this, LSP threads keep running and cause access-violation
         # crashes on process exit (Windows broken-pipe on readline).
         try:

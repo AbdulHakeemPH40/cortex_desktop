@@ -5,24 +5,21 @@ Used by chat_panel.py InputArea model selector. Each group is:
   (group_label_or_None, [(model_id, display_name, description, accent_color), ...], tier)
 
 Tier:
-  "subscription" — Works without key (MiMo, DeepSeek). Always shown with ●.
-  "byok"         — Requires API key. ● when key configured, no icon when missing.
+  "byok" — Requires API key. ● when key configured, no icon when missing.
 """
 
 MODEL_GROUPS = [
     # ── Auto (always first) ──
-    (None, [("auto", "Auto", "Smart routing", "#2196f3")], "subscription"),
+    (None, [("auto", "Auto", "Smart routing", "#2196f3")], "byok"),
 
-    # ── Subscription — works without API key ──
+    # ── BYOK — requires API key ──
     ("Xiaomi MiMo", [
         ("mimo-v2.5-pro", "MiMo V2.5 Pro", "1M · 42B MoE agentic", "#ff6900"),
         ("mimo-v2.5", "MiMo V2.5", "1M · full-modal", "#ff6900"),
-    ], "subscription"),
+    ], "byok"),
     ("DeepSeek V4", [
         ("deepseek-v4-pro", "DeepSeek V4 Pro", "1.6T params · 1M ctx", "#a78bfa"),
-    ], "subscription"),
-
-    # ── BYOK — requires API key ──
+    ], "byok"),
     ("OpenAI GPT", [
         ("gpt-5.5", "GPT-5.5", "1.05M ctx · newest frontier", "#10a37f"),
         ("gpt-5.4", "GPT-5.4", "1.05M ctx · frontier", "#10a37f"),
@@ -49,14 +46,5 @@ MODEL_GROUPS = [
         ("qwen3-coder-plus", "Qwen3 Coder Plus", "1M ctx · best for code", "#f59e0b"),
         ("qwen-flash", "Qwen Flash", "1M ctx · fast · free quota", "#f59e0b"),
         ("qwen-turbo", "Qwen Turbo", "1M ctx · low cost", "#f59e0b"),
-    ], "byok"),
-
-    # ── Dual mode: also available via BYOK (user's own key) ──
-    ("Xiaomi MiMo", [
-        ("mimo-v2.5-pro", "MiMo V2.5 Pro", "1M · 42B MoE agentic", "#ff6900"),
-        ("mimo-v2.5", "MiMo V2.5", "1M · full-modal", "#ff6900"),
-    ], "byok"),
-    ("DeepSeek V4", [
-        ("deepseek-v4-pro", "DeepSeek V4 Pro", "1.6T params · 1M ctx", "#a78bfa"),
     ], "byok"),
 ]

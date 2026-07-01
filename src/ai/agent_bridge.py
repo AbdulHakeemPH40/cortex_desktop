@@ -2054,8 +2054,31 @@ class AgentWorker(QThread):
             raise  # Re-raise so asyncio correctly marks the task as cancelled
         except Exception as exc:
             if not self.bridge.stop_requested:
-                log.error(f"[WORKER] Chat error: {exc}")
-                self.error_occurred.emit(str(exc))
+                _exc_str = str(exc).lower()
+                # Provide user-friendly error messages for common issues
+                _is_connection_err = any(kw in _exc_str for kw in (
+                    '10054', 'connection', 'forcibly closed', 'reset',
+                    'broken pipe', 'connection aborted', 'remote host',
+                ))
+                _is_http_400 = 'http 400' in _exc_str or 'bad request' in _exc_str
+                
+                if _is_connection_err:
+                    _user_msg = (
+                        "Connection to AI provider was lost. This is usually a temporary network issue. "
+                        "Please try again or switch to a different model."
+                    )
+                    log.error(f"[WORKER] Connection error: {exc}")
+                    self.error_occurred.emit(_user_msg)
+                elif _is_http_400:
+                    _user_msg = (
+                        "AI provider returned an error (HTTP 400). The server may be temporarily unavailable. "
+                        "Please try again or switch to a different model."
+                    )
+                    log.error(f"[WORKER] HTTP 400 error: {exc}")
+                    self.error_occurred.emit(_user_msg)
+                else:
+                    log.error(f"[WORKER] Chat error: {exc}")
+                    self.error_occurred.emit(str(exc))
             else:
                 log.info(f"[WORKER] Exception during stopped chat (suppressed): {exc}")
         finally:
@@ -3842,16 +3865,6 @@ They survive auto-compaction and are ALWAYS active:
 
     # ── Proxy routing: Check if model should use subscription proxy ──
     
-    # Models that can be proxied through Cortex server (included in subscription)
-    _PROXY_MODELS = {
-        "deepseek-v4-pro-promo",
-        "deepseek-v4-pro-base",
-        "deepseek-v4-pro",
-        "mimo-v2.5-pro",
-        "mimo-v2.5",
-        "mistral-large-latest",
-    }
-    
     def _should_use_proxy(self, model_id: str) -> bool:
         """All LLM models are BYOK — proxy not needed."""
         return False
@@ -4636,7 +4649,21 @@ They survive auto-compaction and are ALWAYS active:
                                 stream_max_tokens = min(max_tokens, max(4_096, remaining_ctx // 4))
                         else:
                             # Final answer / no-tool turns — allow generous output.
-                            stream_max_tokens = min(max_tokens, 16_384)
+                            # CRITICAL: When thinking is enabled, reasoning tokens
+                            # share the max_tokens budget with visible content.
+                            # A 16K cap means the model spends most tokens on
+                            # hidden reasoning, leaving almost nothing for the
+                            # visible response (truncated output like "help you today?").
+                            # Use the full model max when thinking is active.
+                            _thinking_enabled = (
+                                isinstance(_chat_kwargs.get('thinking'), dict)
+                                and _chat_kwargs['thinking'].get('type') == 'enabled'
+                            )
+                            if _thinking_enabled:
+                                stream_max_tokens = max_tokens  # use full model cap (e.g. 131K)
+                                log.info(f'[BRIDGE] Thinking mode active — output cap: {stream_max_tokens:,} (reasoning + content share this budget)')
+                            else:
+                                stream_max_tokens = min(max_tokens, 16_384)
 
                         log.debug(f"[BRIDGE] Adaptive stream cap: {stream_max_tokens} (tool_turn={bool(active_tool_defs)}, est={_est_tokens}, budget={_budget}, base_max={max_tokens})")
 
@@ -4822,10 +4849,15 @@ They survive auto-compaction and are ALWAYS active:
                                 error_msg = (
                                     f"**{model_display} — API Key Required**\n\n"
                                     f"No API key found for this model.\n\n"
-                                    f"**Options:**\n"
-                                    f"• Add your own key in Settings → Models & Providers\n"
-                                    f"• Subscribe to Cortex for included models (DeepSeek, MiMo)\n\n"
-                                    f"[Get API Keys →](https://platform.openai.com/api-keys)"
+                                    f"**To use this model:**\n"
+                                    f"1. Go to Settings → Models & Providers\n"
+                                    f"2. Add your API key for this provider\n\n"
+                                    f"**Get API keys from:**\n"
+                                    f"• MiMo: https://platform.xiaomimimo.com\n"
+                                    f"• DeepSeek: https://platform.deepseek.com\n"
+                                    f"• OpenAI: https://platform.openai.com/api-keys\n"
+                                    f"• OpenRouter: https://openrouter.ai/keys\n"
+                                    f"• Qwen: https://dashscope.console.aliyun.com/apiKey"
                                 )
                                 self._safe_emit(self.response_chunk, error_msg)
                                 return ""
@@ -4843,6 +4875,9 @@ They survive auto-compaction and are ALWAYS active:
                                 if _chunk_batch >= _CHUNK_BATCH_SIZE:
                                     _chunk_batch = 0
                                     await asyncio.sleep(0)
+                                # ── RAW CHUNK DEBUG: log every yielded value from provider ──
+                                _raw_preview = repr(chunk[:120]) if isinstance(chunk, str) else repr(chunk)[:120]
+                                log.info(f"[RAW-CHUNK] idx={_chunk_batch} type={type(chunk).__name__} len={len(chunk) if isinstance(chunk, str) else '?'} preview={_raw_preview}")
                                 if isinstance(chunk, str) and chunk.startswith("__TOOL_CALL_DELTA__:"):
                                     _has_received_content_or_tools = True  # stop thinking timeout
                                     delta_list = json.loads(chunk[20:])
@@ -4942,80 +4977,81 @@ They survive auto-compaction and are ALWAYS active:
                                     # prior output and hallucinate/repeat them on subsequent turns.
                                     # Reasoning streams to the thought card UI via response_chunk tags
                                     # (parsed by native_chat_bridge → thinking_delta → chat_panel).
-                                # Emit thoughtStart on first reasoning chunk.
-                                if not _thought_started:
-                                    _thought_started = True
+                                    # Emit thoughtStart on first reasoning chunk.
+                                    if not _thought_started:
+                                        _thought_started = True
+                                        try:
+                                            self._safe_emit(self.response_chunk, '<cortex_thought_start>')
+                                        except Exception:
+                                            pass
+                                    # ── Thinking budget: detect infinite reasoning loops ──
+                                    # Industry standard (Claude/Anthropic): bound thinking by
+                                    # token count, not time. When thinking exceeds budget
+                                    # without producing content or tool calls, force action.
+                                    _reasoning_token_count += len(_reason_chunk) // 4  # approximate
+                                    if not _has_received_content_or_tools and not _thinking_budget_exceeded and _reasoning_token_count > _thinking_budget_tokens:
+                                        _thinking_budget_exceeded = True
+                                        log.warning(
+                                            f"[BRIDGE] Thinking budget exceeded: {_reasoning_token_count:,} tokens "
+                                            f"(budget={_thinking_budget_tokens:,}) — closing thought card, continuing naturally."
+                                        )
+                                        # Close the thought card — let the model continue on its own
+                                        try:
+                                            self._safe_emit(self.response_chunk, '<cortex_thought_end>')
+                                        except Exception:
+                                            pass
+                                        _thought_started = False
+                                        continue  # SKIP emitting this thinking chunk — stop the stream
+                                    if _thinking_budget_exceeded:
+                                        continue  # Drop all thinking chunks after budget exceeded
                                     try:
-                                        self._safe_emit(self.response_chunk, '<cortex_thought_start>')
+                                        self._safe_emit(self.response_chunk,
+                                            f'<cortex_thought_delta>{_reason_chunk}</cortex_thought_delta>')
                                     except Exception:
                                         pass
-                                # ── Thinking budget: detect infinite reasoning loops ──
-                                # Industry standard (Claude/Anthropic): bound thinking by
-                                # token count, not time. When thinking exceeds budget
-                                # without producing content or tool calls, force action.
-                                _reasoning_token_count += len(_reason_chunk) // 4  # approximate
-                                if not _has_received_content_or_tools and not _thinking_budget_exceeded and _reasoning_token_count > _thinking_budget_tokens:
-                                    _thinking_budget_exceeded = True
-                                    log.warning(
-                                        f"[BRIDGE] Thinking budget exceeded: {_reasoning_token_count:,} tokens "
-                                        f"(budget={_thinking_budget_tokens:,}) — closing thought card, continuing naturally."
-                                    )
-                                    # Close the thought card — let the model continue on its own
-                                    try:
-                                        self._safe_emit(self.response_chunk, '<cortex_thought_end>')
-                                    except Exception:
-                                        pass
-                                    _thought_started = False
-                                    continue  # SKIP emitting this thinking chunk — stop the stream
-                                if _thinking_budget_exceeded:
-                                    continue  # Drop all thinking chunks after budget exceeded
-                                try:
-                                    self._safe_emit(self.response_chunk,
-                                        f'<cortex_thought_delta>{_reason_chunk}</cortex_thought_delta>')
-                                except Exception:
-                                    pass
                                 # NOTE: Do NOT also emit tool_activity for reasoning chunks.
                                 # The response_chunk path (above) already routes thinking text
                                 # via native_chat_bridge -> thinking_delta -> chat_panel.
                                 # A duplicate tool_activity emission causes every word to appear
                                 # twice in the thinking card (word doubling bug).
-                            else:
-                                # Normal text chunk (not tool call, not reasoning)
-                                _has_received_content_or_tools = True  # stop thinking timeout
-                                # Emit thoughtEnd via response_chunk when response text starts flowing
-                                if _thought_started:
-                                    _thought_started = False
+                                else:
+                                    # Normal text chunk (not tool call, not reasoning)
+                                    _has_received_content_or_tools = True  # stop thinking timeout
+                                    # Emit thoughtEnd via response_chunk when response text starts flowing
+                                    if _thought_started:
+                                        _thought_started = False
+                                        try:
+                                            self._safe_emit(self.response_chunk, '<cortex_thought_end>')
+                                        except Exception:
+                                            pass
+                                    # Normal text content — stream via response_chunk
+                                    # so native_chat_bridge routes it as text_delta in real-time.
+                                    turn_text += chunk
+                                    full_response += chunk
+                                    _yielded_content = True
+                                    log.info(f"[BRIDGE] text chunk: len={len(chunk)}, preview={repr(chunk[:80])}")
                                     try:
-                                        self._safe_emit(self.response_chunk, '<cortex_thought_end>')
+                                        self._safe_emit(self.response_chunk, chunk)
                                     except Exception:
                                         pass
-                                # Normal text content — stream via response_chunk
-                                # so native_chat_bridge routes it as text_delta in real-time.
-                                turn_text += chunk
-                                full_response += chunk
-                                _yielded_content = True
-                                try:
-                                    self._safe_emit(self.response_chunk, chunk)
-                                except Exception:
-                                    pass
-                                # Emit exploreEnd when response text starts (all tools resolved)
-                                if _explore_started:
-                                    _explore_started = False
-                                    try:
-                                        self._safe_emit(self.exploreEnd)
-                                    except Exception:
-                                        pass
-                                # Clean thought/reasoning content from stored text
-                                _clean = re.sub(r'<think[^>]*>.*?</think>', '', chunk, flags=re.DOTALL)
-                                _clean = re.sub(r'<thinking[^>]*>.*?</thinking>', '', _clean, flags=re.DOTALL)
-                                _clean = re.sub(r'<antThinking[^>]*>.*?</antThinking>', '', _clean, flags=re.DOTALL)
-                                _clean = re.sub(r'<scratchpad[^>]*>.*?</scratchpad>', '', _clean, flags=re.DOTALL)
-                                _clean = re.sub(r'<task_summary[^>]*>.*?</task_summary>', '', _clean, flags=re.DOTALL)
-                                # If _clean had XML tags stripped, replace the chunk in turn_text
-                                _diff = len(chunk) - len(_clean)
-                                if _diff > 0:
-                                    turn_text = turn_text[:-len(chunk)] + _clean
-                                    full_response = full_response[:-len(chunk)] + _clean
+                                    # Emit exploreEnd when response text starts (all tools resolved)
+                                    if _explore_started:
+                                        _explore_started = False
+                                        try:
+                                            self._safe_emit(self.exploreEnd)
+                                        except Exception:
+                                            pass
+                                    # Clean thought/reasoning content from stored text
+                                    _clean = re.sub(r'<think[^>]*>.*?</think>', '', chunk, flags=re.DOTALL)
+                                    _clean = re.sub(r'<thinking[^>]*>.*?</thinking>', '', _clean, flags=re.DOTALL)
+                                    _clean = re.sub(r'<antThinking[^>]*>.*?</antThinking>', '', _clean, flags=re.DOTALL)
+                                    _clean = re.sub(r'<scratchpad[^>]*>.*?</scratchpad>', '', _clean, flags=re.DOTALL)
+                                    _clean = re.sub(r'<task_summary[^>]*>.*?</task_summary>', '', _clean, flags=re.DOTALL)
+                                    # If _clean had XML tags stripped, replace the chunk in turn_text
+                                    _diff = len(chunk) - len(_clean)
+                                    if _diff > 0:
+                                        turn_text = turn_text[:-len(chunk)] + _clean
+                                        full_response = full_response[:-len(chunk)] + _clean
                         break  # stream completed (or stop requested) — exit retry loop
 
                     except Exception as _stream_exc:
@@ -5039,8 +5075,14 @@ They survive auto-compaction and are ALWAYS active:
                             'timed out', 'timeout', 'read timed out',
                             'connect timeout', 'connection timed out',
                         )
+                        _CONNECTION_KEYWORDS = (
+                            '10054', 'connection', 'forcibly closed', 'reset',
+                            'broken pipe', 'connection aborted', 'remote host',
+                            'connection reset', 'connection refused',
+                        )
                         _is_rate_err = any(kw in _err_lower for kw in _RATE_LIMIT_KEYWORDS)
                         _is_timeout_err = any(kw in _err_lower for kw in _TIMEOUT_KEYWORDS)
+                        _is_connection_err = any(kw in _err_lower for kw in _CONNECTION_KEYWORDS)
                         if _is_ctx_err and _compact_attempt < 2:
                             log.warning(
                                 f"[BRIDGE] Context limit on turn {turn + 1} (compact attempt {_compact_attempt + 1}/2): {_stream_exc}"
@@ -5130,8 +5172,46 @@ They survive auto-compaction and are ALWAYS active:
                                 # Reset failover flag so next turn can retry fresh
                                 self._failover_exhausted = False
                                 break  # exit compact-attempt loop gracefully
+                        elif _is_connection_err:
+                            # ── Connection errors: graceful handling ──
+                            # Connection errors (10054, connection reset, etc.) are
+                            # usually transient. Show user-friendly message instead of crashing.
+                            _conn_msg = (
+                                f"[SYSTEM: Connection to AI provider was lost: {_stream_exc}. "
+                                f"This is usually a temporary network issue. "
+                                f"Please try again or switch to a different model.]"
+                            )
+                            log.warning(f"[BRIDGE] Connection error (handled gracefully): {_stream_exc}")
+                            turn_text = _conn_msg
+                            full_response += _conn_msg
+                            self._safe_emit(self.response_chunk, _conn_msg)
+                            break  # exit compact-attempt loop gracefully
                         else:
-                            raise      # non-context error or exhausted retries
+                            # ── Graceful error handling for provider failures ──
+                            # Instead of crashing, show the error to the user and
+                            # let the chat continue. This handles:
+                            # - Connection errors (10054, connection reset, etc.)
+                            # - HTTP 400 errors from upstream providers
+                            # - Other transient network failures
+                            _err_msg = str(_stream_exc)
+                            _is_connection_err = any(kw in _err_msg.lower() for kw in (
+                                '10054', 'connection', 'forcibly closed', 'reset',
+                                'broken pipe', 'connection aborted', 'remote host',
+                            ))
+                            _is_http_400 = 'http 400' in _err_msg.lower() or 'bad request' in _err_msg.lower()
+                            
+                            if _is_connection_err or _is_http_400:
+                                _user_msg = (
+                                    f"[SYSTEM: Connection to AI provider failed: {_err_msg[:150]}. "
+                                    f"Please try again or switch to a different model.]"
+                                )
+                                log.warning(f"[BRIDGE] Provider connection error (handled gracefully): {_err_msg[:200]}")
+                                turn_text = _user_msg
+                                full_response += _user_msg
+                                self._safe_emit(self.response_chunk, _user_msg)
+                                break  # exit compact-attempt loop gracefully
+                            else:
+                                raise      # non-context error or exhausted retries
 
                 # P8: Error recovery budget check — track consecutive errors
                 try:
@@ -5905,9 +5985,11 @@ They survive auto-compaction and are ALWAYS active:
         # ── Critical signal bypass ──────────────────────────────
         # session_saved_to_memory and agent_status_update('ready') must never
         # be rate-limited — dropping them causes stuck UI (New Chat spinner).
+        # response_chunk must also never be dropped — dropping causes empty chat.
         _is_critical = (
             signal is self.session_saved_to_memory
             or signal is self.agent_status_update
+            or signal is self.response_chunk
         )
 
         # ── Signal rate limiter ──────────────────────────────────
@@ -9418,11 +9500,12 @@ They survive auto-compaction and are ALWAYS active:
         """
         Handle the WebSearch tool.
 
-        Tier 0: MiMo native web_search — best quality, uses MiMo's built-in search tool.
-        Tier 1: SerpAPI — Google search results (100 free/month, requires SERPAPI_API_KEY).
-        Tier 2: DuckDuckGo HTML search scraping (free, no API key, real web results).
-        Tier 3: DuckDuckGo Instant Answer API fallback (free, limited results).
-        Tier 4: Brave Search API (free tier 2K queries/month, requires BRAVE_API_KEY).
+        Tier 0: Subscription proxy — SerpAPI via Django server (subscription users).
+        Tier 1: MiMo native web_search — best quality, uses MiMo's built-in search tool.
+        Tier 2: SerpAPI — Google search results (100 free/month, requires SERPAPI_API_KEY).
+        Tier 3: DuckDuckGo HTML search scraping (free, no API key, real web results).
+        Tier 4: DuckDuckGo Instant Answer API fallback (free, limited results).
+        Tier 5: Brave Search API (free tier 2K queries/month, requires BRAVE_API_KEY).
         """
         import asyncio
         import json
@@ -9436,7 +9519,25 @@ They survive auto-compaction and are ALWAYS active:
         results: List[Dict[str, str]] = []
         error_msgs: List[str] = []
 
-        # ── Tier 0: MiMo Native Web Search (built-in web_search tool) ──────
+        # ── Tier 0: Subscription proxy (SerpAPI via Django server) ──────
+        try:
+            from src.core.cortex_api import get_api_client
+            api = get_api_client()
+            if api.has_subscription():
+                proxy_result = api.proxy_service("web_search", query=query)
+                if proxy_result and proxy_result.get("status") == "success":
+                    results = proxy_result.get("results", [])
+                    if results:
+                        log.info(f"[WebSearch] Subscription proxy returned {len(results)} results for '{query}'")
+                        return ToolResult(
+                            tool_id=tool_id,
+                            result=json.dumps({"results": results, "query": query, "source": "serpapi_proxy"}),
+                            success=True,
+                        )
+        except Exception as e:
+            log.debug(f"[WebSearch] Subscription proxy failed: {e}")
+
+        # ── Tier 1: MiMo Native Web Search (built-in web_search tool) ──────
         from src.core.key_manager import KeyManager
         km = KeyManager()
         mimo_key = km.get_key("mimo") or ""

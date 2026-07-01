@@ -42,7 +42,7 @@ class CortexAPIClient:
     - Graceful offline fallback
     """
 
-    def __init__(self, base_url: str = "http://127.0.0.1:8753"):
+    def __init__(self, base_url: str = "http://127.0.0.1:8000"):
         self.base_url = base_url.rstrip("/")
         self.access_token: Optional[str] = None
         self.refresh_token: Optional[str] = None
@@ -272,15 +272,17 @@ class CortexAPIClient:
         """Get usage summary from server."""
         return self._request("GET", "/api/v1/usage/summary/")
 
-    def sync_usage(self, daily_usage: Dict) -> Optional[Dict]:
-        """Sync local usage data to server.
+    def sync_usage(self, service_usage: Dict) -> Optional[Dict]:
+        """Sync subscription service usage to server.
 
-        Accepts both formats:
-        - Flat: {"2026-06-28": {"tokens": 10000, "requests": 5}}
-        - Nested: {"2026-06-28": {"models": {"deepseek": {"tokens": 10000}}}}
+        Only sends Mistral (OCR) and SiliconFlow (embeddings) usage.
+        LLM usage stays local.
+
+        Args:
+            service_usage: {"ocr_pages": int, "embedding_tokens": int}
         """
         return self._request("POST", "/api/v1/usage/sync/", json_data={
-            "daily_usage": daily_usage,
+            "service_usage": service_usage,
         })
 
     # ── Model config endpoints ────────────────────────────────────────
@@ -449,8 +451,8 @@ def get_api_client() -> CortexAPIClient:
         try:
             from src.config.settings import load_settings
             settings = load_settings()
-            server_url = settings.get("server", {}).get("url", "http://127.0.0.1:8753")
+            server_url = settings.get("server", {}).get("url", "http://127.0.0.1:8000")
         except Exception:
-            server_url = "http://127.0.0.1:8753"
+            server_url = "http://127.0.0.1:8000"
         _api_client = CortexAPIClient(base_url=server_url)
     return _api_client

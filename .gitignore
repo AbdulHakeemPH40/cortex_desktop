@@ -12,6 +12,9 @@
 # Exception: Allow .env.example template (contains only placeholders)
 !.env.example
 
+# .env.example2 — contains real API keys, never commit
+.env.example2
+
 # ============================================================================
 # Python Environment & Dependencies
 # ============================================================================

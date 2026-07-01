@@ -138,6 +138,14 @@ class SemanticSearch:
                 log.error(f"Failed to generate embedding for {file_path}: {result.error}")
                 return False
             
+            # Track embedding usage
+            try:
+                from src.ai.usage_tracker import get_usage_tracker
+                ut = get_usage_tracker()
+                ut.record_embedding_tokens(result.tokens_used or len(meaningful_content) // 4)
+            except Exception:
+                pass
+
             # Store in cache
             self.embeddings_cache[file_path] = result.embedding
             self.file_metadata[file_path] = {

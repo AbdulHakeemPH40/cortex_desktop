@@ -387,10 +387,6 @@
               <div class="meter-fill" id="searchFill" style="width: 0%"></div>
             </div>
           </div>
-
-          <div style="margin-top:12px;font-size:12px;color:#8b949e;">
-            LLM usage (MiMo, DeepSeek, OpenAI, etc.) is tracked locally on your desktop.
-          </div>
         </div>
 
         <!-- Server Usage (when logged in) -->
@@ -431,42 +427,26 @@
               <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
               <option value="gpt-5.5">GPT-5.5 (OpenAI)</option>
               <option value="gpt-5.4">GPT-5.4 (OpenAI)</option>
+              <option value="gpt-4o">GPT-4o (OpenAI)</option>
               <option value="anthropic/claude-opus-4-8">Claude Opus 4.8 (OpenRouter)</option>
+              <option value="anthropic/claude-sonnet-4-5">Claude Sonnet 4.5 (OpenRouter)</option>
               <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (OpenRouter)</option>
+              <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra (OpenRouter)</option>
               <option value="qwen3.7-plus">Qwen 3.7 Plus (Alibaba)</option>
+              <option value="qwen3.6-plus">Qwen 3.6 Plus (Alibaba)</option>
+              <option value="qwen3-coder-plus">Qwen3 Coder Plus (Alibaba)</option>
+              <option value="qwen-flash">Qwen Flash (Alibaba)</option>
             </select>
           </div>
         </div>
         <div class="settings-card">
-          <h3>Subscription</h3>
-          <p class="card-desc">Included with Cortex — no API key required.</p>
-          <div class="provider-row" style="opacity:0.8">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#f97316;color:white">X</div>
-              <div><label>Xiaomi MiMo</label>
-                <p>MiMo V2.5 Pro · MiMo V2.5 · 1M ctx</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
-            </div>
-          </div>
-          <div class="provider-row" style="opacity:0.8">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#a78bfa;color:white">D</div>
-              <div><label>DeepSeek V4</label>
-                <p>DeepSeek V4 Pro · 1.6T params · 1M ctx</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Included</span>
-            </div>
-          </div>
+          <h3>Subscription Services</h3>
+          <p class="card-desc">Included with Cortex subscription — OCR, embeddings, and web search.</p>
           <div class="provider-row" style="opacity:0.8">
             <div class="provider-info">
               <div class="provider-logo" style="background:#f43f5e;color:white">M</div>
               <div><label>Mistral Large</label>
-                <p>OCR · Image recognition · Vision</p>
+                <p>OCR · Image text extraction · Vision</p>
               </div>
             </div>
             <div class="provider-key">
@@ -477,7 +457,7 @@
             <div class="provider-info">
               <div class="provider-logo" style="background:#10b981;color:white">S</div>
               <div><label>SiliconFlow</label>
-                <p>Embeddings only (Qwen3 Embedding)</p>
+                <p>Embeddings · Semantic search</p>
               </div>
             </div>
             <div class="provider-key">
@@ -488,81 +468,124 @@
         <div class="settings-card">
           <h3>Provider API Keys</h3>
           <p class="card-desc">Store your API keys locally. Keys are encrypted and never leave your device.</p>
-          <div class="provider-row">
+          <div class="provider-row" data-provider="mimo">
             <div class="provider-info">
               <div class="provider-logo" style="background:#f97316;color:white">X</div>
-              <div><label>Xiaomi MiMo — BYOK</label>
-                <p>Use your own key (overrides subscription)</p>
+              <div><label>MiMo</label>
+                <p>V2.5 Pro · 1M ctx</p>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="mimoKey" placeholder="sk-... (optional)"><button class="setting-btn icon-btn" title="Toggle visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <div class="provider-key" style="position:relative;">
+              <input type="password" class="setting-input key-input" id="mimoKey" placeholder="Paste key..." data-provider="mimo">
+              <span class="key-mask" id="mimoKeyMask" style="display:none;">••••••••••••••••</span>
+              <div class="key-actions">
+                <button class="setting-btn icon-btn eye-btn" id="mimoEye" title="Show/Hide" data-provider="mimo">
+                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+                <button class="setting-btn icon-btn test-btn" id="mimoTest" title="Test" data-provider="mimo">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button class="setting-btn icon-btn remove-btn" id="mimoRemove" title="Remove" data-provider="mimo" style="display:none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="provider-row">
+          <div class="provider-row" data-provider="deepseek">
             <div class="provider-info">
               <div class="provider-logo" style="background:#a78bfa;color:white">D</div>
-              <div><label>DeepSeek V4 — BYOK</label>
-                <p>Use your own key (overrides subscription)</p>
+              <div><label>DeepSeek</label>
+                <p>V4 Pro · 1M ctx</p>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="deepseekKey" placeholder="sk-... (optional)"><button class="setting-btn icon-btn" title="Toggle visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <div class="provider-key" style="position:relative;">
+              <input type="password" class="setting-input key-input" id="deepseekKey" placeholder="Paste key..." data-provider="deepseek">
+              <span class="key-mask" id="deepseekKeyMask" style="display:none;">••••••••••••••••</span>
+              <div class="key-actions">
+                <button class="setting-btn icon-btn eye-btn" id="deepseekEye" title="Show/Hide" data-provider="deepseek">
+                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+                <button class="setting-btn icon-btn test-btn" id="deepseekTest" title="Test" data-provider="deepseek">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button class="setting-btn icon-btn remove-btn" id="deepseekRemove" title="Remove" data-provider="deepseek" style="display:none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="provider-row">
+          <div class="provider-row" data-provider="openai">
             <div class="provider-info">
               <div class="provider-logo openai">O</div>
               <div><label>OpenAI</label>
-                <p>GPT-5.5, GPT-5.4</p>
+                <p>GPT-5.5, 5.4</p>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="openaiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle visibility"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <div class="provider-key" style="position:relative;">
+              <input type="password" class="setting-input key-input" id="openaiKey" placeholder="Paste key..." data-provider="openai">
+              <span class="key-mask" id="openaiKeyMask" style="display:none;">••••••••••••••••</span>
+              <div class="key-actions">
+                <button class="setting-btn icon-btn eye-btn" id="openaiEye" title="Show/Hide" data-provider="openai">
+                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+                <button class="setting-btn icon-btn test-btn" id="openaiTest" title="Test" data-provider="openai">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button class="setting-btn icon-btn remove-btn" id="openaiRemove" title="Remove" data-provider="openai" style="display:none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="provider-row">
+          <div class="provider-row" data-provider="openrouter">
             <div class="provider-info">
               <div class="provider-logo" style="background:#8b5cf6;color:white">R</div>
               <div><label>OpenRouter</label>
-                <p>Anthropic, Google, NVIDIA, GLM</p>
+                <p>Multi-model</p>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="openrouterKey" placeholder="sk-or-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            <div class="provider-key" style="position:relative;">
+              <input type="password" class="setting-input key-input" id="openrouterKey" placeholder="Paste key..." data-provider="openrouter">
+              <span class="key-mask" id="openrouterKeyMask" style="display:none;">••••••••••••••••</span>
+              <div class="key-actions">
+                <button class="setting-btn icon-btn eye-btn" id="openrouterEye" title="Show/Hide" data-provider="openrouter">
+                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+                <button class="setting-btn icon-btn test-btn" id="openrouterTest" title="Test" data-provider="openrouter">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button class="setting-btn icon-btn remove-btn" id="openrouterRemove" title="Remove" data-provider="openrouter" style="display:none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-          <div class="provider-row">
+          <div class="provider-row" data-provider="alibaba">
             <div class="provider-info">
               <div class="provider-logo" style="background:#f59e0b;color:white">Q</div>
-              <div><label>Alibaba Qwen</label>
-                <p>Qwen 3.7 Plus, Qwen Flash, Qwen Coder</p>
+              <div><label>Qwen</label>
+                <p>3.7 Plus</p>
               </div>
             </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="alibabaKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#06b6d4;color:white">K</div>
-              <div><label>Kimi (Moonshot)</label>
-                <p>K2.6 multimodal · 256K ctx</p>
+            <div class="provider-key" style="position:relative;">
+              <input type="password" class="setting-input key-input" id="alibabaKey" placeholder="Paste key..." data-provider="alibaba">
+              <span class="key-mask" id="alibabaKeyMask" style="display:none;">••••••••••••••••</span>
+              <div class="key-actions">
+                <button class="setting-btn icon-btn eye-btn" id="alibabaEye" title="Show/Hide" data-provider="alibaba">
+                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
+                <button class="setting-btn icon-btn test-btn" id="alibabaTest" title="Test" data-provider="alibaba">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+                <button class="setting-btn icon-btn remove-btn" id="alibabaRemove" title="Remove" data-provider="alibaba" style="display:none">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
               </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="kimiKey" placeholder="sk-..."><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-            </div>
-          </div>
-          <div class="provider-row">
-            <div class="provider-info">
-              <div class="provider-logo" style="background:#f43f5e;color:white">M</div>
-              <div><label>Mistral — BYOK</label>
-                <p>Use your own key (overrides subscription)</p>
-              </div>
-            </div>
-            <div class="provider-key">
-              <input type="password" class="setting-input" id="mistralKey" placeholder="sk-... (optional)"><button class="setting-btn icon-btn" title="Toggle"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
             </div>
           </div>
         </div>

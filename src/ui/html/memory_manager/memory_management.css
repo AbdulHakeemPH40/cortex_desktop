@@ -648,8 +648,8 @@ kbd {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 16px;
-    padding: 14px 0;
+    gap: 12px;
+    padding: 10px 0;
     border-top: 1px solid rgba(255, 255, 255, .04)
 }
 
@@ -660,18 +660,19 @@ kbd {
 .provider-info {
     display: flex;
     align-items: center;
-    gap: 12px
+    gap: 10px;
+    flex-shrink: 0;
 }
 
 .provider-logo {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 16px;
+    font-size: 14px;
     flex-shrink: 0
 }
 
@@ -701,24 +702,124 @@ kbd {
 }
 
 .provider-info label {
-    font-size: 14px;
-    font-weight: 500
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
 }
 
 .provider-info p {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--muted);
-    margin-top: 2px
+    margin-top: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100px;
 }
 
 .provider-key {
     display: flex;
-    gap: 8px;
-    align-items: center
+    gap: 4px;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
 }
 
 .provider-key .setting-input {
-    min-width: 180px
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+/* API Key - inline buttons */
+.provider-key .key-input {
+    padding-right: 70px;
+}
+
+.provider-key .key-mask {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    pointer-events: none;
+    letter-spacing: 1px;
+}
+
+/* Action buttons - compact inline */
+.key-actions {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.key-actions .icon-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.key-actions .icon-btn svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Key status indicators */
+.provider-row[data-has-key="true"] .key-input {
+    border-color: rgba(76, 175, 80, 0.3);
+}
+
+.provider-row[data-has-key="true"] .remove-btn {
+    display: inline-flex !important;
+}
+
+.provider-row[data-has-key="false"] .remove-btn {
+    display: none !important;
+}
+
+/* Test button states */
+.test-btn.testing {
+    animation: pulse 1s infinite;
+}
+
+.test-btn.success {
+    color: var(--success) !important;
+    border-color: rgba(76, 175, 80, 0.3) !important;
+}
+
+.test-btn.error {
+    color: var(--danger) !important;
+    border-color: rgba(255, 127, 143, 0.3) !important;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Eye button states */
+.eye-btn.active {
+    color: var(--accent) !important;
+    border-color: rgba(77, 163, 255, 0.3) !important;
+}
+
+.eye-btn.active .eye-open {
+    display: none;
+}
+
+.eye-btn.active .eye-closed {
+    display: block !important;
 }
 
 /* Memory */

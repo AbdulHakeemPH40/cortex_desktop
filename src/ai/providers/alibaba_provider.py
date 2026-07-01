@@ -551,6 +551,14 @@ class AlibabaProvider(BaseProvider):
                     break
 
                 if status == 400:
+                    # Don't crash on HTML error pages (openresty, nginx, etc.)
+                    _is_html = "<html" in _resp_body.lower() or "<center>" in _resp_body.lower()
+                    if _is_html:
+                        log.error(f"Alibaba stream HTTP 400 (HTML error page, likely upstream issue): {_resp_body[:200]}")
+                        raise RuntimeError(
+                            "Alibaba API returned an error (HTTP 400). The server may be temporarily unavailable. "
+                            "Try again or switch to a different model."
+                        )
                     log.error(f"Alibaba stream HTTP 400 (non-retryable): {_resp_body[:300]}")
                     break
 

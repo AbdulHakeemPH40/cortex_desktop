@@ -37,7 +37,7 @@ import requests
 import socket
 import urllib3.exceptions
 from typing import List, Dict, Any, Optional, Generator
-from src.ai.providers import BaseProvider, ProviderType, ModelInfo, ChatMessage, ChatResponse
+from src.ai.providers import BaseProvider, ProviderType, ModelInfo, ChatMessage, ChatResponse, load_api_key
 from src.utils.logger import get_logger
 
 log = get_logger("mimo_provider")
@@ -87,15 +87,19 @@ class MimoProvider(BaseProvider):
                 return
 
             key = self._api_key or ""
+            log.info(f"[MiMo] _detect_hosts: key_prefix='{key[:3]}...' key_len={len(key)}")
             if key.startswith("tp-"):
                 self._primary_host = self._API_HOST_TP
                 self._fallback_host = self._API_HOST_SK
+                log.info(f"[MiMo] Token Plan key detected → primary={self._API_HOST_TP}")
             elif key.startswith("sk-"):
                 self._primary_host = self._API_HOST_SK
                 self._fallback_host = self._API_HOST_TP
+                log.info(f"[MiMo] Pay-as-you-go key detected → primary={self._API_HOST_SK}")
             else:
                 self._primary_host = self._API_HOST_SK
                 self._fallback_host = self._API_HOST_TP
+                log.warning(f"[MiMo] Unknown key prefix '{key[:3]}' → defaulting to SK endpoint")
 
             self._current_host = self._primary_host
             self._fell_back = False
@@ -146,10 +150,17 @@ class MimoProvider(BaseProvider):
     def __init__(self):
         try:
             super().__init__(ProviderType.MIMO)
-            # Use KeyManager ONLY (Windows Credential Manager - encrypted)
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
-            self._api_key = km.get_key("mimo") or ""
+            # Use 3-tier key loading: env var → KeyManager → settings.json
+            self._api_key = load_api_key("mimo", "MIMO_API_KEY", "ai.mimo_key")
+            # Sanitize key: remove spaces, newlines, and strip quotes
+            if self._api_key:
+                self._api_key = self._api_key.replace(' ', '').replace('\n', '').replace('\r', '').strip().strip("'\"")
+                # Validate key format: must start with sk- or tp- and be reasonable length
+                if not (self._api_key.startswith('sk-') or self._api_key.startswith('tp-')):
+                    log.warning(f"[MiMo] Invalid key prefix '{self._api_key[:5]}...' — key may be corrupted. Expected sk-* or tp-*")
+                if len(self._api_key) > 128:
+                    log.warning(f"[MiMo] Key length {len(self._api_key)} exceeds expected 32-128 chars — key may be corrupted")
+            log.info(f"[MiMo] __init__: key_loaded={bool(self._api_key)} key_prefix='{self._api_key[:5]}...' key_len={len(self._api_key)}")
             if not self._api_key:
                 log.warning("MIMO_API_KEY not configured. Add key in Settings → Models & Providers")
             self._session = requests.Session()
@@ -235,20 +246,59 @@ class MimoProvider(BaseProvider):
     # ─── auth ─────────────────────────────────────────────────────────────────
 
     def validate_api_key(self) -> bool:
-        """Validate that a Mimo API key is present and plausible."""
+        """Validate that a Mimo API key works — zero tokens consumed."""
         try:
             if not self._api_key:
                 return False
-            return len(self._api_key) > 8
+            if len(self._api_key) < 8:
+                return False
+            
+            import requests
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            headers = {
+                "Authorization": f"Bearer {self._api_key}",
+                "Content-Type": "application/json",
+            }
+            # 1) Try GET /models with SSL verification
+            try:
+                resp = requests.get(f"{self._primary_host}/models", headers=headers, timeout=10, verify=True)
+                if resp.status_code == 200:
+                    return True
+                if resp.status_code in (401, 403):
+                    return False
+            except requests.exceptions.SSLError:
+                # SSL cert issue — retry without verification
+                try:
+                    resp = requests.get(f"{self._primary_host}/models", headers=headers, timeout=10, verify=False)
+                    if resp.status_code == 200:
+                        return True
+                    if resp.status_code in (401, 403):
+                        return False
+                except requests.exceptions.RequestException:
+                    pass
+            except requests.exceptions.RequestException:
+                pass
+            # 2) Fallback: trust format (tp-/sk- prefix + length)
+            return len(self._api_key) >= 20
         except Exception as e:
             log.error(f"[MiMo] validate_api_key error: {e}")
-            return False
+            return len(self._api_key) >= 20
 
     def set_api_key(self, api_key: str):
-        """Set the Mimo API key at runtime."""
+        """Set the Mimo API key at runtime and re-detect the correct endpoint."""
         try:
+            old_key = self._api_key
+            # Sanitize the new key
+            if api_key:
+                api_key = api_key.replace('\x00', '').replace('\u0000', '').replace(' ', '').replace('\n', '').replace('\r', '').strip().strip("'\"")
             self._api_key = api_key
             super().set_api_key(api_key)
+            # Re-detect endpoints if the key prefix changed (tp- vs sk-)
+            if api_key and api_key[:3] != (old_key or '')[:3]:
+                self._fell_back = False
+                self._detect_hosts()
+                log.info(f"[MiMo] set_api_key: endpoint re-routed for prefix '{api_key[:3]}...' → {self._primary_host}")
         except Exception as e:
             log.error(f"[MiMo] set_api_key error: {e}")
 
@@ -341,7 +391,7 @@ class MimoProvider(BaseProvider):
             "model": model,
             "messages": formatted_messages,
             "temperature": temperature,
-            "max_completion_tokens": max_tokens,
+            "max_tokens": max_tokens,
             "stream": stream,
         }
 
@@ -410,6 +460,42 @@ class MimoProvider(BaseProvider):
                 )
                 log.warning(str(last_error))
                 continue
+
+            except requests.exceptions.SSLError:
+                # SSL cert verification failure — retry once without verification
+                if not getattr(self, '_ssl_fallback_used', False):
+                    self._ssl_fallback_used = True
+                    log.warning("[MiMo] SSL verification failed — retrying with verify=False")
+                    try:
+                        import urllib3
+                        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                        response = self._session.post(
+                            url, headers=headers, json=payload,
+                            timeout=(self._connect_timeout, self._read_timeout),
+                            verify=False,
+                        )
+                        response.raise_for_status()
+                        result = response.json()
+                        duration_ms = (time.time() - start_time) * 1000
+                        message = result["choices"][0].get("message", {})
+                        content = message.get("content") or message.get("reasoning_content") or ""
+                        tool_calls = message.get("tool_calls")
+                        usage = result.get("usage", {})
+                        self._token_count["input"] = usage.get("prompt_tokens", 0)
+                        self._token_count["output"] = usage.get("completion_tokens", 0)
+                        return ChatResponse(
+                            content=content, model=model, provider="mimo",
+                            input_tokens=self._token_count["input"],
+                            output_tokens=self._token_count["output"],
+                            finish_reason=result["choices"][0].get("finish_reason"),
+                            duration_ms=duration_ms, tool_calls=tool_calls,
+                        )
+                    except Exception as e2:
+                        last_error = Exception(f"Mimo API SSL fallback also failed: {e2}")
+                        log.error(str(last_error))
+                else:
+                    last_error = Exception("Mimo API SSL error (fallback already used)")
+                    log.error(str(last_error))
 
             except requests.exceptions.HTTPError as e:
                 status = e.response.status_code if e.response is not None else 0
@@ -520,7 +606,7 @@ class MimoProvider(BaseProvider):
             "model": model,
             "messages": formatted_messages,
             "temperature": temperature,
-            "max_completion_tokens": max_tokens,
+            "max_tokens": max_tokens,
             "stream": True,
         }
 
@@ -553,6 +639,10 @@ class MimoProvider(BaseProvider):
             try:
                 _read_to = self._resolve_read_timeout(True, tools)
                 _yielded_content = False
+                # Log request details for debugging
+                _safe_payload = {k: v for k, v in payload.items() if k != 'messages'}
+                _safe_payload['message_count'] = len(payload.get('messages', []))
+                log.info(f"[MiMo] POST {url} | model={model} | payload={json.dumps(_safe_payload, default=str)[:300]}")
                 response = self._session.post(
                     url, headers=headers, json=payload, stream=True,
                     timeout=(self._connect_timeout, _read_to),
@@ -597,6 +687,31 @@ class MimoProvider(BaseProvider):
                     content = delta.get("content", "")
                     tool_calls = delta.get("tool_calls", [])
 
+                    # ── RAW SSE DEBUG: log every delta's fields ──────────
+                    log.info(
+                        f"[MIMO-SSE] reasoning={len(reasoning) if reasoning else 0} chars "
+                        f"content={len(content) if content else 0} chars "
+                        f"tool_calls={len(tool_calls) if tool_calls else 0} "
+                        f"preview_r={repr(reasoning[:60]) if reasoning else 'None'} "
+                        f"preview_c={repr(content[:60]) if content else 'None'}"
+                    )
+
+                    # ── MiMo reasoning_content fix ─────────────────────
+                    # MiMo v2.5 sends the FULL visible response in
+                    # reasoning_content even when thinking is disabled.
+                    # The __REASONING_DELTA__ path swallows it (routed to
+                    # thought card), leaving only a tiny content fragment.
+                    # When thinking is disabled, merge reasoning into content
+                    # so the user sees the full response.
+                    _thinking_enabled = (
+                        isinstance(thinking, dict)
+                        and thinking.get("type") == "enabled"
+                    )
+                    if not _thinking_enabled and reasoning:
+                        # Merge reasoning into content as visible text
+                        content = (content or "") + reasoning
+                        reasoning = ""  # prevent double-emit as thought card
+
                     if reasoning:
                         _yielded_content = True
                         yield "__REASONING_DELTA__:" + reasoning
@@ -637,11 +752,16 @@ class MimoProvider(BaseProvider):
             except requests.exceptions.HTTPError as e:
                 status = e.response.status_code if e.response is not None else 0
                 _resp_body = ""
+                _resp_headers = {}
                 if e.response is not None:
                     try:
                         _resp_body = e.response.text[:500]
+                        _resp_headers = dict(e.response.headers)
                     except Exception:
                         pass
+                
+                # Log detailed error info for debugging
+                log.error(f"[MiMo] HTTP {status} | URL: {url} | Server: {_resp_headers.get('server', 'unknown')} | Body: {_resp_body[:200]}")
 
                 _is_quota = (
                     "quota" in _resp_body.lower()
@@ -667,6 +787,14 @@ class MimoProvider(BaseProvider):
                         )
                         raise RuntimeError("MiMo reasoning_content mismatch — start a new chat to clear history")
                     else:
+                        # Don't crash on HTML error pages (openresty, nginx, etc.)
+                        _is_html = "<html" in _resp_body.lower() or "<center>" in _resp_body.lower()
+                        if _is_html:
+                            log.error(f"Mimo API stream HTTP 400 (HTML error page, likely upstream issue): {_resp_body[:200]}")
+                            raise RuntimeError(
+                                "MiMo API returned an error (HTTP 400). The server may be temporarily unavailable. "
+                                "Try again or switch to a different model."
+                            )
                         log.error(f"Mimo API stream HTTP 400 (non-retryable): {_resp_body[:300]}")
                         raise RuntimeError(f"MiMo HTTP 400 — {_resp_body[:200]}")
 
@@ -751,6 +879,18 @@ class MimoProvider(BaseProvider):
             )
             return
 
+        # Provide user-friendly error message instead of crashing
+        _err_str = str(last_error).lower()
+        _is_connection_err = any(kw in _err_str for kw in (
+            '10054', 'connection', 'forcibly closed', 'reset',
+            'broken pipe', 'connection aborted', 'remote host',
+        ))
+        if _is_connection_err:
+            log.error(f"Mimo API stream connection failed after all retries: {last_error}")
+            raise RuntimeError(
+                "MiMo connection failed — the server may be temporarily unavailable. "
+                "Please try again or switch to a different model."
+            )
         log.error(f"Mimo API stream failed after all retries: {last_error}")
         raise RuntimeError(f"MiMo stream failed after all retries: {last_error}")
 
@@ -800,7 +940,7 @@ class MimoProvider(BaseProvider):
         payload: Dict[str, Any] = {
             "model": model,
             "messages": messages,
-            "max_completion_tokens": 4096,
+            "max_tokens": 4096,
             "temperature": 0.3,
             "stream": False,
             "tools": [web_search_tool],

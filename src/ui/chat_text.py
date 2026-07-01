@@ -497,9 +497,24 @@ def streaming_clean(text: str) -> str:
     # the closing tag hasn't arrived yet during streaming.  Without this,
     # <task_summary>{"title":...}</task_summary> leaks as raw text because
     # the paired-tag regex below only matches when both tags are present.
-    for tag in _KNOWN_TAGS:
+    #
+    # IMPORTANT: Only strip paired tags for AGENT CONTROL tags (tool output,
+    # file operations).  Tags like 'summary', 'analysis', 'plan', 'thinking'
+    # can appear in normal AI prose — stripping paired versions would delete
+    # the AI's actual response.  Those are handled by full_clean on turn_done.
+    _STREAM_CONTROL_TAGS = (
+        'file_edited', 'exploration', 'task_summary', 'tasklist',
+        'permission', 'search', 'grep', 'glob', 'read_file', 'write_file',
+        'edit_file', 'tool_result', 'tool_call',
+        'terminal_output', 'agent_response', 'agent_instruction',
+        'cortex_thought',
+    )
+    for tag in _STREAM_CONTROL_TAGS:
         text = re.sub(rf'<{tag}[\s\S]*?</{tag}>', '', text, flags=re.IGNORECASE)
-        # Incomplete: opening tag present but closing tag not yet streamed
+    # Incomplete: opening tag present but closing tag not yet streamed
+    # Strip ALL known tags (including prose-like ones) only when incomplete,
+    # so partial <think> or <summary doesn't leak as visible text.
+    for tag in _KNOWN_TAGS:
         text = re.sub(rf'<{tag}(?:\s[^>]*)?>[\s\S]*$', '', text, flags=re.IGNORECASE)
     # Strip HTML-like tags — only known HTML tags to protect tree chars like <src/
     _COMMON_HTML_TAGS = (

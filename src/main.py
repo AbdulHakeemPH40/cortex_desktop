@@ -204,7 +204,7 @@ try:
             log.info(f"Loaded .env from: {env_path}")
             break
     else:
-        log.warning("No .env file found!")
+        log.debug("No .env file found — using BYOK / KeyManager for API keys")
 except ImportError:
     log.warning("python-dotenv not installed")
 
@@ -499,6 +499,19 @@ def main():
         # Don't exit - just log and continue running
     
     sys.excepthook = handle_exception
+    
+    # CRITICAL: Install threading exception handler to catch errors in background threads
+    def handle_threading_exception(args):
+        """Handle exceptions in background threads to prevent crashes."""
+        import traceback
+        if args.exc_type and issubclass(args.exc_type, KeyboardInterrupt):
+            return
+        error_msg = f"Threading exception in {args.thread}: {str(args.exc_value)}\n{''.join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback))}"
+        log.critical(error_msg)
+        # Don't exit - just log and continue running
+    
+    import threading
+    threading.excepthook = handle_threading_exception
 
     log.info("Starting Cortex AI Agent IDE...")
     _profile("pre_window_init")

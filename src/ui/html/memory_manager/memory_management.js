@@ -442,7 +442,7 @@
         } else {
           if (status) status.textContent = '';
           if (error) {
-            error.textContent = 'Cannot connect to server. Make sure Django is running on 127.0.0.1:8753';
+            error.textContent = 'Cannot connect to server. Make sure Django is running.';
             error.style.display = 'block';
           }
         }
@@ -597,13 +597,14 @@
           /* Update plan card with server data */
           const hasPlan = sub.plan && sub.plan !== 'none' && sub.plan !== 'free';
           const planNames = { 'pro': 'Pro', 'pro_yearly': 'Pro (Yearly)', 'starter': 'Starter', 'free': 'Free' };
-          const planPrices = { 'pro': '$10/mo', 'pro_yearly': '$80/yr', 'starter': '$10/mo' };
           
           if ($("planName")) {
             $("planName").textContent = hasPlan ? (planNames[sub.plan] || sub.plan) : 'Free';
           }
+          // Hide price display
           if ($("planPrice")) {
-            $("planPrice").textContent = hasPlan ? (planPrices[sub.plan] || '') : '';
+            $("planPrice").textContent = '';
+            $("planPrice").style.display = 'none';
           }
           
           // Show/hide upgrade button and features
@@ -647,14 +648,13 @@
     }
     
     function openUpgradePage() {
-      callBridge(["getAuthStatus"], []).then(data => {
-        let auth = {};
-        try { auth = typeof data === 'string' ? JSON.parse(data) : data || {}; } catch(e) {}
-        const serverUrl = auth.server_url || 'http://127.0.0.1:8753';
-        window.pyBridge?.openExternal?.(serverUrl + '/pricing/') || window.open(serverUrl + '/pricing/', '_blank');
-      }).catch(() => {
-        window.open('http://127.0.0.1:8753/pricing/', '_blank');
-      });
+      const url = 'http://127.0.0.1:8000/pricing/';
+      // Try bridge method first (opens in system browser)
+      if (bridge && typeof bridge.openExternal === 'function') {
+        bridge.openExternal(url);
+      } else {
+        window.open(url, '_blank');
+      }
     }
 
     /* ── Render activity chart with pagination ── */
@@ -957,6 +957,274 @@
       loadProfile();
       loadUsageStats();
     }, 500);
+
+    /* ═══════════════════════════════════════════════════════════════
+       API KEY MANAGEMENT
+       ═══════════════════════════════════════════════════════════════ */
+    
+    const PROVIDER_CONFIG = {
+      mimo:      { input: 'mimoKey',      mask: 'mimoKeyMask',      eye: 'mimoEye',      test: 'mimoTest',      remove: 'mimoRemove',      settingsKey: 'ai.mimo_key',      kmName: 'mimo' },
+      deepseek:  { input: 'deepseekKey',  mask: 'deepseekKeyMask',  eye: 'deepseekEye',  test: 'deepseekTest',  remove: 'deepseekRemove',  settingsKey: 'ai.deepseek_key',  kmName: 'deepseek' },
+      openai:    { input: 'openaiKey',    mask: 'openaiKeyMask',    eye: 'openaiEye',    test: 'openaiTest',    remove: 'openaiRemove',    settingsKey: 'ai.openai_key',    kmName: 'openai' },
+      openrouter:{ input: 'openrouterKey',mask: 'openrouterKeyMask',eye: 'openrouterEye',test: 'openrouterTest',remove: 'openrouterRemove',settingsKey: 'ai.openrouter_key',kmName: 'openrouter' },
+      alibaba:   { input: 'alibabaKey',  mask: 'alibabaKeyMask',   eye: 'alibabaEye',   test: 'alibabaTest',   remove: 'alibabaRemove',   settingsKey: 'ai.alibaba_key',   kmName: 'alibaba' },
+    };
+
+    /* Track which providers have keys stored */
+    const _providerHasKey = {};
+    /* Track which providers were explicitly removed (don't reload from .env) */
+    const _providerRemoved = {};
+
+    /* Show masked key when a key is stored */
+    function _showMaskedState(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      const input = $(cfg.input);
+      const mask = $(cfg.mask);
+      const row = input?.closest('.provider-row');
+      if (input && mask) {
+        input.style.display = 'none';
+        mask.style.display = 'inline-block';
+        mask.textContent = '••••••••••••••••••••••••••••';
+        if (row) row.setAttribute('data-has-key', 'true');
+        _providerHasKey[provider] = true;
+      }
+    }
+
+    /* Show input field when editing */
+    function _showEditState(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      const input = $(cfg.input);
+      const mask = $(cfg.mask);
+      const row = input?.closest('.provider-row');
+      if (input && mask) {
+        input.style.display = '';
+        input.type = 'password';
+        mask.style.display = 'none';
+        if (row) row.setAttribute('data-has-key', 'false');
+      }
+    }
+
+    /* Toggle eye icon */
+    function _toggleEye(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      const eyeBtn = $(cfg.eye);
+      const input = $(cfg.input);
+      const mask = $(cfg.mask);
+      if (!eyeBtn || !input) return;
+
+      const isActive = eyeBtn.classList.contains('active');
+      if (isActive) {
+        /* Hide: show masked state */
+        eyeBtn.classList.remove('active');
+        if (_providerHasKey[provider]) {
+          _showMaskedState(provider);
+        } else {
+          input.type = 'password';
+        }
+      } else {
+        /* Show: reveal key */
+        eyeBtn.classList.add('active');
+        if (_providerHasKey[provider]) {
+          /* Need to load the actual key first */
+          if (bridge && typeof bridge.getApiKey === 'function') {
+            bridge.getApiKey(cfg.kmName, (key) => {
+              if (key) {
+                input.style.display = '';
+                input.value = key;
+                input.type = 'text';
+                mask.style.display = 'none';
+              }
+            });
+          } else {
+            input.style.display = '';
+            input.type = 'text';
+            mask.style.display = 'none';
+          }
+        } else {
+          input.type = 'text';
+        }
+      }
+    }
+
+    /* Test connection */
+    function _testConnection(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      const testBtn = $(cfg.test);
+      if (!testBtn) return;
+
+      testBtn.classList.add('testing');
+      testBtn.classList.remove('success', 'error');
+      testBtn.title = 'Testing...';
+
+      if (bridge && typeof bridge.testApiKey === 'function') {
+        bridge.testApiKey(cfg.kmName, (raw) => {
+          // QWebChannel returns result=str as a JSON string — parse it
+          let result;
+          try {
+            result = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          } catch(e) { result = raw; }
+          testBtn.classList.remove('testing');
+          if (result && result.success) {
+            testBtn.classList.add('success');
+            testBtn.title = 'Connected ✓';
+            showToast(`${provider} connected successfully`);
+          } else {
+            testBtn.classList.add('error');
+            testBtn.title = 'Failed ✗';
+            showToast(`${provider} connection failed: ${result?.error || 'Unknown error'}`);
+          }
+          setTimeout(() => {
+            testBtn.classList.remove('success', 'error');
+            testBtn.title = 'Test connection';
+          }, 3000);
+        });
+      } else {
+        /* No bridge — simulate */
+        testBtn.classList.remove('testing');
+        testBtn.classList.add('success');
+        testBtn.title = 'Connected ✓';
+        setTimeout(() => {
+          testBtn.classList.remove('success');
+          testBtn.title = 'Test connection';
+        }, 2000);
+      }
+    }
+
+    /* Remove key */
+    function _removeKey(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      
+      if (!confirm(`Remove ${provider} API key? You'll need to re-enter it to use this provider.`)) return;
+
+      /* Mark as removed FIRST (prevents re-appearance from .env on page reload) */
+      _providerRemoved[provider] = true;
+      _providerHasKey[provider] = false;
+      
+      /* Always update UI immediately */
+      _showEditState(provider);
+      const input = $(cfg.input);
+      if (input) input.value = '';
+      persistSetting(cfg.settingsKey, '');
+      showToast(`${provider} key removed`);
+      
+      /* Try to delete from backend (non-blocking) */
+      if (bridge && typeof bridge.removeApiKey === 'function') {
+        bridge.removeApiKey(cfg.kmName, (ok) => {
+          console.log(`[KEY] removeApiKey(${provider}) backend result:`, ok);
+        });
+      }
+    }
+
+    /* Save key on blur */
+    function _saveKey(provider) {
+      const cfg = PROVIDER_CONFIG[provider];
+      if (!cfg) return;
+      const input = $(cfg.input);
+      if (!input) return;
+      const value = input.value.trim();
+      
+      /* Don't save empty or placeholder values */
+      if (!value || value === '***' || value === '••••••••••••••••') return;
+
+      /* Clear removed flag when saving a new key */
+      _providerRemoved[provider] = false;
+
+      /* Save via bridge */
+      if (bridge && typeof bridge.setApiKey === 'function') {
+        bridge.setApiKey(cfg.kmName, value, (ok) => {
+          if (ok) {
+            _showMaskedState(provider);
+            showToast(`${provider} key saved`);
+          } else {
+            showToast(`Failed to save ${provider} key`);
+          }
+        });
+      } else {
+        /* Fallback: save via setSetting */
+        persistSetting(cfg.settingsKey, value);
+        _showMaskedState(provider);
+        showToast(`${provider} key saved`);
+      }
+    }
+
+    /* Bind events for all providers */
+    Object.entries(PROVIDER_CONFIG).forEach(([provider, cfg]) => {
+      const input = $(cfg.input);
+      const eyeBtn = $(cfg.eye);
+      const testBtn = $(cfg.test);
+      const removeBtn = $(cfg.remove);
+
+      /* Eye toggle */
+      if (eyeBtn) {
+        eyeBtn.addEventListener('click', () => _toggleEye(provider));
+      }
+
+      /* Test connection */
+      if (testBtn) {
+        testBtn.addEventListener('click', () => _testConnection(provider));
+      }
+
+      /* Remove key */
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => _removeKey(provider));
+      }
+
+      /* Save on blur */
+      if (input) {
+        input.addEventListener('blur', () => _saveKey(provider));
+        /* Also save on Enter */
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            input.blur();
+          }
+        });
+      }
+
+      /* Check if key exists and show masked state */
+      /* Will be populated when bridge connects */
+      _providerHasKey[provider] = false;
+    });
+
+    /* Load stored key status when bridge connects */
+    function _loadKeyStatus() {
+      Object.entries(PROVIDER_CONFIG).forEach(([provider, cfg]) => {
+        if (bridge && typeof bridge.getApiKey === 'function') {
+          bridge.getApiKey(cfg.kmName, (key) => {
+            /* Only show masked state if key is valid (not empty, not placeholder) */
+            if (key && key.length > 8 && key !== '***' && key !== '***') {
+              _showMaskedState(provider);
+            } else {
+              /* No valid key — show empty input */
+              _showEditState(provider);
+              const input = $(cfg.input);
+              if (input) input.value = '';
+              _providerHasKey[provider] = false;
+            }
+          });
+        } else {
+          /* No bridge — check settings for placeholder */
+          const settingsVal = state?.settings?.[cfg.settingsKey];
+          if (settingsVal && settingsVal !== '***' && settingsVal !== '') {
+            _showMaskedState(provider);
+          } else {
+            _showEditState(provider);
+          }
+        }
+      });
+    }
+
+    /* Call after bridge connects */
+    if (bridge) {
+      _loadKeyStatus();
+    } else {
+      /* Retry after bridge connects */
+      setTimeout(_loadKeyStatus, 2000);
+    }
 
     /* ── Standalone demo data (only when no bridge) ── */
     setTimeout(() => {

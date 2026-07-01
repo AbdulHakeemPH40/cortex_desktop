@@ -7,17 +7,72 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Generator
 from dataclasses import dataclass
 from enum import Enum
+import os
 from src.utils.logger import get_logger
 
 log = get_logger("provider_registry")
 
 
+def _sanitize_key(raw: str) -> str:
+    """Sanitize an API key: strip whitespace, quotes, and remove null bytes."""
+    if not raw:
+        return ""
+    return raw.replace('\x00', '').replace('\u0000', '').strip().strip("'\"")
+
+
+def load_api_key(provider_name: str, env_var: str, settings_key: str = None) -> str:
+    """
+    Load API key with 3-tier fallback:
+    1. Environment variable (highest priority)
+    2. KeyManager (encrypted file + Windows Credential Manager)
+    3. Settings.json (lowest priority)
+    
+    This ensures providers can find keys regardless of how they were stored.
+    """
+    key = ""
+    
+    # 1. Try environment variable first
+    env_val = _sanitize_key(os.environ.get(env_var, ""))
+    if env_val:
+        log.debug(f"[KeyLoad] {provider_name}: Found key in env var {env_var}")
+        return env_val
+    
+    # 2. Try KeyManager (encrypted file + OS keyring)
+    try:
+        from src.core.key_manager import get_key_manager
+        km = get_key_manager()
+        key = km.get_key(provider_name) or ""
+        if isinstance(key, bytes):
+            key = key.decode('utf-8', errors='ignore')
+        key = _sanitize_key(key)
+        if key and key != "***":  # Skip placeholder
+            log.debug(f"[KeyLoad] {provider_name}: Found key in KeyManager")
+            return key
+    except Exception as e:
+        log.debug(f"[KeyLoad] {provider_name}: KeyManager lookup failed: {e}")
+    
+    # 3. Try settings.json fallback
+    if settings_key:
+        try:
+            from src.config.settings import get_settings
+            settings = get_settings()
+            section, setting_key = settings_key.split(".", 1) if "." in settings_key else ("ai", settings_key)
+            settings_val = _sanitize_key(str(settings.get(section, setting_key, default="")))
+            if settings_val and settings_val != "***":  # Skip placeholder
+                log.debug(f"[KeyLoad] {provider_name}: Found key in settings.json")
+                return settings_val
+        except Exception as e:
+            log.debug(f"[KeyLoad] {provider_name}: Settings lookup failed: {e}")
+    
+    return ""
+
+
 class ProviderType(Enum):
     """Supported LLM providers."""
-    MISTRAL = "mistral"        # Mistral — OCR/vision (backend, subscription)
-    SILICONFLOW = "siliconflow"  # Embeddings (backend, subscription)
-    DEEPSEEK = "deepseek"      # DeepSeek V4 — LLM chat (subscription + BYOK)
-    MIMO = "mimo"              # Xiaomi MiMo — LLM chat (subscription + BYOK)
+    MISTRAL = "mistral"        # Mistral — OCR/vision (subscription service)
+    SILICONFLOW = "siliconflow"  # Embeddings (subscription service)
+    DEEPSEEK = "deepseek"      # DeepSeek V4 — LLM chat (BYOK)
+    MIMO = "mimo"              # Xiaomi MiMo — LLM chat (BYOK)
     OPENAI = "openai"          # OpenAI — GPT-5.x (BYOK)
     OPENROUTER = "openrouter"  # OpenRouter — 300+ models (BYOK)
     ALIBABA = "alibaba"        # Alibaba DashScope — Qwen family (BYOK)
@@ -104,27 +159,32 @@ class BaseProvider(ABC):
             pass
 
     def _load_api_key(self):
-        """Load API key from KeyManager ONLY (Windows Credential Manager - encrypted)."""
+        """Load API key with 3-tier fallback: env var → KeyManager → settings.json."""
         import os
         sources = self._KEY_SOURCES.get(self.provider_type)
         if not sources:
             return
         env_var, km_name = sources
-
-        # Try KeyManager (Windows Credential Manager - encrypted storage)
-        try:
-            from src.core.key_manager import KeyManager
-            km = KeyManager()
-            key = km.get_key(km_name)
-            if key:
-                self._api_key = key
-                log.debug(f"[{self.provider_type.value}] Loaded API key from KeyManager")
-                return
-        except Exception as e:
-            log.debug(f"[{self.provider_type.value}] KeyManager unavailable: {e}")
-
-        # NO .env fallback - keys must be stored in Windows Credential Manager
-        log.debug(f"[{self.provider_type.value}] No API key found. Add key in Settings → Models & Providers")
+        
+        # Map provider type to settings key
+        settings_key_map = {
+            ProviderType.OPENAI: "ai.openai_key",
+            ProviderType.DEEPSEEK: "ai.deepseek_key",
+            ProviderType.MISTRAL: "ai.mistral_key",
+            ProviderType.MIMO: "ai.mimo_key",
+            ProviderType.OPENROUTER: "ai.openrouter_key",
+            ProviderType.ALIBABA: "ai.alibaba_key",
+            ProviderType.SILICONFLOW: "ai.siliconflow_key",
+        }
+        settings_key = settings_key_map.get(self.provider_type)
+        
+        # Use the unified load_api_key function
+        key = load_api_key(km_name, env_var, settings_key)
+        if key:
+            self._api_key = key
+            log.debug(f"[{self.provider_type.value}] Loaded API key")
+        else:
+            log.debug(f"[{self.provider_type.value}] No API key found. Add key in Settings → Models & Providers")
 
     @property
     @abstractmethod
