@@ -134,14 +134,21 @@ class XTermWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Header - PowerShell only
+        # Header - Shell label from settings
         self._header = QWidget()
-        self._header.setFixedHeight(35)
+        self._header.setFixedHeight(32)
         hlay = QHBoxLayout(self._header)
-        hlay.setContentsMargins(10, 0, 8, 0)
-        
-        # PowerShell label only (no dropdown)
-        self._shell_label = QLabel("PowerShell")
+        hlay.setContentsMargins(8, 4, 8, 4)
+
+        # Shell label from settings
+        try:
+            from src.config.settings import get_settings
+            _s = get_settings()
+            _shell_name = _s.get("terminal", "default_shell", default="powershell")
+            _shell_display = _shell_name.capitalize()
+        except Exception:
+            _shell_display = "PowerShell"
+        self._shell_label = QLabel(_shell_display)
         self._shell_label.setStyleSheet("color: #0078d4; font-weight: 600;")
         hlay.addWidget(self._shell_label)
         
@@ -369,6 +376,31 @@ class XTermWidget(QWidget):
         self._path_thread.resolved.connect(self._on_path_resolved)
         self._path_thread.start()
         
+    def _get_shell_command(self) -> str:
+        """Get shell command from settings."""
+        try:
+            from src.config.settings import get_settings
+            settings = get_settings()
+            shell = settings.get("terminal", "default_shell", default="powershell")
+            args = settings.get("terminal", "shell_args", default="-NoLogo")
+            
+            if shell == "powershell":
+                cmd = "powershell.exe"
+            elif shell == "cmd":
+                cmd = "cmd.exe"
+            elif shell == "bash":
+                cmd = "bash.exe"
+            elif shell == "wsl":
+                cmd = "wsl.exe"
+            else:
+                cmd = "powershell.exe"
+            
+            if args:
+                cmd += f" {args}"
+            return cmd
+        except Exception:
+            return "powershell.exe -NoLogo"
+        
     def _on_path_resolved(self, resolved_path: str):
         self._write_to_terminal("\x1bc") # xterm.js reset sequence (clears screen)
         
@@ -381,7 +413,7 @@ class XTermWidget(QWidget):
             # --- START WINPTY (REAL TERMINAL) ---
             try:
                 # Console hiding is handled by runtime_hook_noconsole.py
-                cmd = "powershell.exe -NoLogo"
+                cmd = self._get_shell_command()
                             
                 self._pty_process = winpty.PtyProcess.spawn(
                     cmd,
@@ -498,8 +530,12 @@ class XTermWidget(QWidget):
             self._process.readyReadStandardError.connect(self._on_stderr)
             self._process.finished.connect(self._on_process_finished)
             
-            # Always use PowerShell
-            self._process.start("powershell.exe", ["-NoLogo"])
+            # Start shell from settings
+            shell_cmd = self._get_shell_command()
+            parts = shell_cmd.split()
+            shell = parts[0] if parts else "powershell.exe"
+            args = parts[1:] if len(parts) > 1 else ["-NoLogo"]
+            self._process.start(shell, args)
                          
             # OPTIMIZATION: Adaptive render timer — starts at 30ms, slows when idle
             self._render_interval = 30

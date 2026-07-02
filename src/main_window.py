@@ -1582,7 +1582,8 @@ class CortexMainWindow(QMainWindow):
         sb.addWidget(lsp_lbl)
 
         # ── Version ──
-        version_lbl = QLabel("  Cortex AI Agent v0.0.2 ")
+        _app_version = QApplication.instance().applicationVersion() or "0.0.1"
+        version_lbl = QLabel(f"  Cortex AI Agent v{_app_version} ")
         version_lbl.setStyleSheet("color: #6272a4; font-size: 11px;")
         sb.addPermanentWidget(version_lbl)
 
@@ -2053,6 +2054,13 @@ class CortexMainWindow(QMainWindow):
         """
         try:
             filepath = os.path.normpath(filepath)
+            
+            # Auto-commit if enabled
+            if hasattr(self, '_git_manager') and self._git_manager:
+                try:
+                    self._git_manager.auto_commit_file(filepath, "modified")
+                except Exception:
+                    pass  # Non-critical
             # Invalidate file_manager cache so stale content is not returned
             try:
                 resolved = str(Path(filepath).resolve())
@@ -2104,6 +2112,18 @@ class CortexMainWindow(QMainWindow):
         ONLY refreshes files that are ALREADY open in the editor.
         Does NOT create new tabs for files the user didn't open.
         """
+        try:
+            filepath = os.path.normpath(filepath)
+            
+            # Auto-commit if enabled
+            if hasattr(self, '_git_manager') and self._git_manager:
+                try:
+                    self._git_manager.auto_commit_file(filepath, "created")
+                except Exception:
+                    pass  # Non-critical
+        except Exception:
+            pass
+        
         # Only touch the editor if the file is ALREADY open.
         _is_open = filepath in self._webview_panel._open_files if hasattr(self, '_webview_panel') else False
         if not _is_open:
@@ -4938,6 +4958,12 @@ class CortexMainWindow(QMainWindow):
         for p in (paths or []):
             try:
                 self.close_editor_tabs_for_path(p)
+                # Auto-commit deletion if enabled
+                if hasattr(self, '_git_manager') and self._git_manager:
+                    try:
+                        self._git_manager.auto_commit_file(p, "deleted")
+                    except Exception:
+                        pass
             except Exception as e:
                 log.warning(f"[AGENT] Failed to close tab for deleted file {p}: {e}")
     
@@ -6115,12 +6141,13 @@ class CortexMainWindow(QMainWindow):
         return self._codebase_index
 
     def _show_about(self):
+        _app_version = QApplication.instance().applicationVersion() or "0.0.1"
         QMessageBox.about(self, "About Cortex AI Agent",
                           "<h2>🧠 Cortex AI Agent</h2>"
                           "<p>A modern AI-powered IDE built with Python and PyQt6.</p>"
                           "<p>Features: Multi-file editor · Syntax highlighting · "
                           "AI chat · File explorer · Terminal</p>"
-                          "<p><b>Version:</b> 1.0.6</p>")
+                          f"<p><b>Version:</b> {_app_version}</p>")
 
     def _open_documentation(self):
         """Open Cortex documentation in browser."""

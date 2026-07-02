@@ -56,6 +56,26 @@ class GitManager(QObject):
         super().__init__(parent)
         self._repo_path: Optional[str] = None
         self._available = self._check_git_available()
+        self._auto_commit_enabled = False
+        self._commit_prefix = "[cortex-ai]"
+        self._default_branch = "main"
+        self._load_settings()
+    
+    def _load_settings(self):
+        """Load Git settings from settings.json."""
+        try:
+            from src.config.settings import get_settings
+            settings = get_settings()
+            self._auto_commit_enabled = bool(settings.get("git", "auto_commit", default=False))
+            self._commit_prefix = str(settings.get("git", "commit_prefix", default="[cortex-ai]"))
+            self._default_branch = str(settings.get("git", "default_branch", default="main"))
+            log.info(f"[Git] Settings loaded: auto_commit={self._auto_commit_enabled}, prefix='{self._commit_prefix}', branch='{self._default_branch}'")
+        except Exception as e:
+            log.debug(f"[Git] Could not load settings: {e}")
+    
+    def reload_settings(self):
+        """Reload settings (call when user changes settings)."""
+        self._load_settings()
         
     def _check_git_available(self) -> bool:
         """Check if git is available on the system."""
@@ -209,6 +229,9 @@ class GitManager(QObject):
         
     def commit(self, message: str, amend: bool = False) -> Tuple[bool, str]:
         """Commit staged changes. Returns (success, error_message)."""
+        # Prepend commit prefix if not already present
+        if self._commit_prefix and not message.startswith(self._commit_prefix):
+            message = f"{self._commit_prefix} {message}"
         args = ["commit", "-m", message]
         if amend:
             args.append("--amend")
@@ -220,6 +243,53 @@ class GitManager(QObject):
             error_msg = stderr.strip() or stdout.strip() or "Unknown error"
             log.error(f"Git commit failed: {error_msg}")
             return False, error_msg
+    
+    def auto_commit_file(self, file_path: str, action: str = "modified") -> Tuple[bool, str]:
+        """Auto-commit a single file change made by the AI agent.
+        
+        Args:
+            file_path: Path to the changed file
+            action: Description of the action (created, modified, deleted)
+        
+        Returns:
+            (success, error_message)
+        """
+        # Reload settings to pick up any changes made in the UI
+        self._load_settings()
+        
+        if not self._auto_commit_enabled:
+            return False, "Auto-commit disabled"
+        
+        if not self._repo_path:
+            return False, "No repository set"
+        
+        try:
+            # Stage the file
+            if action == "deleted":
+                success, _, stderr = self._run_git(["rm", "--cached", file_path])
+            else:
+                success, _, stderr = self._run_git(["add", file_path])
+            
+            if not success:
+                log.warning(f"[Git] Failed to stage {file_path}: {stderr}")
+                return False, f"Failed to stage: {stderr}"
+            
+            # Build commit message
+            filename = os.path.basename(file_path)
+            message = f"{action} {filename}"
+            
+            # Commit
+            success, error = self.commit(message)
+            if success:
+                log.info(f"[Git] Auto-committed: {message}")
+            return success, error
+        except Exception as e:
+            log.error(f"[Git] Auto-commit failed: {e}")
+            return False, str(e)
+    
+    def get_default_branch(self) -> str:
+        """Get the configured default branch name."""
+        return self._default_branch
         
     def get_commits(self, count: int = 20) -> List[GitCommit]:
         """Get recent commits."""

@@ -993,8 +993,213 @@ kbd {
 }
 
 .memory-list {
-    display: grid;
-    gap: 8px
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+}
+
+/* Memory card styling */
+.memory-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.memory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.memory-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.memory-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.memory-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+}
+
+.memory-type {
+    background: var(--surface-3);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.memory-file {
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.memory-age {
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.memory-keywords {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.memory-keyword {
+    background: var(--surface-3);
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
+.memory-delete-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* Memory content rendering */
+.memory-content {
+    font-family: var(--font-ui);
+    color: var(--muted);
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.memory-show-more {
+    color: var(--accent);
+    cursor: pointer;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Markdown rendering styles */
+.memory-content h2,
+.memory-content h3,
+.memory-content h4 {
+    color: var(--text);
+    margin: 10px 0 6px;
+    font-weight: 600;
+}
+
+.memory-content h2 {
+    font-size: 15px;
+}
+
+.memory-content h3 {
+    font-size: 14px;
+}
+
+.memory-content h4 {
+    font-size: 13px;
+}
+
+.memory-content p {
+    margin: 6px 0;
+    line-height: 1.6;
+}
+
+.memory-content ul,
+.memory-content ol {
+    margin: 6px 0;
+    padding-left: 20px;
+}
+
+.memory-content li {
+    margin: 3px 0;
+    line-height: 1.5;
+}
+
+.memory-content code {
+    background: var(--surface-2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+}
+
+.memory-content pre {
+    background: var(--surface-2);
+    padding: 10px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 8px 0;
+    border: 1px solid var(--border);
+    max-width: 100%;
+}
+
+.memory-content pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.memory-content a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.memory-content a:hover {
+    text-decoration: underline;
+}
+
+.memory-content strong {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.memory-content em {
+    font-style: italic;
+}
+
+.memory-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 10px 0;
+}
+
+.memory-content blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    margin: 8px 0;
+    color: var(--muted);
+    font-style: italic;
 }
 
 /* Empty states */

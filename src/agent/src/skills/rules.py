@@ -134,10 +134,10 @@ def _parse_frontmatter_block(text: str) -> Optional[Dict[str, Any]]:
 def determine_scope(file_path: str) -> str:
     """Determine rule scope based on file path location."""
     norm = os.path.normpath(file_path).lower()
-    glance_dir = os.path.join('.opencode', 'agent').lower()
+    cortex_rules_dir = os.path.join('.cortex', 'rules').lower()
     if norm.endswith('agents.md'):
         return 'global'
-    if glance_dir in norm:
+    if cortex_rules_dir in norm:
         return 'project'
     return 'global'
 
@@ -280,12 +280,12 @@ class RulesManager:
             self.load_agents_file(global_agents)
             logger.info(f"Loaded global rules from {global_agents}")
 
-        # 2. Project-level .opencode/agent/ rules
+        # 2. Project-level .cortex/rules/ directory
         if self.project_root:
-            opencode_agent_dir = os.path.join(self.project_root, '.opencode', 'agent')
-            if os.path.isdir(opencode_agent_dir):
-                self.load_rules_directory(opencode_agent_dir)
-                logger.info(f"Loaded project rules from {opencode_agent_dir}")
+            cortex_rules_dir = os.path.join(self.project_root, '.cortex', 'rules')
+            if os.path.isdir(cortex_rules_dir):
+                self.load_rules_directory(cortex_rules_dir)
+                logger.info(f"Loaded project rules from {cortex_rules_dir}")
 
             # 3. Project .cortex/AGENTS.md
             project_agents = os.path.join(self.project_root, '.cortex', 'AGENTS.md')

@@ -7,6 +7,39 @@
   let uiState = { query: "", type: "all", isSearchMode: false, searchQuery: "" };
   const $ = (id) => document.getElementById(id);
 
+  /* ═══════ Simple Markdown Renderer ═══════ */
+  function renderMarkdown(text) {
+    if (!text) return '';
+    var html = text;
+    // Escape HTML first
+    html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Code blocks (```)
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="md-code-block"><code>$2</code></pre>');
+    // Inline code (`)
+    html = html.replace(/`([^`]+)`/g, '<code class="md-inline-code">$1</code>');
+    // Headers
+    html = html.replace(/^### (.+)$/gm, '<h4 class="md-h4">$1</h4>');
+    html = html.replace(/^## (.+)$/gm, '<h3 class="md-h3">$1</h3>');
+    html = html.replace(/^# (.+)$/gm, '<h2 class="md-h2">$1</h2>');
+    // Bold
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // Unordered lists
+    html = html.replace(/^- (.+)$/gm, '<li class="md-li">$1</li>');
+    // Wrap consecutive li elements in ul
+    html = html.replace(/((?:<li class="md-li">.*<\/li>\s*)+)/g, '<ul class="md-ul">$1</ul>');
+    // Ordered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li class="md-li">$1</li>');
+    // Links
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="md-link">$1</a>');
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr class="md-hr">');
+    // Line breaks
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
   /* ═══════════════════════════════════════════════════════════════
      SETTINGS MAP — HTML control ID → Python settings dotted path
      Maps every <input/select/textarea/toggle> ID in the HTML to
@@ -69,10 +102,7 @@
     cursorStyle: "terminal.cursor_style",
     copyOnSelect: "terminal.copy_on_select",
 
-    /* Performance */
-    gpuAccel: "performance.gpu_accel",
-    limitBackground: "performance.limit_background",
-    watcherDebounce: "performance.watcher_debounce",
+    /* Network */
     requestTimeout: "ai.request_timeout",
     proxy: "network.proxy",
   };
@@ -102,6 +132,13 @@
     const nav = document.querySelector('.nav-item[data-section="' + id + '"]');
     if (sec) sec.classList.add("active");
     if (nav) nav.classList.add("active");
+    // Fetch version when About section is shown
+    if (id === 'about' && bridge) {
+      callBridge(["getVersion"], []).then(v => {
+        const el = $("appVersion");
+        if (el && v) el.textContent = "Version " + v;
+      }).catch(() => {});
+    }
   }
 
   /* ═══════ Upgrade Modal ═══════ */
@@ -193,19 +230,41 @@
   function renderMemoryList() {
     const scope = state.scopes[state.activeScope]; if (!scope) return;
     const list = $("listView"), empty = $("emptyState"), memories = scope.memories || [];
+    console.log('[Memory] renderMemoryList: scope=' + state.activeScope + ', count=' + memories.length);
+    if (memories.length > 0) {
+      console.log('[Memory] First memory:', JSON.stringify(memories[0]).substring(0, 200));
+    }
     let filtered = memories;
-    if (uiState.query) { const q = uiState.query.toLowerCase(); filtered = filtered.filter(m => (m.title || "").toLowerCase().includes(q) || (m.content || "").toLowerCase().includes(q) || (m.source_file || "").toLowerCase().includes(q)); }
+    if (uiState.query) { const q = uiState.query.toLowerCase(); filtered = filtered.filter(m => (m.title || m.name || "").toLowerCase().includes(q) || (m.content || m.body || "").toLowerCase().includes(q) || (m.source_file || m.filename || "").toLowerCase().includes(q)); }
     $("countLabel").textContent = filtered.length + " memor" + (filtered.length === 1 ? "y" : "ies");
     if (filtered.length === 0) { list.innerHTML = ""; if (empty) empty.classList.remove("hidden"); return; }
     if (empty) empty.classList.add("hidden");
     list.innerHTML = filtered.map((m, i) => {
-      const type = m.type || "general", age = m.created_at ? timeAgo(m.created_at) : "";
+      const title = m.title || m.name || "Untitled";
+      const content = m.content || m.body || "";
+      const type = m.type || "general";
+      const sourceFile = m.source_file || m.filename || "";
+      const age = m.created_at ? timeAgo(m.created_at) : (m.age || "");
       const sim = m._similarity != null ? '<span style="display:inline-block;background:linear-gradient(135deg,var(--accent-2),var(--accent));color:#0e1116;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:6px;">' + Math.round(m._similarity * 100) + '%</span>' : "";
-      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 18px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;"><div><div style="font-weight:600;font-size:14px;">' + sim + esc(m.title || "Untitled") + '</div>' +
-        '<div style="font-size:12px;color:var(--muted);margin-top:3px;"><span style="background:var(--surface-3);padding:2px 8px;border-radius:999px;font-size:11px;">' + esc(type) + '</span>' + (m.source_file ? " · " + esc(m.source_file.split(/[\\\/]/).pop()) : "") + (age ? " · " + age : "") + '</div></div>' +
-        '<button class="setting-btn danger-btn" style="padding:4px 10px;font-size:11px;" onclick="window._deleteMemory(' + i + ')">Delete</button></div>' +
-        '<div style="margin-top:10px;font-size:13px;color:var(--muted);line-height:1.5;white-space:pre-wrap;">' + esc((m.content || "").slice(0, 300)) + ((m.content || "").length > 300 ? "…" : "") + '</div></div>';
+      const keywords = (m.keywords || []).slice(0, 3).map(k => '<span class="memory-keyword">' + esc(k) + '</span>').join("");
+      // Render markdown content as HTML instead of raw text
+      const renderedContent = renderMarkdown(content.slice(0, 2000));
+      const hasMore = content.length > 2000;
+      return `<div class="memory-card">
+        <div class="memory-header">
+          <div class="memory-info">
+            <div class="memory-title">${sim}${esc(title)}</div>
+            <div class="memory-meta">
+              <span class="memory-type">${esc(type)}</span>
+              ${sourceFile ? '<span class="memory-file">' + esc(sourceFile.split(/[\\\/]/).pop()) + '</span>' : ''}
+              ${age ? '<span class="memory-age">' + esc(age) + '</span>' : ''}
+            </div>
+            ${keywords ? '<div class="memory-keywords">' + keywords + '</div>' : ''}
+          </div>
+          <button class="setting-btn danger-btn memory-delete-btn" onclick="window._deleteMemory(${i})">Delete</button>
+        </div>
+        <div class="memory-content">${renderedContent}${hasMore ? '<div class="memory-show-more" onclick="this.previousElementSibling.style.maxHeight=\'none\';this.remove();">Show more...</div>' : ''}</div>
+      </div>`;
     }).join("");
   }
 
@@ -268,7 +327,8 @@
   window._deleteMemory = function (idx) {
     const scope = state.scopes[state.activeScope]; if (!scope || !scope.memories[idx]) return;
     const mem = scope.memories[idx];
-    callBridge(["deleteMemory", "delete_memory"], [state.activeScope, mem.source_file || mem.id || idx]).then(() => { scope.memories.splice(idx, 1); renderMemoryList(); showToast("Memory deleted"); }).catch(() => { scope.memories.splice(idx, 1); renderMemoryList(); });
+    const deletePath = mem.source_file || mem.filename || mem.path || mem.id || idx;
+    callBridge(["deleteMemory", "delete_memory"], [state.activeScope, deletePath]).then(() => { scope.memories.splice(idx, 1); renderMemoryList(); showToast("Memory deleted"); }).catch(() => { scope.memories.splice(idx, 1); renderMemoryList(); });
   };
 
   /* ═══════════ DOM READY ═══════════ */
@@ -325,7 +385,56 @@
     $("consolidateBtn")?.addEventListener("click", () => callBridge(["runConsolidation", "consolidate", "consolidate_memories"], [state.activeScope, true]).then(() => { showToast("Consolidation complete"); $("consolidationModal")?.classList.remove("hidden"); }).catch(() => showToast("Consolidation unavailable")));
     $("closeConsolidationModal")?.addEventListener("click", () => $("consolidationModal")?.classList.add("hidden"));
     $("closeConsolidationModalBtn")?.addEventListener("click", () => $("consolidationModal")?.classList.add("hidden"));
-    $("openRulesBtn")?.addEventListener("click", () => callBridge(["openRulesDir", "openRules", "edit_rules"], [state.activeScope]).catch(() => showToast("Rules editor unavailable")));
+    $("openRulesBtn")?.addEventListener("click", () => {
+      // Show rules setup modal with instructions
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="consolidation-modal" style="max-width:600px;">
+          <div class="modal-header">
+            <h2>Rules Setup</h2>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body" style="max-height:400px;overflow-y:auto;">
+            <p style="color:var(--muted);margin-bottom:16px;">Rules define persistent behavior for the AI agent. Create an <code>AGENTS.md</code> file in your rules directory.</p>
+            
+            <h3 style="margin:16px 0 8px;">File Locations</h3>
+            <ul style="color:var(--muted);font-size:13px;line-height:1.8;">
+              <li><code>~/.cortex/AGENTS.md</code> — Global rules (all projects)</li>
+              <li><code>.cortex/AGENTS.md</code> — Project-specific rules</li>
+              <li><code>.cortex/rules/*.md</code> — Per-project rule files</li>
+            </ul>
+            
+            <h3 style="margin:16px 0 8px;">Rule Format</h3>
+            <pre style="background:var(--surface-2);padding:12px;border-radius:8px;font-size:12px;overflow-x:auto;"><code>---
+name: coding-style
+description: Python coding conventions
+priority: 10
+scope: project
+---
+Always use type hints in Python functions.
+Use f-strings instead of .format().</code></pre>
+            
+            <h3 style="margin:16px 0 8px;">How Rules Connect</h3>
+            <p style="color:var(--muted);font-size:13px;">Rules are automatically injected into the system prompt when the agent starts. Higher priority rules appear first. Enable/disable rules via the toggle.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="setting-btn" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            <button class="setting-btn primary-btn" id="openRulesDirBtn">Open Rules Folder</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      // Handle open rules folder button
+      modal.querySelector('#openRulesDirBtn').addEventListener('click', () => {
+        callBridge(["openRulesDir", "openRules", "edit_rules"], [state.activeScope])
+          .then(() => modal.remove())
+          .catch(() => showToast("Rules editor unavailable"));
+      });
+    });
     $("syncGlobalBtn")?.addEventListener("click", () => { const root = state.scopes.project.projectRoot || ""; callBridge(["syncGlobalMemoriesToProject", "syncGlobal", "sync_global_memories"], [root, true]).then(() => showToast("Synced")).catch(() => showToast("Sync unavailable")); });
 
     /* ── Escape ── */

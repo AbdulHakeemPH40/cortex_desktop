@@ -2954,6 +2954,47 @@ They survive auto-compaction and are ALWAYS active:
 """
         if context.get("code_context"):
             prompt += f"\n## User's Selected Code\n```\n{context['code_context']}\n```\n"
+
+        # ── Custom system instructions from Settings → Personalization ──
+        try:
+            from src.config.settings import get_settings
+            _settings = get_settings()
+            _custom_instructions = _settings.get("ai", "system_instructions", default="")
+            if _custom_instructions and isinstance(_custom_instructions, str) and _custom_instructions.strip():
+                prompt += f"\n## User's Custom Instructions\n{_custom_instructions.strip()}\n"
+
+            # Inject verbosity preference
+            _verbosity = _settings.get("ai", "verbosity", default="balanced")
+            if _verbosity == "concise":
+                prompt += "\n## Response Style\nBe concise. Give short, direct answers. Skip explanations unless asked.\n"
+            elif _verbosity == "detailed":
+                prompt += "\n## Response Style\nBe thorough. Explain your reasoning, include context, and provide examples.\n"
+
+            # Inject code style preference
+            _code_style = _settings.get("ai", "code_style", default="standard")
+            if _code_style and _code_style != "standard":
+                prompt += f"\n## Code Style\nFollow {_code_style} coding conventions and formatting style.\n"
+
+            # Privacy mode — instruct agent to never share code externally
+            _privacy_mode = _settings.get("safety", "privacy_mode", default=True)
+            if _privacy_mode:
+                prompt += "\n## Privacy Mode\nYour code is never stored or used for training by any provider. Do not share code content with external services unless explicitly requested.\n"
+
+            # Local-only mode — restrict to local models
+            _local_only = _settings.get("safety", "local_only", default=False)
+            if _local_only:
+                prompt += "\n## Local-Only Mode\nUse only local models. No data should leave the machine. Do not call cloud-based APIs.\n"
+        except Exception:
+            pass  # Non-critical
+
+        # ── Inject rules + skills + project context ──
+        try:
+            _extras = get_all_system_prompt_extras()
+            if _extras:
+                prompt += "\n" + _extras + "\n"
+        except Exception:
+            pass
+
         # P0 + P7: Append persistent directives (survive compaction)
         # These contain reading protocol, banned phrases, token budget,
         # doom-loop awareness, max iterations, and tool-explanation rule.
@@ -7262,6 +7303,79 @@ They survive auto-compaction and are ALWAYS active:
             except Exception as _safety_exc:
                 log.debug(f"[SAFETY] Guard check skipped for {tool_name}: {_safety_exc}")
 
+            # ── Safety & Permissions settings check ────────────────────────
+            try:
+                from src.config.settings import get_settings
+                _s = get_settings()
+
+                # Block file creation if not allowed
+                if tool_name == "Write" and not _s.get("safety", "allow_file_create", default=True):
+                    _msg = "File creation is disabled. Enable 'Allow file creation' in Settings → Safety & Permissions."
+                    log.warning(f"[SAFETY] Blocked Write: {_msg}")
+                    try:
+                        from src.utils.notifications import notify_permission_required
+                        notify_permission_required("File creation blocked by safety settings")
+                    except Exception:
+                        pass
+                    return ToolResult(
+                        tool_id=tool_id, result=None, success=False,
+                        error=_msg
+                    )
+
+                # Block terminal commands if not allowed
+                if tool_name in ("Bash", "PowerShell") and not _s.get("safety", "allow_terminal", default=True):
+                    _msg = "Terminal commands are disabled. Enable 'Allow terminal commands' in Settings → Safety & Permissions."
+                    log.warning(f"[SAFETY] Blocked {tool_name}: {_msg}")
+                    try:
+                        from src.utils.notifications import notify_permission_required
+                        notify_permission_required("Terminal commands blocked by safety settings")
+                    except Exception:
+                        pass
+                    return ToolResult(
+                        tool_id=tool_id, result=None, success=False,
+                        error=_msg
+                    )
+
+                # Block file deletion if not allowed
+                if tool_name == "Bash" and not _s.get("safety", "allow_file_delete", default=False):
+                    # Check if the bash command contains delete operations
+                    _cmd = str(args.get("command", "")).lower()
+                    if any(kw in _cmd for kw in ("rm ", "del ", "remove", "unlink", "rmdir", "rd ")):
+                        _msg = "File deletion is disabled. Enable 'Allow file deletion' in Settings → Safety & Permissions."
+                        log.warning(f"[SAFETY] Blocked delete: {_msg}")
+                        try:
+                            from src.utils.notifications import notify_permission_required
+                            notify_permission_required("File deletion blocked by safety settings")
+                        except Exception:
+                            pass
+                        return ToolResult(
+                            tool_id=tool_id, result=None, success=False,
+                            error=_msg
+                        )
+
+                # Require approval for destructive actions
+                if _s.get("safety", "require_approval", default=True):
+                    _cmd = str(args.get("command", "")).lower()
+                    _is_destructive = any(kw in _cmd for kw in (
+                        "rm -rf", "rmdir /s", "del /f", "format ", "shutdown",
+                        "taskkill", "net stop", "sc stop", "drop table", "drop database",
+                        "truncate", "delete from",
+                    ))
+                    if _is_destructive and tool_name in ("Bash", "PowerShell"):
+                        _msg = "Destructive command detected. Approval required in Settings → Safety & Permissions."
+                        log.warning(f"[SAFETY] Blocked destructive: {_cmd[:100]}")
+                        try:
+                            from src.utils.notifications import notify_permission_required
+                            notify_permission_required("Destructive command blocked — approval required")
+                        except Exception:
+                            pass
+                        return ToolResult(
+                            tool_id=tool_id, result=None, success=False,
+                            error=_msg
+                        )
+            except Exception:
+                pass  # Non-critical — settings read failure shouldn't block tools
+
             # Track TodoWrite streaks so we can short-circuit planning loops.
             if tool_name == "TodoWrite":
                 self._todo_write_streak += 1
@@ -8889,20 +9003,29 @@ They survive auto-compaction and are ALWAYS active:
     async def _dispatch_semantic_search(self, tool_id: str, args: Dict[str, Any]) -> ToolResult:
         """Dispatch to real SementicSearchTool."""
         query = args.get("query", "")
+        log.info(f"[SemanticSearch] TRIGGERED — query='{query}', tool_id={tool_id}, args={args}")
+        
         if not query or not query.strip():
+            log.warning("[SemanticSearch] FAILED — empty query")
             return ToolResult(tool_id=tool_id, result=None, success=False,
                               error="query is required for semantic search")
 
         # ── Subscription check: semantic search is subscriber-only ──
         _has_semantic_access = False
+        _api = None
         try:
             from src.core.cortex_api import get_api_client
             _api = get_api_client()
+            _is_logged_in = _api.is_logged_in()
+            _user_info = getattr(_api, 'user_info', None)
+            _has_sub = _user_info.get("has_subscription", False) if _user_info else False
             _has_semantic_access = _api.has_subscription()
-        except Exception:
-            pass
+            log.info(f"[SemanticSearch] Subscription check — logged_in={_is_logged_in}, has_subscription={_has_sub}, access={_has_semantic_access}")
+        except Exception as e:
+            log.warning(f"[SemanticSearch] Subscription check failed: {e}")
 
         if not _has_semantic_access:
+            log.warning("[SemanticSearch] BLOCKED — no subscription, returning error")
             return ToolResult(
                 tool_id=tool_id, result=None, success=False,
                 error=(
@@ -8914,42 +9037,55 @@ They survive auto-compaction and are ALWAYS active:
 
         # ── Resolve search path ──
         _search_path = args.get("path", "")
+        log.info(f"[SemanticSearch] ACCESS GRANTED — subscription verified, starting search")
+        log.info(f"[SemanticSearch] Search path: '{_search_path}', project_root: '{self._project_root}'")
+        
         if _search_path:
             _resolved = self._resolve_project_path(_search_path)
             if _resolved is None:
+                log.warning(f"[SemanticSearch] Path '{_search_path}' is outside project root")
                 return ToolResult(tool_id=tool_id, result=None, success=False,
                                   error=f"[Scope] Path '{_search_path}' is outside the project root.")
             args["path"] = _resolved
         elif self._project_root:
             args["path"] = self._project_root
 
+        log.info(f"[SemanticSearch] Using real tool: {_REAL_SEMANTIC_SEARCH_TOOL is not None}")
         if _REAL_SEMANTIC_SEARCH_TOOL is not None:
             try:
                 real_tool = cast(Any, _REAL_SEMANTIC_SEARCH_TOOL)
+                log.info(f"[SemanticSearch] Calling real tool with args: {args}")
                 raw_any: Any = await real_tool.call(args, self._tool_ctx)
                 raw_map = cast(Dict[str, Any], raw_any) if isinstance(raw_any, dict) else {}
                 data_any = raw_map.get("data", {})
                 data = cast(Dict[str, Any], data_any) if isinstance(data_any, dict) else {}
+                
+                _num_results = data.get("numResults", 0)
+                _search_time = data.get("searchTimeMs", 0)
+                log.info(f"[SemanticSearch] SUCCESS — {_num_results} results in {_search_time}ms")
 
                 return ToolResult(tool_id=tool_id, result={
                     "query": query,
                     "results": data.get("results", []),
                     "content": data.get("content", ""),
-                    "numResults": data.get("numResults", 0),
-                    "searchTimeMs": data.get("searchTimeMs", 0),
+                    "numResults": _num_results,
+                    "searchTimeMs": _search_time,
                 })
             except Exception as exc:
                 log.warning(f"[BRIDGE] SementicSearchTool failed: {exc}")
                 return ToolResult(tool_id=tool_id, result=None, success=False, error=str(exc))
 
         # Fallback: use core SemanticSearch directly
+        log.info("[SemanticSearch] Real tool not available, using fallback core SemanticSearch")
         try:
             from src.core.semantic_search import get_semantic_searcher
             project_root = self._project_root or os.getcwd()
+            log.info(f"[SemanticSearch] Fallback — project_root='{project_root}'")
             searcher = get_semantic_searcher(project_root)
 
             import asyncio
             loop = asyncio.get_event_loop()
+            log.info(f"[SemanticSearch] Fallback — searching for '{query}'")
             results = await loop.run_in_executor(
                 None,
                 lambda: searcher.search(query=query, top_k=args.get("top_k", 10))
@@ -8969,6 +9105,7 @@ They survive auto-compaction and are ALWAYS active:
                     "content_snippet": r.content_snippet[:200],
                 })
 
+            log.info(f"[SemanticSearch] Fallback SUCCESS — {len(formatted)} results")
             return ToolResult(tool_id=tool_id, result={
                 "query": query,
                 "results": formatted,
@@ -11470,19 +11607,43 @@ They survive auto-compaction and are ALWAYS active:
             if not provider:
                 return None
             _sys = (
-                "You summarize a coding session into a concise 'what was actually done' "
-                "memory. Do NOT replay or transcribe the conversation. Capture only the "
-                "OUTCOMES and facts needed to continue later, as short bullets under these "
-                "markdown sections (omit any that don't apply):\n"
+                "You are a technical memory system for a coding IDE. Your job is to extract "
+                "MEANINGFUL knowledge from a coding session — NOT to replay the conversation.\n\n"
+                "RULES:\n"
+                "1. NEVER include greetings, chit-chat, or trivial messages like 'hi', 'hello', 'ok'\n"
+                "2. Focus on WHAT WAS LEARNED and WHAT WAS ACCOMPLISHED\n"
+                "3. Capture architecture decisions, bug root causes, and technical insights\n"
+                "4. Include specific file paths, function names, and technical details\n"
+                "5. Skip any message that doesn't contain actionable technical information\n\n"
+                "Format as markdown under these sections (omit empty ones):\n"
                 "## What Was Done   (concrete accomplishments — features built, bugs fixed)\n"
                 "## Files Created/Modified   (names + one-line purpose)\n"
-                "## Key Decisions   (choices made and why)\n"
-                "## Open Items / Next Steps   (what's left, known issues)\n"
+                "## Key Decisions   (technical choices and why)\n"
+                "## Technical Insights   (architecture understanding, root causes found)\n"
+                "## Open Items / Next Steps   (what's left, known issues)\n\n"
                 "Be specific and factual. No greetings, no chit-chat, no message-by-message "
                 "recap, no code blocks. Keep it under 300 words."
             )
+            # Filter transcript to remove trivial messages before sending to LLM
+            _filtered_lines = []
+            _trivial = {'hi', 'hello', 'hey', 'ok', 'okay', 'yes', 'no', 'thanks',
+                        'thank you', 'good', 'great', 'nice', 'cool', 'sure', 'yep',
+                        'nope', 'right', 'correct', 'done', 'finished', 'ready'}
+            for line in transcript.split('\n'):
+                stripped = line.strip()
+                # Skip user lines that are just greetings
+                if stripped.startswith('User:') or stripped.startswith('Human:'):
+                    content = stripped.split(':', 1)[1].strip() if ':' in stripped else ''
+                    if content.lower().strip('!?. ') in _trivial:
+                        continue
+                    if len(content) < 10:
+                        continue
+                _filtered_lines.append(line)
+            _filtered_transcript = '\n'.join(_filtered_lines)
+            if not _filtered_transcript.strip():
+                return None
             _user = ("Summarize ONLY what was accomplished in this session (not the dialogue):\n\n"
-                     + transcript[:24000])
+                     + _filtered_transcript[:24000])
             resp = provider.chat(
                 [_PCM(role='system', content=_sys), _PCM(role='user', content=_user)],
                 model=model, temperature=0.2, max_tokens=1200, stream=False,
@@ -11497,7 +11658,7 @@ They survive auto-compaction and are ALWAYS active:
 
     def _build_brief_done_summary(self, messages: List[Any]) -> str:
         """Fallback 'what was done' summary (used if the LLM call is unavailable).
-        Built from todos + files touched — NOT a verbatim conversation dump."""
+        Built from todos + files touched + meaningful conversation analysis — NOT a verbatim dump."""
         lines: List[str] = []
         try:
             _mod = self._tool_ctx.get_recent_modified_files(15)
@@ -11518,12 +11679,34 @@ They survive auto-compaction and are ALWAYS active:
             lines.append("\n## Open Items / Next Steps")
             lines += [f"- {p}" for p in _pending if p]
         if not lines:
-            # Last resort: the latest user request only.
-            for m in reversed(messages):
-                if getattr(m, 'role', None) == 'user' and (getattr(m, 'content', '') or '').strip():
-                    lines.append("## What Was Done")
-                    lines.append(f"- Worked on: {(m.content or '')[:200]}")
-                    break
+            # Extract meaningful user requests — skip trivial greetings/filler
+            _trivial = {'hi', 'hello', 'hey', 'ok', 'okay', 'yes', 'no', 'thanks',
+                        'thank you', 'good', 'great', 'nice', 'cool', 'sure', 'yep',
+                        'nope', 'right', 'correct', 'done', 'finished', 'ready'}
+            _meaningful_requests = []
+            for m in messages:
+                if getattr(m, 'role', None) == 'user':
+                    content = (getattr(m, 'content', '') or '').strip()
+                    if not content:
+                        continue
+                    # Skip trivial greetings/filler
+                    if content.lower().strip('!?. ') in _trivial:
+                        continue
+                    # Skip very short messages (< 10 chars) that are likely just acknowledgments
+                    if len(content) < 10:
+                        continue
+                    # Skip messages that are just questions about the AI itself
+                    if content.lower().startswith(('who are you', 'what are you', 'how are you')):
+                        continue
+                    _meaningful_requests.append(content[:200])
+            if _meaningful_requests:
+                lines.append("## What Was Done")
+                # Take the last 3 meaningful requests (most recent context)
+                for req in _meaningful_requests[-3:]:
+                    lines.append(f"- Worked on: {req}")
+            else:
+                # Truly empty conversation — don't save anything meaningful
+                return "- (no significant actions recorded)"
         return "\n".join(lines) if lines else "- (no significant actions recorded)"
 
     def _auto_save_to_memory_light(self) -> None:
@@ -11546,6 +11729,15 @@ They survive auto-compaction and are ALWAYS active:
                 "",
             ):
                 return
+            # Additional check: skip if summary is just trivial user messages
+            _summary_lower = _summary.lower().strip()
+            if _summary_lower.startswith('- worked on: hi') or \
+               _summary_lower.startswith('- worked on: hello') or \
+               _summary_lower.startswith('- worked on: hey') or \
+               _summary_lower.startswith('- worked on: ok') or \
+               len(_summary_lower) < 30:
+                log.debug(f"[AutoSave] Skipping trivial summary: {_summary[:50]}")
+                return
             self._write_memory_summary(_summary)
             log.info("[AutoSave] MEMORY.md updated after turn (lightweight)")
         except Exception as e:
@@ -11561,6 +11753,21 @@ They survive auto-compaction and are ALWAYS active:
         from datetime import datetime as _dt
         path = self._get_memory_md_path()
         try:
+            # Skip saving trivial summaries that don't add value
+            _summary_lower = summary.lower().strip()
+            _trivial_patterns = [
+                '- (no significant actions recorded)',
+                'worked on: hi',
+                'worked on: hello',
+                'worked on: hey',
+                'worked on: ok',
+                'worked on: okay',
+                'worked on: thanks',
+                'worked on: thank you',
+            ]
+            if any(_summary_lower.startswith(p) for p in _trivial_patterns):
+                log.debug(f"[Memory] Skipping trivial summary: {summary[:50]}")
+                return
             existing_sections: List[str] = []
             preserved_pointers: List[str] = []
             if os.path.exists(path):

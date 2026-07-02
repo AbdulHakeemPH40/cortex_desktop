@@ -332,7 +332,7 @@ def get_logger(name: str = "cortex") -> logging.Logger:
             maxBytes=10*1024*1024,  # 10MB max per hourly log
             encoding='utf-8'
         )
-        file_handler.setLevel(logging.ERROR)  # ERROR only — reduce log noise
+        file_handler.setLevel(logging.INFO)  # INFO and above — needed for semantic search debug
         file_handler.setFormatter(
             logging.Formatter(
                 "[%(asctime)s] %(levelname)s %(name)s: %(message)s",

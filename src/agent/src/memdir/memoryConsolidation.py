@@ -521,7 +521,7 @@ def consolidate_project_memories(project_root: str, auto_merge: bool = False) ->
     Returns:
         Consolidation report
     """
-    memory_dir = os.path.join(project_root, ".cortex", "memories")
+    memory_dir = os.path.join(project_root, ".cortex", "memory")
     
     if not os.path.exists(memory_dir):
         log.warning(f"[Consolidation] Memory directory not found: {memory_dir}")

@@ -1,6 +1,6 @@
 # Cortex Desktop — Project Index
 
-_Regenerated: 2026-07-01_
+_Regenerated: 2026-07-02_
 
 ## Overview
 
@@ -12,16 +12,20 @@ _Regenerated: 2026-07-01_
 
 | Metric | Value |
 |--------|-------|
-| Python files | 572 (excl. `node_modules/venv/build/dist`) |
+| Python files | 563 (excl. `node_modules/venv/build/dist`) |
 | HTML files | 126 |
 | CSS files | 102 |
 | JS files | 7 (excl. `node_modules`) |
-| Agent tools | 24 |
+| Total source files | 581 (py/html/css/js/qss/json in `src/`) |
+| Total Python lines | ~145,354 |
+| Total HTML/CSS/JS lines | ~17,081 |
+| Agent tool files | 105 `.py` files in `src/agent/src/tools/` |
 | LLM providers | 7 (OpenAI, DeepSeek, Mistral, Alibaba, MiMo, OpenRouter, SiliconFlow) |
+| Icon assets | 1,246 SVG files in `src/ui/html/icons/` |
 | Main entry | `src/main.py` (719 lines) |
-| Main window | `src/main_window.py` (6,527 lines) |
-| Agent bridge | `src/ai/agent_bridge.py` (11,365 lines) |
-| Chat panel | `src/ui/chat_panel.py` (7,301 lines) |
+| Main window | `src/main_window.py` (6,546 lines) |
+| Agent bridge | `src/ai/agent_bridge.py` (11,444 lines) |
+| Chat panel | `src/ui/chat_panel.py` (7,320 lines) |
 
 ---
 

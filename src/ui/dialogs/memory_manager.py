@@ -55,6 +55,7 @@ def _parse_frontmatter(content: str):
         if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
             value = value[1:-1]
         fm[key] = value
+    log.debug(f"[MemoryManager] Parsed frontmatter: {fm}")
     return fm, body
 
 
@@ -104,11 +105,13 @@ def _load_memories(memory_dir: str) -> List[dict]:
                 fm, body = _parse_frontmatter(raw)
                 mem_type = fm.get("type", "").strip()
                 description = fm.get("description", "").strip()
+                name = fm.get("name") or os.path.splitext(fname)[0]
+                log.debug(f"[MemoryManager] Loaded memory: name='{name}', type='{mem_type}', file='{fname}'")
                 memories.append(
                     {
                         "path": fpath,
                         "filename": os.path.relpath(fpath, memory_dir).replace("\\", "/"),
-                        "name": fm.get("name") or os.path.splitext(fname)[0],
+                        "name": name,
                         "description": description,
                         "type": mem_type,
                         "body": body,
@@ -203,6 +206,11 @@ class MemoryManagerBridge(QObject):
         return os.path.join(self._get_rules_dir(scope), "ide_rules.md")
 
     def _serialize_state(self) -> str:
+        project_memories = _load_memories(self._project_memory_dir)
+        global_memories = _load_memories(self._global_memory_dir)
+        log.info(f"[MemoryManager] Serialized state: {len(project_memories)} project memories, {len(global_memories)} global memories")
+        if project_memories:
+            log.debug(f"[MemoryManager] First project memory: name='{project_memories[0].get('name', 'N/A')}', type='{project_memories[0].get('type', 'N/A')}'")
         payload = {
             "enabled": self._enabled,
             "activeScope": self._active_scope,
@@ -212,13 +220,13 @@ class MemoryManagerBridge(QObject):
                     "projectRoot": self._project_root,
                     "memoryDir": self._project_memory_dir,
                     "rulesDir": self._project_rules_dir,
-                    "memories": _load_memories(self._project_memory_dir),
+                    "memories": project_memories,
                 },
                 "global": {
                     "name": "Global",
                     "memoryDir": self._global_memory_dir,
                     "rulesDir": self._global_rules_dir,
-                    "memories": _load_memories(self._global_memory_dir),
+                    "memories": global_memories,
                 },
             },
         }
@@ -248,6 +256,18 @@ class MemoryManagerBridge(QObject):
         return self._serialize_state()
 
     @pyqtSlot(result=str)
+    def getVersion(self):
+        """Get the application version."""
+        try:
+            from PyQt6.QtWidgets import QApplication
+            app = QApplication.instance()
+            if app:
+                return app.applicationVersion() or "0.0.1"
+        except Exception:
+            pass
+        return "0.0.1"
+
+    @pyqtSlot(result=str)
     def refresh(self):
         return self._emit_refresh()
 
@@ -272,6 +292,38 @@ class MemoryManagerBridge(QObject):
         rules_dir = self._global_rules_dir if scope == "global" else self._project_rules_dir
         try:
             os.makedirs(rules_dir, exist_ok=True)
+            
+            # Create default AGENTS.md if it doesn't exist
+            agents_file = os.path.join(rules_dir, "AGENTS.md")
+            if not os.path.exists(agents_file):
+                default_content = """---
+name: coding-style
+description: Python coding conventions for this project
+priority: 10
+scope: project
+---
+# Coding Rules
+
+## Python Style
+- Always use type hints in function signatures
+- Use f-strings instead of .format()
+- Follow PEP 8 naming conventions
+- Write docstrings for public functions
+
+## Error Handling
+- Use specific exception types, not bare except
+- Log errors with context before re-raising
+- Always clean up resources in finally blocks
+
+## Code Quality
+- Keep functions under 50 lines
+- One function = one responsibility
+- Use constants for magic numbers
+"""
+                with open(agents_file, 'w', encoding='utf-8') as f:
+                    f.write(default_content)
+                log.info(f"[MemoryManager] Created default AGENTS.md at {agents_file}")
+            
             opened = QDesktopServices.openUrl(QUrl.fromLocalFile(rules_dir))
             if not opened:
                 raise RuntimeError("Could not open rules folder in file explorer")

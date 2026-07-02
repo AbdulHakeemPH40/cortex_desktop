@@ -263,6 +263,11 @@
 
       function normalizeMermaidCode(code) {
         var normalized = (code || '').trim();
+        // FIX: Split style/class statements that are on the same line as node links
+        // e.g. "] -.-> H    style H fill:#2d5a27" → "] -.-> H\n    style H fill:#2d5a27"
+        normalized = normalized.replace(/([^\n])(\s+)(style\s+\w+\s+)/g, '$1\n$3');
+        normalized = normalized.replace(/([^\n])(\s+)(classDef\s+)/g, '$1\n$3');
+        normalized = normalized.replace(/([^\n])(\s+)(class\s+\w+)/g, '$1\n$3');
         // Convert unicode arrows to ASCII
         normalized = normalized.replace(/[ \t]*[\u27F6\u27F7\u2192\u21D2\u2794\u279C][ \t]*/g, ' --> ');
         normalized = normalized.replace(/[ \t]*\u2014>[ \t]*/g, ' --> ');

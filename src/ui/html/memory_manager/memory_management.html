@@ -51,7 +51,6 @@
         <div class="nav-group">
           <div class="nav-group-label">Advanced</div>
           <button class="nav-item" data-section="terminal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg><span>Terminal</span></button>
-          <button class="nav-item" data-section="performance"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg><span>Performance</span></button>
           <button class="nav-item" data-section="about"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg><span>About Cortex</span></button>
         </div>
       </div>
@@ -789,18 +788,17 @@
           <div>
             <h1>MCP Servers</h1>
             <p class="section-desc">Manage Model Context Protocol server connections.</p>
-          </div><button class="setting-btn" id="addMcpBtn">+ Add Server</button>
+          </div>
         </div>
-        <div class="settings-card">
-          <div class="mcp-empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.5" opacity="0.3">
+        <div class="settings-card" style="border:1px dashed rgba(100,100,100,0.4); background:rgba(255,255,255,0.02);">
+          <div class="mcp-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
               <rect x="2" y="3" width="20" height="14" rx="2" />
               <line x1="8" y1="21" x2="16" y2="21" />
               <line x1="12" y1="17" x2="12" y2="21" />
             </svg>
-            <h3>No MCP servers configured</h3>
-            <p>Add MCP servers to extend Cortex with tools like file system access, databases, and more.</p>
-            <button class="setting-btn" id="learnMcpBtn">Learn about MCP</button>
+            <h3 style="color:#888;">Coming Soon</h3>
+            <p>MCP support is planned for a future update. This will allow Cortex to connect to external tools and data sources like databases, APIs, and more.</p>
           </div>
         </div>
       </section>
@@ -840,18 +838,18 @@
           <div>
             <h1>Extensions</h1>
             <p class="section-desc">Manage installed extensions and plugins.</p>
-          </div><button class="setting-btn" id="browseExtensions">Browse Extensions</button>
+          </div>
         </div>
-        <div class="settings-card">
-          <div class="extension-empty"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="1.5" opacity="0.3">
+        <div class="settings-card" style="border:1px dashed rgba(100,100,100,0.4); background:rgba(255,255,255,0.02);">
+          <div class="extension-empty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
               <rect x="3" y="3" width="7" height="7" />
               <rect x="14" y="3" width="7" height="7" />
               <rect x="14" y="14" width="7" height="7" />
               <rect x="3" y="14" width="7" height="7" />
             </svg>
-            <h3>No extensions installed</h3>
-            <p>Extensions add new features, themes, and integrations to Cortex.</p>
+            <h3 style="color:#888;">Coming Soon</h3>
+            <p>Extensions support is planned for a future update. This will allow Cortex to be extended with new features, themes, and integrations.</p>
           </div>
         </div>
       </section>
@@ -909,55 +907,6 @@
         </div>
       </section>
 
-      <!-- PERFORMANCE -->
-      <section class="settings-section" data-section="performance">
-        <div class="section-header">
-          <div>
-            <h1>Performance</h1>
-            <p class="section-desc">Optimize Cortex's resource usage.</p>
-          </div>
-        </div>
-        <div class="settings-card">
-          <h3>Memory & CPU</h3>
-          <div class="setting-row">
-            <div class="setting-info"><label>GPU acceleration</label>
-              <p>Use hardware GPU for rendering. Disable if you experience display issues.</p>
-            </div>
-            <label class="switch"><input type="checkbox" id="gpuAccel" checked><span class="switch-slider"></span></label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info"><label>Limit background processes</label>
-              <p>Reduce CPU usage when Cortex is not the active window.</p>
-            </div>
-            <label class="switch"><input type="checkbox" id="limitBackground" checked><span class="switch-slider"></span></label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info"><label>File watcher debounce</label>
-              <p>Delay before reacting to file system changes (ms).</p>
-            </div>
-            <div class="range-control">
-              <input type="range" id="watcherDebounce" min="100" max="2000" value="500" step="100" class="setting-range"><span class="range-value" id="watcherDebounceVal">500ms</span>
-            </div>
-          </div>
-        </div>
-        <div class="settings-card">
-          <h3>Network</h3>
-          <div class="setting-row">
-            <div class="setting-info"><label>Request timeout</label>
-              <p>Maximum time to wait for AI provider responses (seconds).</p>
-            </div>
-            <div class="range-control">
-              <input type="range" id="requestTimeout" min="10" max="300" value="120" step="10" class="setting-range"><span class="range-value" id="requestTimeoutVal">120s</span>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info"><label>Proxy</label>
-              <p>HTTP proxy for API requests. Leave empty for direct connection.</p>
-            </div><input type="text" class="setting-input" id="proxy" placeholder="http://proxy:8080">
-          </div>
-        </div>
-      </section>
-
       <!-- ABOUT -->
       <section class="settings-section" data-section="about">
         <div class="section-header">
@@ -970,7 +919,7 @@
           <div class="about-logo">
             <div class="logo-glyph">C</div>
             <h2>Cortex AI Engine</h2>
-            <p class="version">Version 2.6.0</p>
+            <p class="version" id="appVersion">Version ...</p>
           </div>
           <div class="about-links"><a href="#" class="about-link">Website</a><a href="#"
               class="about-link">Documentation</a><a href="#" class="about-link">GitHub</a><a href="#"
