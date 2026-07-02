@@ -4318,7 +4318,10 @@ class CortexMainWindow(QMainWindow):
         # Initialize with current project directory if available
         if self._project_manager.root:
             term.set_cwd(str(self._project_manager.root))
-            
+
+        # Hide the per-terminal header — the tab bar provides terminal names & close buttons
+        term.hide_header()
+
         idx = self._terminal_tabs.addTab(term, f"Terminal {self._terminal_tabs.count() + 1}")
         self._terminal_tabs.setCurrentIndex(idx)
         
