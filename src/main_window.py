@@ -4370,8 +4370,20 @@ class CortexMainWindow(QMainWindow):
         # Hide the per-terminal header — the tab bar provides terminal names & close buttons
         term.hide_header()
 
-        idx = self._terminal_tabs.addTab(term, f"Terminal {self._terminal_tabs.count() + 1}")
+        # Get shell name for tab title
+        try:
+            from src.config.settings import get_settings
+            _s = get_settings()
+            _shell_name = _s.get("terminal", "default_shell", default="powershell")
+            _shell_display = _shell_name.capitalize()
+        except Exception:
+            _shell_display = "PowerShell"
+        
+        terminal_num = self._terminal_tabs.count() + 1
+        tab_title = f"{_shell_display} {terminal_num}"
+        idx = self._terminal_tabs.addTab(term, tab_title)
         self._terminal_tabs.setCurrentIndex(idx)
+        self._terminal_tabs.setTabToolTip(idx, f"{_shell_display} Terminal {terminal_num}")
         
         if show_panel:
             self._terminal_tabs.setVisible(True)
