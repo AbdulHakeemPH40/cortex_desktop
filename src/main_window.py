@@ -4529,12 +4529,15 @@ class CortexMainWindow(QMainWindow):
         sizes = splitter.sizes()
         if len(sizes) < 2:
             return
-        widget = splitter.widget(1)  # Terminal is bottom widget in vertical split
+        widget = splitter.widget(1)  # _terminal_tabs is bottom widget in vertical split
         if show:
             widget.setVisible(True)
             widget.setMinimumHeight(120)
             widget.setMaximumHeight(16777215)
             sizes[1] = self._terminal_panel_min_height
+            # Auto-create first terminal if none exist yet
+            if self._terminal_tabs.count() == 0:
+                self._new_terminal(show_panel=False)
         else:
             widget.setMinimumHeight(0)
             # Don't set MaximumHeight(0) — that locks the widget to zero and
