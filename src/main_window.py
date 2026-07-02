@@ -6079,11 +6079,10 @@ class CortexMainWindow(QMainWindow):
         for venv_name in venv_names:
             venv_path = os.path.join(project_path, venv_name)
             if os.path.exists(venv_path):
-                # Activate in integrated terminal if available
-                if hasattr(self, '_integrated_terminal') and self._integrated_terminal:
-                    term = self._integrated_terminal
-                    if hasattr(term, 'activate_virtual_env'):
-                        term.activate_virtual_env(venv_path)
+                # Activate in current terminal if available
+                term = self._current_terminal()
+                if term and hasattr(term, 'activate_virtual_env'):
+                    term.activate_virtual_env(venv_path)
 
                 self.statusBar().showMessage(f"Virtual environment: {venv_name}", 5000)
                 break
