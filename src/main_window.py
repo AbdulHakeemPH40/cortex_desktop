@@ -4567,6 +4567,9 @@ class CortexMainWindow(QMainWindow):
                 widget.setVisible(True)
                 widget.setMinimumHeight(120)
                 self._terminal_panel_hidden = False
+                # Auto-create first terminal if none exist yet
+                if self._terminal_tabs.count() == 0:
+                    self._new_terminal(show_panel=False)
         self._sync_splitter_handles(splitter)
 
     def _toggle_left_sidebar(self, show: bool = True):
