@@ -4398,8 +4398,9 @@ class CortexMainWindow(QMainWindow):
         # Hook up "New Terminal" button from within the terminal
         term.new_terminal_requested.connect(lambda: self._new_terminal(show_panel=True))
         
-       
-       
+        # Store shell name reference for later use
+        term._shell_display_name = _shell_display
+        
         # Connect file operations to AI chat
         term.file_operation_detected.connect(self._on_terminal_file_operation)
         
