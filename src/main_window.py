@@ -4345,6 +4345,63 @@ class CortexMainWindow(QMainWindow):
         
         return term
         
+    def _ensure_terminal_corner_widget(self):
+        """Add action buttons (+ New, Kill, Clear, Restart) as a corner widget on the terminal tab bar.
+        Similar to VS Code's terminal toolbar. Only created once."""
+        if self._terminal_tabs.cornerWidget() is not None:
+            return  # Already set up
+            
+        corner = QWidget()
+        corner.setStyleSheet("background: transparent;")
+        cl = QHBoxLayout(corner)
+        cl.setContentsMargins(4, 0, 4, 0)
+        cl.setSpacing(4)
+        
+        _btn_style = """
+            QPushButton { 
+                background: #2d2d2d; color: #d4d4d4; border: 1px solid #404040; 
+                border-radius: 4px; padding: 4px 8px; font-size: 11px; 
+            }
+            QPushButton:hover { background: #3d3d3d; color: #ffffff; }
+        """
+        
+        new_btn = QPushButton("+ New")
+        new_btn.setFixedHeight(24)
+        new_btn.setMinimumWidth(56)
+        new_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
+        new_btn.setStyleSheet(_btn_style)
+        new_btn.clicked.connect(lambda: self._new_terminal(show_panel=True))
+        cl.addWidget(new_btn)
+        
+        kill_btn = QPushButton("\u2715")
+        kill_btn.setFixedSize(28, 24)
+        kill_btn.setToolTip("Kill Current Terminal")
+        kill_btn.setStyleSheet(_btn_style)
+        kill_btn.clicked.connect(self._kill_current_terminal)
+        cl.addWidget(kill_btn)
+        
+        clear_btn = QPushButton("Clear")
+        clear_btn.setFixedSize(44, 24)
+        clear_btn.setToolTip("Clear Terminal")
+        clear_btn.setStyleSheet(_btn_style)
+        def _clear_current():
+            t = self._current_terminal()
+            if t: t._clear()
+        clear_btn.clicked.connect(_clear_current)
+        cl.addWidget(clear_btn)
+        
+        restart_btn = QPushButton("\u21ba")
+        restart_btn.setFixedSize(28, 24)
+        restart_btn.setToolTip("Restart Terminal")
+        restart_btn.setStyleSheet(_btn_style)
+        def _restart_current():
+            t = self._current_terminal()
+            if t: t._restart()
+        restart_btn.clicked.connect(_restart_current)
+        cl.addWidget(restart_btn)
+        
+        self._terminal_tabs.setCornerWidget(corner)
+
     def _on_terminal_file_operation(self, operation_type: str, file_path: str, status: str):
         """Handle file operations from terminal and show in AI chat."""
         # Map operation types to display format
