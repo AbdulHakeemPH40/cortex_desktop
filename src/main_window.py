@@ -4424,8 +4424,9 @@ class CortexMainWindow(QMainWindow):
         cl.setContentsMargins(8, 0, 8, 0)
         cl.setSpacing(6)
         
-        # Shell name label
+        # Shell name label - updates when terminal tab changes
         shell_label = QLabel("PowerShell")
+        shell_label.setObjectName("terminal_shell_label")
         shell_label.setStyleSheet("""
             QLabel {
                 color: #8a8a8a;
@@ -4437,6 +4438,16 @@ class CortexMainWindow(QMainWindow):
             }
         """)
         cl.addWidget(shell_label)
+        
+        # Update shell label when tab changes
+        def _update_shell_label(index):
+            term = self._terminal_tabs.widget(index)
+            if term and hasattr(term, '_shell_display_name'):
+                shell_label.setText(term._shell_display_name)
+            else:
+                shell_label.setText("PowerShell")
+        
+        self._terminal_tabs.currentChanged.connect(_update_shell_label)
         
         _btn_style = """
             QPushButton { 
