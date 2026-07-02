@@ -4400,37 +4400,77 @@ class CortexMainWindow(QMainWindow):
             return  # Already set up
             
         corner = QWidget()
-        corner.setStyleSheet("background: transparent;")
+        corner.setFixedHeight(34)  # Match tab bar height
+        corner.setStyleSheet("""
+            QWidget {
+                background: #1e1e1e;
+                border-bottom: 1px solid #3e3e42;
+            }
+        """)
         cl = QHBoxLayout(corner)
-        cl.setContentsMargins(4, 0, 4, 0)
-        cl.setSpacing(4)
+        cl.setContentsMargins(8, 0, 8, 0)
+        cl.setSpacing(6)
+        
+        # Shell name label
+        shell_label = QLabel("PowerShell")
+        shell_label.setStyleSheet("""
+            QLabel {
+                color: #8a8a8a;
+                font-size: 11px;
+                font-weight: normal;
+                padding-right: 8px;
+                border-right: 1px solid #3e3e42;
+                margin-right: 4px;
+            }
+        """)
+        cl.addWidget(shell_label)
         
         _btn_style = """
             QPushButton { 
-                background: #2d2d2d; color: #d4d4d4; border: 1px solid #404040; 
-                border-radius: 4px; padding: 4px 8px; font-size: 11px; 
+                background: #2d2d30; 
+                color: #cccccc; 
+                border: 1px solid #3e3e42; 
+                border-radius: 4px; 
+                padding: 4px 10px; 
+                font-size: 11px;
+                font-weight: normal;
             }
-            QPushButton:hover { background: #3d3d3d; color: #ffffff; }
+            QPushButton:hover { 
+                background: #3e3e42; 
+                color: #ffffff; 
+                border: 1px solid #505050;
+            }
+            QPushButton:pressed {
+                background: #1e1e1e;
+            }
         """
         
         new_btn = QPushButton("+ New")
         new_btn.setFixedHeight(24)
-        new_btn.setMinimumWidth(56)
+        new_btn.setMinimumWidth(60)
         new_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
         new_btn.setStyleSheet(_btn_style)
         new_btn.clicked.connect(lambda: self._new_terminal(show_panel=True))
         cl.addWidget(new_btn)
         
-        kill_btn = QPushButton("\u2715")
-        kill_btn.setFixedSize(28, 24)
+        kill_btn = QPushButton("Kill")
+        kill_btn.setFixedHeight(24)
+        kill_btn.setMinimumWidth(44)
         kill_btn.setToolTip("Kill Current Terminal")
-        kill_btn.setStyleSheet(_btn_style)
+        kill_btn.setStyleSheet(_btn_style + """
+            QPushButton:hover { 
+                background: #e81123; 
+                color: #ffffff; 
+            }
+        """)
         kill_btn.clicked.connect(self._kill_current_terminal)
         cl.addWidget(kill_btn)
         
         clear_btn = QPushButton("Clear")
-        clear_btn.setFixedSize(44, 24)
+        clear_btn.setFixedHeight(24)
+        clear_btn.setMinimumWidth(48)
         clear_btn.setToolTip("Clear Terminal")
+        clear_btn.setStyleSheet(_btn_style)
         clear_btn.setStyleSheet(_btn_style)
         def _clear_current():
             t = self._current_terminal()
