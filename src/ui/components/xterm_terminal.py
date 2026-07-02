@@ -134,13 +134,20 @@ class XTermWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Header - Shell label from settings
+        # Header - Terminal tab selector (always visible)
         self._header = QWidget()
         self._header.setFixedHeight(32)
         self._header.setStyleSheet("background: #1e1e1e; border-bottom: 1px solid #333;")
         hlay = QHBoxLayout(self._header)
         hlay.setContentsMargins(8, 4, 8, 4)
+        hlay.setSpacing(8)
 
+        # Terminal number counter (class-level)
+        if not hasattr(XTermWidget, '_terminal_count'):
+            XTermWidget._terminal_count = 0
+        XTermWidget._terminal_count += 1
+        self._terminal_number = XTermWidget._terminal_count
+        
         # Shell label from settings
         try:
             from src.config.settings import get_settings
@@ -149,49 +156,52 @@ class XTermWidget(QWidget):
             _shell_display = _shell_name.capitalize()
         except Exception:
             _shell_display = "PowerShell"
-        self._shell_label = QLabel(_shell_display)
-        self._shell_label.setStyleSheet("color: #0078d4; font-weight: 600;")
-        hlay.addWidget(self._shell_label)
         
-        # Terminal number counter (class-level)
-        if not hasattr(XTermWidget, '_terminal_count'):
-            XTermWidget._terminal_count = 0
-        XTermWidget._terminal_count += 1
-        self._terminal_number = XTermWidget._terminal_count
-        
-        self._title_label = QLabel(f"Terminal {self._terminal_number}")
-        self._title_label.setStyleSheet("color: #ffffff; font-size:12px; font-weight:bold; margin-left: 20px;")
-        hlay.addWidget(self._title_label)
+        # Terminal name label (always visible, white text)
+        self._terminal_name = QLabel(f"{_shell_display} {self._terminal_number}")
+        self._terminal_name.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self._terminal_name.setStyleSheet("QLabel { color: #ffffff !important; font-size: 12px; font-weight: bold; background: transparent; }")
+        hlay.addWidget(self._terminal_name)
         hlay.addStretch()
         
-        # Terminal buttons with dark styling
-        _btn_style = "QPushButton { background: #2d2d2d; color: #d4d4d4; border: 1px solid #404040; border-radius: 4px; padding: 2px 8px; font-size: 11px; } QPushButton:hover { background: #3d3d3d; }"
+        # Terminal action buttons (visible, with hover effects)
+        _btn_style = """
+            QPushButton { 
+                background: #2d2d2d; 
+                color: #d4d4d4; 
+                border: 1px solid #404040; 
+                border-radius: 4px; 
+                padding: 4px 8px; 
+                font-size: 11px; 
+            }
+            QPushButton:hover { background: #3d3d3d; color: #ffffff; }
+        """
         
         # New Terminal Button
         self._plus_btn = QPushButton("+ New")
-        self._plus_btn.setFixedHeight(22)
-        self._plus_btn.setMinimumWidth(65)
+        self._plus_btn.setFixedHeight(24)
+        self._plus_btn.setMinimumWidth(60)
         self._plus_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
         self._plus_btn.setStyleSheet(_btn_style)
         self._plus_btn.clicked.connect(self.new_terminal_requested.emit)
         hlay.addWidget(self._plus_btn)
         
         self._kill_btn = QPushButton("✕")
-        self._kill_btn.setFixedSize(30, 22)
+        self._kill_btn.setFixedSize(28, 24)
         self._kill_btn.setToolTip("Kill Process")
         self._kill_btn.setStyleSheet(_btn_style)
         self._kill_btn.clicked.connect(self._kill_process)
         hlay.addWidget(self._kill_btn)
         
         self._clear_btn = QPushButton("Clear")
-        self._clear_btn.setFixedSize(50, 22)
+        self._clear_btn.setFixedSize(44, 24)
         self._clear_btn.setToolTip("Clear terminal")
         self._clear_btn.setStyleSheet(_btn_style)
         self._clear_btn.clicked.connect(self._clear)
         hlay.addWidget(self._clear_btn)
         
         self._restart_btn = QPushButton("↺")
-        self._restart_btn.setFixedSize(30, 22)
+        self._restart_btn.setFixedSize(28, 24)
         self._restart_btn.setToolTip("Restart terminal")
         self._restart_btn.setStyleSheet(_btn_style)
         self._restart_btn.clicked.connect(self._restart)
@@ -709,6 +719,12 @@ class XTermWidget(QWidget):
             if os.path.exists(activate_script):
                 self.execute_command(f"source {activate_script}")
                 
+    def hide_header(self):
+        """Hide the per-terminal header bar. Used when terminal is inside a QTabWidget
+        where the tab bar already provides terminal names and close buttons."""
+        if hasattr(self, '_header'):
+            self._header.setVisible(False)
+
     def set_theme(self, is_dark: bool):
         self._is_dark = is_dark
         self._update_header_style()
