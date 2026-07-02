@@ -10968,10 +10968,15 @@ They survive auto-compaction and are ALWAYS active:
 
     def _handle_image_with_fallback(self, message: str, images: list, context: str):
         """Two-step image processing:
-        1. Send image to Mistral (vision) — stream extraction to user in chat
+        1. Send ALL images to Mistral (vision) — stream extraction to user in chat
         2. Then send extraction + user prompt to the selected model
+
+        Supports up to 6 images per request.
         """
         import threading
+
+        MAX_IMAGES = 6
+        images = images[:MAX_IMAGES]  # Cap at 6 images
 
         # Check Mistral access type — subscription only (server holds the API key)
         def _get_mistral_access_type():
@@ -11002,17 +11007,19 @@ They survive auto-compaction and are ALWAYS active:
 
         def _vision_thread():
             try:
-                log.info(f"[VISION] Sending image to Mistral for OCR (access_type={access_type})...")
+                img_count = len(images)
+                log.info(f"[VISION] Sending {img_count} image(s) to Mistral for OCR (access_type={access_type})...")
 
-                # ── Ensure image data has proper data URI prefix ──────
-                # Raw base64 from clipboard/inject is missing the required
-                # 'data:image/<format>;base64,' prefix that Mistral demands.
-                _img_raw = images[0] if images else ''
-                if _img_raw and not _img_raw.startswith('data:'):
-                    # Auto-detect format from base64 header (PNG=\x89PNG, JPEG=\xff\xd8, GIF=GIF8, WEBP=RIFF)
+                # ── Helper: Ensure image data has proper data URI prefix ──────
+                def _ensure_data_uri(img_raw: str) -> str:
+                    """Raw base64 from clipboard/inject is missing the required
+                    'data:image/<format>;base64,' prefix that Mistral demands."""
+                    if not img_raw or img_raw.startswith('data:'):
+                        return img_raw  # already a data URI or URL
+                    # Auto-detect format from base64 header
                     try:
                         import base64 as _b64detect
-                        _decoded_head = _b64detect.b64decode(_img_raw[:32])
+                        _decoded_head = _b64detect.b64decode(img_raw[:32])
                         if _decoded_head[:4] == b'\x89PNG':
                             _img_fmt = 'png'
                         elif _decoded_head[:2] == b'\xff\xd8':
@@ -11025,58 +11032,67 @@ They survive auto-compaction and are ALWAYS active:
                             _img_fmt = 'png'  # safe default
                     except Exception:
                         _img_fmt = 'png'
-                    _img_data_uri = f"data:image/{_img_fmt};base64,{_img_raw}"
-                    log.info(f"[VISION] Prepended data URI prefix: data:image/{_img_fmt};base64,... ({len(_img_raw)} chars)")
-                else:
-                    _img_data_uri = _img_raw  # already a data URI or URL
+                    log.info(f"[VISION] Prepended data URI prefix: data:image/{_img_fmt};base64,... ({len(img_raw)} chars)")
+                    return f"data:image/{_img_fmt};base64,{img_raw}"
 
-                vision_prompt = (
-                    "Analyze this screenshot thoroughly. Provide TWO sections:\n\n"
-                    "## TEXT CONTENT\n"
-                    "Transcribe ALL visible text exactly as shown — code, labels, "
-                    "error messages, filenames, line numbers, terminal output, etc.\n\n"
-                    "## VISUAL CONTEXT\n"
-                    "Describe what you SEE beyond the text:\n"
-                    "- UI state: which tab/file is active, what's selected/highlighted, "
-                    "cursor position, scroll position\n"
-                    "- Visual indicators: error underlines, warning icons, colored markers, "
-                    "diff highlighting (green=added, red=removed), status bar info\n"
-                    "- Layout: panel arrangement, which panels are open/collapsed, "
-                    "relative positions of elements\n"
-                    "- Behavioral clues: loading spinners, progress bars, grayed-out "
-                    "elements, focus states, hover states, tooltips visible\n"
-                    "- Anomalies: anything that looks broken, misaligned, truncated, "
-                    "overlapping, or visually wrong\n\n"
-                    "DO NOT provide solutions, fixes, or analysis. Only describe what is visible."
-                )
-                if message:
-                    vision_prompt += f"\n\nUser's question about this image: {message}"
+                # ── Process each image ──────────────────────────────────────
+                all_vision_results = []
+                for idx, img_raw in enumerate(images):
+                    img_label = f"Image {idx + 1}/{img_count}"
+                    log.info(f"[VISION] Processing {img_label}...")
 
-                vision_messages = [
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": _img_data_uri}},
-                        {"type": "text", "text": vision_prompt}
-                    ]}
-                ]
+                    _img_data_uri = _ensure_data_uri(img_raw)
 
-                # Route through Django proxy (subscription-only, server holds Mistral key)
-                from src.core.cortex_api import get_api_client
-                api = get_api_client()
-                result = api.proxy_service(
-                    "mistral_ocr",
-                    image_url=_img_data_uri,
-                    prompt=vision_prompt,
-                )
-                if result and result.get("status") == "success":
-                    vision_response = result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
-                else:
-                    vision_response = None
+                    vision_prompt = (
+                        "Analyze this screenshot thoroughly. Provide TWO sections:\n\n"
+                        "## TEXT CONTENT\n"
+                        "Transcribe ALL visible text exactly as shown — code, labels, "
+                        "error messages, filenames, line numbers, terminal output, etc.\n\n"
+                        "## VISUAL CONTEXT\n"
+                        "Describe what you SEE beyond the text:\n"
+                        "- UI state: which tab/file is active, what's selected/highlighted, "
+                        "cursor position, scroll position\n"
+                        "- Visual indicators: error underlines, warning icons, colored markers, "
+                        "diff highlighting (green=added, red=removed), status bar info\n"
+                        "- Layout: panel arrangement, which panels are open/collapsed, "
+                        "relative positions of elements\n"
+                        "- Behavioral clues: loading spinners, progress bars, grayed-out "
+                        "elements, focus states, hover states, tooltips visible\n"
+                        "- Anomalies: anything that looks broken, misaligned, truncated, "
+                        "overlapping, or visually wrong\n\n"
+                        "DO NOT provide solutions, fixes, or analysis. Only describe what is visible."
+                    )
+                    if message:
+                        vision_prompt += f"\n\nUser's question about this image: {message}"
 
-                # Handle response
-                if not vision_response:
-                    log.warning("[VISION] OCR failed or returned empty")
+                    # Route through Django proxy (subscription-only, server holds Mistral key)
+                    from src.core.cortex_api import get_api_client
+                    api = get_api_client()
+                    result = api.proxy_service(
+                        "mistral_ocr",
+                        image_url=_img_data_uri,
+                        prompt=vision_prompt,
+                    )
+
+                    if result and result.get("status") == "success":
+                        vision_response = result.get("data", {}).get("choices", [{}])[0].get("message", {}).get("content", "")
+                        if vision_response:
+                            all_vision_results.append({
+                                "index": idx + 1,
+                                "label": img_label,
+                                "response": vision_response,
+                            })
+                            log.info(f"[VISION] {img_label} OCR complete: {len(vision_response)} chars")
+                        else:
+                            log.warning(f"[VISION] {img_label} OCR returned empty")
+                    else:
+                        log.warning(f"[VISION] {img_label} OCR failed")
+
+                # ── Combine all results ─────────────────────────────────────
+                if not all_vision_results:
+                    log.warning("[VISION] All OCR attempts failed")
                     if self._current_model_supports_vision():
-                        self.response_chunk.emit("\n\n*Vision extraction failed — sending image directly to model.*\n")
+                        self.response_chunk.emit("\n\n*Vision extraction failed — sending images directly to model.*\n")
                         self.process_message(message, images=images)
                     else:
                         self.response_chunk.emit(
@@ -11086,24 +11102,34 @@ They survive auto-compaction and are ALWAYS active:
                     self.response_complete.emit("")
                     return
 
-                log.info(f"[VISION] OCR complete: {len(vision_response)} chars")
-
-                # Track OCR page usage
+                # Track OCR page usage (1 page per image processed)
                 try:
                     from src.ai.usage_tracker import get_usage_tracker
-                    get_usage_tracker().record_ocr_pages(1)
+                    get_usage_tracker().record_ocr_pages(len(all_vision_results))
                 except Exception:
                     pass
 
-                # Emit the OCR result
-                self.response_chunk.emit("**🔍 Image Recognition:**\n\n")
-                self.response_chunk.emit(vision_response)
-                self.response_chunk.emit("\n\n---\n\n**Now processing with your selected model...**\n")
+                # Emit combined OCR results
+                if img_count == 1:
+                    self.response_chunk.emit("**🔍 Image Recognition:**\n\n")
+                else:
+                    self.response_chunk.emit(f"**🔍 Image Recognition ({len(all_vision_results)}/{img_count} images):**\n\n")
 
-                # Step 2: Inject vision result as context into conversation history
+                for result in all_vision_results:
+                    if img_count > 1:
+                        self.response_chunk.emit(f"**{result['label']}:**\n")
+                    self.response_chunk.emit(result["response"])
+                    self.response_chunk.emit("\n\n")
+
+                self.response_chunk.emit("---\n\n**Now processing with your selected model...**\n")
+
+                # Step 2: Inject vision results as context into conversation history
+                combined_vision = "\n\n".join(
+                    f"[{r['label']} analysis]: {r['response']}" for r in all_vision_results
+                )
                 self.inject_vision_history(
-                    f"[Image attached by user]\n{message}",
-                    f"[Screenshot analysis — text + visual context]: {vision_response}"
+                    f"[Image(s) attached by user]\n{message}",
+                    f"[Screenshot analysis — text + visual context]: {combined_vision}"
                 )
 
                 # Step 3: Send to user's selected model with full visual context
@@ -11111,7 +11137,7 @@ They survive auto-compaction and are ALWAYS active:
                     f"{message}\n\n"
                     f"[Screenshot analysis from vision model — includes both transcribed text "
                     f"AND visual/behavioral context like UI state, highlights, errors, layout. "
-                    f"Treat this as if you can see the screenshot yourself]:\n{vision_response}"
+                    f"Treat this as if you can see the screenshots yourself]:\n{combined_vision}"
                 )
                 self.process_message(enhanced_message, images=None)
 

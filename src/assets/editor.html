@@ -1480,8 +1480,10 @@ if (typeof require !== 'undefined') {
     MONACO_LOAD_TIME = Date.now();
     clearTimeout(_monacoLoadTimeout);
     _monacoRetryCount = 0;  // reset retry counter on success
-    // Ensure editor container is visible (may have been hidden by a previous failure)
-    document.getElementById('editor-container').classList.remove('hidden');
+    // NOTE: Do NOT remove 'hidden' from editor-container here.
+    // Only show it when a file is actually opened (setEditorContent / switchToFile).
+    // Showing it on Monaco init causes the editor gutter (line "1" + cursor) to
+    // bleed through below the welcome logo when no file is open.
     // Flush diagnostics once warmup ends — ensures markers appear without user action
     setTimeout(function() {
         // LSP removed
