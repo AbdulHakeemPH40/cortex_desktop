@@ -1,4 +1,4 @@
-﻿"""
+"""
 Sidebar Bridge — PyQt6 ↔ HTML QWebChannel bridge for sidebar.html
 Exposes all sidebar functionality as @pyqtSlot methods for JavaScript calls.
 """
@@ -357,12 +357,12 @@ class SidebarBridge(QObject):
         log.info(f"[SidebarBridge] File watcher started for: {path}")
 
     def _on_directory_changed(self, path: str):
-        """Directory changed — only refresh on explicit user action (Refresh button).
-        Automatic watcher refreshes cause alignment shifts during rename/create."""
-        # Do nothing — let the user click Refresh if they want to update the tree.
-        # The AJAX functions (addTreeNode, renameTreeNode, removeTreeNode) handle
-        # individual file changes without full tree rebuild.
-        pass
+        """Directory changed — refresh git status to show updated changes."""
+        # Refresh git status when files change
+        try:
+            self.refreshGitStatus()
+        except Exception as e:
+            log.debug(f"[SidebarBridge] Git refresh on dir change failed: {e}")
 
     def _on_watcher_refresh(self):
         """Debounced file watcher refresh — sends AJAX update to sidebar."""
@@ -1462,7 +1462,15 @@ class SidebarBridge(QObject):
             self._tree_refresh_debounce = QTimer()
             self._tree_refresh_debounce.setSingleShot(True)
             self._tree_refresh_debounce.setInterval(500)
-            self._tree_refresh_debounce.timeout.connect(self.refreshFileTree)
+            self._tree_refresh_debounce.timeout.connect(self._on_debounced_tree_refresh)
         self._tree_refresh_debounce.start()
+
+    def _on_debounced_tree_refresh(self):
+        """Debounced tree refresh — also refreshes git status."""
+        self.refreshFileTree()
+        try:
+            self.refreshGitStatus()
+        except Exception as e:
+            log.debug(f"[SidebarBridge] Git refresh on tree refresh failed: {e}")
 
 
