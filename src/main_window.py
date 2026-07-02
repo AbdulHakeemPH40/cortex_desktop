@@ -1083,6 +1083,33 @@ class CortexMainWindow(QMainWindow):
                 border: none;
                 background: transparent;
             }
+            /* Dark theme for all dialogs */
+            QMessageBox, QDialog {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+            }
+            QMessageBox QLabel, QDialog QLabel {
+                color: #d4d4d4;
+            }
+            QMessageBox QPushButton, QDialog QPushButton {
+                background-color: #2d2d2d;
+                color: #d4d4d4;
+                border: 1px solid #404040;
+                padding: 6px 16px;
+                border-radius: 4px;
+                min-width: 60px;
+            }
+            QMessageBox QPushButton:hover, QDialog QPushButton:hover {
+                background-color: #3d3d3d;
+            }
+            QMessageBox QPushButton:pressed, QDialog QPushButton:pressed {
+                background-color: #228df2;
+            }
+            QTextEdit, QPlainTextEdit {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border: 1px solid #404040;
+            }
         """)
 
         # === STATE MANAGEMENT ===

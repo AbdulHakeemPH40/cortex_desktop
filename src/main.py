@@ -430,8 +430,26 @@ def main():
     
     app = QApplication(sys.argv)
     app.setApplicationName("Cortex AI Agent")
-    app.setApplicationVersion("0.0.3")
+    app.setApplicationVersion("2.6.0")
     app.setOrganizationName("Cortex")
+
+    # ── Global Dark Palette — fixes light-mode leaks in compiled .exe ──
+    from PyQt6.QtGui import QPalette, QColor
+    dark_palette = QPalette()
+    dark_palette.setColor(QPalette.ColorRole.Window, QColor("#1e1e1e"))
+    dark_palette.setColor(QPalette.ColorRole.WindowText, QColor("#d4d4d4"))
+    dark_palette.setColor(QPalette.ColorRole.Base, QColor("#1e1e1e"))
+    dark_palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#252526"))
+    dark_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#2d2d2d"))
+    dark_palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#d4d4d4"))
+    dark_palette.setColor(QPalette.ColorRole.Text, QColor("#d4d4d4"))
+    dark_palette.setColor(QPalette.ColorRole.Button, QColor("#2d2d2d"))
+    dark_palette.setColor(QPalette.ColorRole.ButtonText, QColor("#d4d4d4"))
+    dark_palette.setColor(QPalette.ColorRole.BrightText, QColor("#ffffff"))
+    dark_palette.setColor(QPalette.ColorRole.Link, QColor("#4da3ff"))
+    dark_palette.setColor(QPalette.ColorRole.Highlight, QColor("#228df2"))
+    dark_palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+    app.setPalette(dark_palette)
 
     # Set Application Icon (Taskbar/Alt+Tab)
     # Uses pre-generated taskbar_rounded.png (run generate_icons.py once to create it)

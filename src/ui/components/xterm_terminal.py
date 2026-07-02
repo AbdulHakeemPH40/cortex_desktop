@@ -137,6 +137,7 @@ class XTermWidget(QWidget):
         # Header - Shell label from settings
         self._header = QWidget()
         self._header.setFixedHeight(32)
+        self._header.setStyleSheet("background: #1e1e1e; border-bottom: 1px solid #333;")
         hlay = QHBoxLayout(self._header)
         hlay.setContentsMargins(8, 4, 8, 4)
 
@@ -152,34 +153,47 @@ class XTermWidget(QWidget):
         self._shell_label.setStyleSheet("color: #0078d4; font-weight: 600;")
         hlay.addWidget(self._shell_label)
         
-        self._title_label = QLabel("⚡ Terminal")
-        self._title_label.setStyleSheet("font-size:12px; font-weight:bold; margin-left: 20px;")
+        # Terminal number counter (class-level)
+        if not hasattr(XTermWidget, '_terminal_count'):
+            XTermWidget._terminal_count = 0
+        XTermWidget._terminal_count += 1
+        self._terminal_number = XTermWidget._terminal_count
+        
+        self._title_label = QLabel(f"Terminal {self._terminal_number}")
+        self._title_label.setStyleSheet("color: #ffffff; font-size:12px; font-weight:bold; margin-left: 20px;")
         hlay.addWidget(self._title_label)
         hlay.addStretch()
+        
+        # Terminal buttons with dark styling
+        _btn_style = "QPushButton { background: #2d2d2d; color: #d4d4d4; border: 1px solid #404040; border-radius: 4px; padding: 2px 8px; font-size: 11px; } QPushButton:hover { background: #3d3d3d; }"
         
         # New Terminal Button
         self._plus_btn = QPushButton("+ New")
         self._plus_btn.setFixedHeight(22)
         self._plus_btn.setMinimumWidth(65)
         self._plus_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
+        self._plus_btn.setStyleSheet(_btn_style)
         self._plus_btn.clicked.connect(self.new_terminal_requested.emit)
         hlay.addWidget(self._plus_btn)
         
         self._kill_btn = QPushButton("✕")
         self._kill_btn.setFixedSize(30, 22)
         self._kill_btn.setToolTip("Kill Process")
+        self._kill_btn.setStyleSheet(_btn_style)
         self._kill_btn.clicked.connect(self._kill_process)
         hlay.addWidget(self._kill_btn)
         
         self._clear_btn = QPushButton("Clear")
         self._clear_btn.setFixedSize(50, 22)
         self._clear_btn.setToolTip("Clear terminal")
+        self._clear_btn.setStyleSheet(_btn_style)
         self._clear_btn.clicked.connect(self._clear)
         hlay.addWidget(self._clear_btn)
         
         self._restart_btn = QPushButton("↺")
         self._restart_btn.setFixedSize(30, 22)
         self._restart_btn.setToolTip("Restart terminal")
+        self._restart_btn.setStyleSheet(_btn_style)
         self._restart_btn.clicked.connect(self._restart)
         hlay.addWidget(self._restart_btn)
         
@@ -187,6 +201,8 @@ class XTermWidget(QWidget):
         
         # Web View for xterm.js
         self._webview = QWebEngineView()
+        # Dark background to prevent white flash before HTML loads
+        self._webview.setStyleSheet("background: #0c0c0c;")
 
         # CAPSULE-FIX: Prevent native window spawn from terminal WebEngine
         class _TerminalPage(QWebEnginePage):
