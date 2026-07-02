@@ -4327,7 +4327,13 @@ class CortexMainWindow(QMainWindow):
         
         if show_panel:
             self._terminal_tabs.setVisible(True)
+            # If terminal panel was hidden, show it
+            if getattr(self, '_terminal_panel_hidden', False):
+                self._toggle_terminal_panel(show=True)
             term.setFocus()
+            
+        # Ensure corner widget (action buttons) is set up
+        self._ensure_terminal_corner_widget()
             
         # Hook up "New Terminal" button from within the terminal
         term.new_terminal_requested.connect(lambda: self._new_terminal(show_panel=True))
