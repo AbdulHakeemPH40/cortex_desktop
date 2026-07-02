@@ -377,7 +377,8 @@ class XTermWidget(QWidget):
             
     def _start_shell(self):
         """Resolve PATH and start the backend process."""
-        self._write_to_terminal("\r\n\x1b[90m[ Resolving terminal environment... ]\x1b[0m\r\n")
+        # NOTE: Removed "Resolving terminal environment..." message — it caused
+        # a visible flash before the terminal reset cleared it.
         
         self._path_thread = PathResolverThread(QProcessEnvironment.systemEnvironment().value("PATH", ""))
         self._path_thread.resolved.connect(self._on_path_resolved)
@@ -409,7 +410,7 @@ class XTermWidget(QWidget):
             return "powershell.exe -NoLogo"
         
     def _on_path_resolved(self, resolved_path: str):
-        self._write_to_terminal("\x1bc") # xterm.js reset sequence (clears screen)
+        # FIX: Removed RIS reset (\x1bc) — caused visible flash/blink on terminal open
         
         env = dict(os.environ)
         env["PATH"] = resolved_path

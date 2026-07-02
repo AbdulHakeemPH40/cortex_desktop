@@ -795,7 +795,11 @@ class CortexMainWindow(QMainWindow):
         self._warmup_flush_timer.start(self._warmup_duration * 1000)
         log.info("MainWindow: __init__ START")
 
-        self._kill_orphaned_chromium()
+        # NOTE: Orphaned Chromium cleanup is handled ONCE in main.py
+        # (before QApplication creation). Calling it here again caused
+        # a "double boot" delay — the IDE would pause twice during
+        # startup (3s in main.py + 0.5s here) making it appear to
+        # "try to open twice". Removed to fix the double-boot issue.
         from src.utils.startup_profiler import checkpoint as _profile
         _profile("main_window_init_start")
         log.info("MainWindow: Initializing managers...")
@@ -1158,7 +1162,12 @@ class CortexMainWindow(QMainWindow):
         self._terminal_tabs.setDocumentMode(True)
         self._terminal_tabs.setMovable(True)
         self._terminal_tabs.setVisible(False)
-        self._terminal_tabs.setMinimumHeight(120)
+        # FIX: minimum height must be 0 at build time. Setting 120 while
+        # hidden + splitter size 0 causes a layout conflict on first
+        # showMaximized() — Qt briefly allocates 120px to the terminal
+        # (stealing from editor), causing a visible window-wide flicker.
+        # _toggle_terminal_panel(show=True) sets it to 120 when actually shown.
+        self._terminal_tabs.setMinimumHeight(0)
         self._terminal_tabs.tabCloseRequested.connect(self._close_terminal_tab)
         
         # Hide the PyQt6 tab bar completely — terminal.html provides

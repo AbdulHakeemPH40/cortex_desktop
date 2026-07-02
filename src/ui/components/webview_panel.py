@@ -1,4 +1,4 @@
-﻿"""
+"""
 WebviewPanel — Monaco Editor webview panel for Cortex IDE.
 Replaces the PyQt6 QPlainTextEdit-based CodeEditor with VS Code-quality editing.
 """
@@ -605,7 +605,7 @@ class WebviewPanel(QWidget):
             self._switch_timer = QTimer(self)
             self._switch_timer.setSingleShot(True)
             self._switch_timer.timeout.connect(self._flush_pending_switch)
-            self._switch_timer.start(60)
+            self._switch_timer.start(0)  # Instant tab switching — no delay
 
     def _flush_pending_switch(self):
         """Fire the debounced switchToFile JS call for the most-recent switch_to_file target.

@@ -617,7 +617,7 @@ var SCROLL_SETTLE_MS = 800; // treat as "still scrolling" for 800ms after last e
 // events which fire LSP bridge calls — these stack up and crash Chromium.
 var isSwitchingFile = false;
 var switchStopTimer = null;
-var SWITCH_STOP_MS = 800;  // batch file switches, settle after 0.8s idle (reduced from 2s — didOpen is now immediate)
+var SWITCH_STOP_MS = 0;  // No delay — instant tab switching
 
 // ---- Content set debounce: collapse rapid model.setValue() calls ----
 // Monaco's setValue() triggers background tokenization & syntax highlighting.
@@ -1640,7 +1640,17 @@ function renderTabs() {
         div.appendChild(closeSpan);
         div.onclick = function(e) {
             if (e.target && e.target.classList.contains('close-btn')) return;
-            switchToFile(this.getAttribute('data-path'));
+            // Immediately update active tab visual state for instant feedback
+            var path = this.getAttribute('data-path');
+            document.querySelectorAll('#tab-bar .tab').forEach(function(t) {
+                t.classList.remove('active');
+                t.setAttribute('aria-selected', 'false');
+                t.setAttribute('tabindex', '-1');
+            });
+            this.classList.add('active');
+            this.setAttribute('aria-selected', 'true');
+            this.setAttribute('tabindex', '0');
+            switchToFile(path);
         };
         div.onkeydown = function(e) {
             if (e.key === 'Enter' || e.key === ' ') {
