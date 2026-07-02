@@ -1149,14 +1149,21 @@ class CortexMainWindow(QMainWindow):
         self._webview_panel.setMinimumWidth(320)
         self._editor_terminal_splitter.addWidget(self._webview_panel)
 
-        # Integrated Terminal — hidden by default (toggle via Ctrl+J or toolbar button)
-        self._integrated_terminal = XTermWidget()
-        self._integrated_terminal.setMinimumHeight(120)
-        self._editor_terminal_splitter.addWidget(self._integrated_terminal)
-        self._integrated_terminal.setVisible(False)
-        # Don't set MaximumHeight(0) — that prevents the splitter handle from being
-        # draggable. Instead, just use setVisible(False) + setSizes([500, 0]).
+        # Terminal Tab Widget — holds multiple terminal tabs, hidden by default
+        # (toggle via Ctrl+J or toolbar button; new tabs via Ctrl+Shift+`)
+        self._terminal_tabs = QTabWidget()
+        self._terminal_tabs.setTabBar(CleanTabBar(self._terminal_tabs))
+        self._terminal_tabs.setTabsClosable(True)
+        self._terminal_tabs.setDocumentMode(True)
+        self._terminal_tabs.setMovable(True)
+        self._terminal_tabs.setVisible(False)
+        self._terminal_tabs.setMinimumHeight(120)
+        self._terminal_tabs.tabCloseRequested.connect(self._close_terminal_tab)
+        self._editor_terminal_splitter.addWidget(self._terminal_tabs)
         self._editor_terminal_splitter.setSizes([500, 0])  # Terminal hidden on startup
+
+        # Keep _integrated_terminal as alias to the current terminal for backward compat
+        # (first terminal tab will be created lazily on first show)
 
         main_splitter.addWidget(self._editor_terminal_splitter)
         for idx in range(main_splitter.count()):
