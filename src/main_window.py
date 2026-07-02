@@ -1216,16 +1216,6 @@ class CortexMainWindow(QMainWindow):
         self._editor_tabs.setMinimumSize(200, 150)
         self._editor_tabs.hide()  # Hidden in Codex mode, shown in editor mode
 
-        # Terminal tabs
-        self._terminal_tabs = QTabWidget()
-        self._terminal_tabs.setTabBar(CleanTabBar(self._terminal_tabs))
-        self._terminal_tabs.setTabsClosable(True)
-        self._terminal_tabs.setDocumentMode(True)
-        self._terminal_tabs.setMovable(True)
-        self._terminal_tabs.setVisible(False)
-        self._terminal_tabs.setMinimumHeight(120)
-        self._terminal_tabs.tabCloseRequested.connect(self._close_terminal_tab)
-
         # Find/Replace Dialog
         self._find_replace_dialog = FindReplaceDialog(self)
         self._find_replace_dialog.find_requested.connect(self._on_find_requested)
