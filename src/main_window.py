@@ -1159,6 +1159,52 @@ class CortexMainWindow(QMainWindow):
         self._terminal_tabs.setVisible(False)
         self._terminal_tabs.setMinimumHeight(120)
         self._terminal_tabs.tabCloseRequested.connect(self._close_terminal_tab)
+        
+        # Style the terminal tabs with a visible header bar
+        self._terminal_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #3e3e42;
+                background: #1e1e1e;
+                top: -1px;
+            }
+            QTabWidget::tab-bar {
+                left: 0px;
+                alignment: left;
+            }
+            QTabBar::tab {
+                background: #2d2d30;
+                color: #cccccc;
+                border: 1px solid #3e3e42;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                padding: 8px 16px;
+                margin-right: 2px;
+                font-size: 12px;
+                min-width: 100px;
+            }
+            QTabBar::tab:selected {
+                background: #1e1e1e;
+                color: #ffffff;
+                border-bottom: 2px solid #007acc;
+            }
+            QTabBar::tab:hover {
+                background: #2a2d2e;
+            }
+            QTabBar::close-button {
+                image: url(close.png);
+                subcontrol-position: right;
+                subcontrol-origin: padding;
+                border: none;
+                background: transparent;
+                padding: 2px;
+            }
+            QTabBar::close-button:hover {
+                background: #e81123;
+                border-radius: 2px;
+            }
+        """)
+        
         self._editor_terminal_splitter.addWidget(self._terminal_tabs)
         self._editor_terminal_splitter.setSizes([500, 0])  # Terminal hidden on startup
 
