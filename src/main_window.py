@@ -1162,8 +1162,8 @@ class CortexMainWindow(QMainWindow):
         self._editor_terminal_splitter.addWidget(self._terminal_tabs)
         self._editor_terminal_splitter.setSizes([500, 0])  # Terminal hidden on startup
 
-        # Keep _integrated_terminal as alias to the current terminal for backward compat
-        # (first terminal tab will be created lazily on first show)
+        # Terminal tabs — first terminal is created lazily on first show
+        # Use _current_terminal() to get the active terminal widget
 
         main_splitter.addWidget(self._editor_terminal_splitter)
         for idx in range(main_splitter.count()):
