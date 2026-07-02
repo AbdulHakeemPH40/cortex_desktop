@@ -2,10 +2,9 @@ import os
 import sys
 import platform
 import shutil
-from typing import Optional, List
+from typing import Optional, List, Callable
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, 
-    QPushButton, QLabel, QComboBox
+    QWidget, QVBoxLayout
 )
 from PyQt6.QtCore import Qt, QProcess, QProcessEnvironment, pyqtSignal, QTimer, QObject, pyqtSlot, QUrl
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -31,11 +30,19 @@ class TerminalBridge(QObject):
     """Bridge object that connects JS xterm events with Python."""
     send_output = pyqtSignal(str)   # Python -> JS (write to terminal)
     update_theme = pyqtSignal(bool) # Python -> JS (update colors)
+    update_terminal_label = pyqtSignal(str)  # Python -> JS (update header label)
+    update_terminal_list = pyqtSignal(str)   # Python -> JS (JSON array of all terminals)
     
     # Signals for when JS sends data to Python
     data_received = pyqtSignal(str)
     resize_requested = pyqtSignal(int, int)
     ready_received = pyqtSignal()
+    
+    # Signals from header buttons (JS -> Python)
+    new_terminal_requested = pyqtSignal()
+    kill_terminal_requested = pyqtSignal()
+    restart_terminal_requested = pyqtSignal()
+    switch_to_terminal_requested = pyqtSignal(int)  # JS dropdown -> switch tab
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -81,6 +88,26 @@ class TerminalBridge(QObject):
             webbrowser.open(url)
         except Exception as e:
             log.error(f"Failed to open URL {url}: {e}")
+    
+    @pyqtSlot()
+    def request_new_terminal(self):
+        """Called by JS header + New button"""
+        self.new_terminal_requested.emit()
+    
+    @pyqtSlot()
+    def request_kill_terminal(self):
+        """Called by JS header Kill button"""
+        self.kill_terminal_requested.emit()
+    
+    @pyqtSlot()
+    def request_restart_terminal(self):
+        """Called by JS header Restart button"""
+        self.restart_terminal_requested.emit()
+
+    @pyqtSlot(int)
+    def switch_to_terminal(self, index):
+        """Called by JS dropdown — user selected a different terminal tab"""
+        self.switch_to_terminal_requested.emit(index)
 
 
 class XTermWidget(QWidget):
@@ -94,6 +121,8 @@ class XTermWidget(QWidget):
     terminal_line_for_chat = pyqtSignal(str)   # clean line for chat card streaming display
     file_operation_detected = pyqtSignal(str, str, str)  # operation_type, file_path, status
     new_terminal_requested = pyqtSignal()      # Request to open new terminal tab
+    switch_to_terminal_requested = pyqtSignal(int)  # User picked a terminal from dropdown
+    terminal_ready = pyqtSignal()              # Emitted when xterm.js is fully loaded and bridge is connected
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -134,80 +163,23 @@ class XTermWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         
-        # Header - Terminal tab selector (always visible)
-        self._header = QWidget()
-        self._header.setFixedHeight(32)
-        self._header.setStyleSheet("background: #1e1e1e; border-bottom: 1px solid #333;")
-        hlay = QHBoxLayout(self._header)
-        hlay.setContentsMargins(8, 4, 8, 4)
-        hlay.setSpacing(8)
-
-        # Terminal number counter (class-level)
+        # Terminal number counter (class-level) — used for naming
         if not hasattr(XTermWidget, '_terminal_count'):
             XTermWidget._terminal_count = 0
         XTermWidget._terminal_count += 1
         self._terminal_number = XTermWidget._terminal_count
-        
-        # Shell label from settings
+
+        # Shell display name (used by main_window for tab titles and HTML header)
         try:
             from src.config.settings import get_settings
             _s = get_settings()
             _shell_name = _s.get("terminal", "default_shell", default="powershell")
-            _shell_display = _shell_name.capitalize()
+            self._terminal_name_text = f"{_shell_name.capitalize()} {self._terminal_number}"
         except Exception:
-            _shell_display = "PowerShell"
-        
-        # Terminal name label (always visible, white text)
-        self._terminal_name = QLabel(f"{_shell_display} {self._terminal_number}")
-        self._terminal_name.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self._terminal_name.setStyleSheet("QLabel { color: #ffffff !important; font-size: 12px; font-weight: bold; background: transparent; }")
-        hlay.addWidget(self._terminal_name)
-        hlay.addStretch()
-        
-        # Terminal action buttons (visible, with hover effects)
-        _btn_style = """
-            QPushButton { 
-                background: #2d2d2d; 
-                color: #d4d4d4; 
-                border: 1px solid #404040; 
-                border-radius: 4px; 
-                padding: 4px 8px; 
-                font-size: 11px; 
-            }
-            QPushButton:hover { background: #3d3d3d; color: #ffffff; }
-        """
-        
-        # New Terminal Button
-        self._plus_btn = QPushButton("+ New")
-        self._plus_btn.setFixedHeight(24)
-        self._plus_btn.setMinimumWidth(60)
-        self._plus_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
-        self._plus_btn.setStyleSheet(_btn_style)
-        self._plus_btn.clicked.connect(self.new_terminal_requested.emit)
-        hlay.addWidget(self._plus_btn)
-        
-        self._kill_btn = QPushButton("✕")
-        self._kill_btn.setFixedSize(28, 24)
-        self._kill_btn.setToolTip("Kill Process")
-        self._kill_btn.setStyleSheet(_btn_style)
-        self._kill_btn.clicked.connect(self._kill_process)
-        hlay.addWidget(self._kill_btn)
-        
-        self._clear_btn = QPushButton("Clear")
-        self._clear_btn.setFixedSize(44, 24)
-        self._clear_btn.setToolTip("Clear terminal")
-        self._clear_btn.setStyleSheet(_btn_style)
-        self._clear_btn.clicked.connect(self._clear)
-        hlay.addWidget(self._clear_btn)
-        
-        self._restart_btn = QPushButton("↺")
-        self._restart_btn.setFixedSize(28, 24)
-        self._restart_btn.setToolTip("Restart terminal")
-        self._restart_btn.setStyleSheet(_btn_style)
-        self._restart_btn.clicked.connect(self._restart)
-        hlay.addWidget(self._restart_btn)
-        
-        layout.addWidget(self._header)
+            self._terminal_name_text = f"PowerShell {self._terminal_number}"
+
+        # NOTE: PyQt6 header removed — terminal.html provides the HTML header bar
+        # with terminal name, + New, Kill, Clear, Restart buttons via QWebChannel.
         
         # Web View for xterm.js
         self._webview = QWebEngineView()
@@ -233,6 +205,10 @@ class XTermWidget(QWidget):
         self._bridge.data_received.connect(self._on_js_input)
         self._bridge.resize_requested.connect(self._on_js_resize)
         self._bridge.ready_received.connect(self._on_js_ready)
+        self._bridge.new_terminal_requested.connect(self.new_terminal_requested.emit)
+        self._bridge.kill_terminal_requested.connect(self._kill_process)
+        self._bridge.restart_terminal_requested.connect(self._restart)
+        self._bridge.switch_to_terminal_requested.connect(self.switch_to_terminal_requested.emit)
         
         # Register this terminal widget globally for bash_tool access
         from .terminal_bridge import set_terminal_widget_ref
@@ -313,10 +289,15 @@ class XTermWidget(QWidget):
         """Called when xterm.js is initialized and ready in the browser."""
         self._is_ready = True
         self._bridge.update_theme.emit(self._is_dark)
+        # Send terminal name to HTML header
+        self._bridge.update_terminal_label.emit(self._terminal_name_text)
         
         if self._output_buffer:
             self._bridge.send_output.emit(self._output_buffer)
             self._output_buffer = ""
+        
+        # Notify main_window that this terminal is ready so it can sync the dropdown list
+        self.terminal_ready.emit()
             
     def _on_js_input(self, data: str):
         """Called when user types in xterm.js"""
@@ -720,10 +701,8 @@ class XTermWidget(QWidget):
                 self.execute_command(f"source {activate_script}")
                 
     def hide_header(self):
-        """Hide the per-terminal header bar. Used when terminal is inside a QTabWidget
-        where the tab bar already provides terminal names and close buttons."""
-        if hasattr(self, '_header'):
-            self._header.setVisible(False)
+        """No-op — PyQt6 header removed. HTML header in terminal.html is always visible."""
+        pass
 
     def set_theme(self, is_dark: bool):
         self._is_dark = is_dark
@@ -732,28 +711,7 @@ class XTermWidget(QWidget):
             self._bridge.update_theme.emit(is_dark)
             
     def _update_header_style(self):
-        # Dark-only styling
-        self._header.setStyleSheet("""
-            QWidget {
-                background-color: #2d2d30;
-                border-bottom: 1px solid #3e3e42;
-            }
-            QLabel { color: #cccccc; font-size: 12px; }
-            QPushButton {
-                background-color: #3c3c3c; color: #cccccc;
-                border: 1px solid #3e3e42; border-radius: 3px; padding: 2px 8px;
-            }
-            QPushButton:hover { background-color: #4c4c4c; }
-            QComboBox {
-                background-color: #3c3c3c; color: #cccccc;
-                border: 1px solid #3e3e42; border-radius: 3px; padding: 2px 8px;
-            }
-            QComboBox::drop-down { border: none; }
-            QComboBox QAbstractItemView {
-                background-color: #3c3c3c; color: #cccccc;
-                selection-background-color: #094771;
-            }
-        """)
+        pass  # No PyQt6 header — terminal.html handles styling via theme signal.
             
     def closeEvent(self, event):
         self._kill_process()

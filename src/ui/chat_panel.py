@@ -4683,39 +4683,41 @@ class CortexRing(QWidget):
         from PyQt6.QtCore import QPointF
 
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        cx, cy = self.width() / 2, self.height() / 2
-        r = self._size / 2
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            cx, cy = self.width() / 2, self.height() / 2
+            r = self._size / 2
 
-        # Aura glow
-        glow = QRadialGradient(QPointF(cx, cy), r * 1.3)
-        glow.setColorAt(0, QColor(124, 58, 237, int(40 * self._breath)))
-        glow.setColorAt(0.5, QColor(6, 182, 212, int(15 * self._breath)))
-        glow.setColorAt(1, QColor(0, 0, 0, 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(glow)
-        p.drawEllipse(int(cx - r * 1.3), int(cy - r * 1.3), int(r * 2.6), int(r * 2.6))
+            # Aura glow
+            glow = QRadialGradient(QPointF(cx, cy), r * 1.3)
+            glow.setColorAt(0, QColor(124, 58, 237, int(40 * self._breath)))
+            glow.setColorAt(0.5, QColor(6, 182, 212, int(15 * self._breath)))
+            glow.setColorAt(1, QColor(0, 0, 0, 0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(glow)
+            p.drawEllipse(int(cx - r * 1.3), int(cy - r * 1.3), int(r * 2.6), int(r * 2.6))
 
-        # Rotating conical gradient ring
-        p.translate(cx, cy)
-        p.rotate(self._angle)
-        grad = QConicalGradient(QPointF(0, 0), 0)
-        grad.setColorAt(0.0, QColor(T['ring_purple']))
-        grad.setColorAt(0.25, QColor(T['ring_purple_light']))
-        grad.setColorAt(0.5, QColor(T['ring_cyan']))
-        grad.setColorAt(0.75, QColor(T['ring_cyan_light']))
-        grad.setColorAt(1.0, QColor(T['ring_purple']))
+            # Rotating conical gradient ring
+            p.translate(cx, cy)
+            p.rotate(self._angle)
+            grad = QConicalGradient(QPointF(0, 0), 0)
+            grad.setColorAt(0.0, QColor(T['ring_purple']))
+            grad.setColorAt(0.25, QColor(T['ring_purple_light']))
+            grad.setColorAt(0.5, QColor(T['ring_cyan']))
+            grad.setColorAt(0.75, QColor(T['ring_cyan_light']))
+            grad.setColorAt(1.0, QColor(T['ring_purple']))
 
-        pen = QPen()
-        pen.setBrush(grad)
-        pen.setWidthF(5.0)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        p.setPen(pen)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        opacity = self._breath
-        p.setOpacity(opacity)
-        p.drawEllipse(int(-r * 0.75), int(-r * 0.75), int(r * 1.5), int(r * 1.5))
-        p.end()
+            pen = QPen()
+            pen.setBrush(grad)
+            pen.setWidthF(5.0)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            opacity = self._breath
+            p.setOpacity(opacity)
+            p.drawEllipse(int(-r * 0.75), int(-r * 0.75), int(r * 1.5), int(r * 1.5))
+        finally:
+            p.end()
 
 
 class EmptyState(QWidget):
@@ -4769,70 +4771,71 @@ class BrandLogo(QWidget):
         from PyQt6.QtGui import QPainter, QColor, QFont, QFontMetricsF, QLinearGradient, QPen
         from PyQt6.QtCore import QRectF, Qt
         p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
 
-        w = self.width()
-        h = self.height()
+            w = self.width()
+            h = self.height()
 
-        # ── "Cortex" ──────────────────────────────────────────
-        font_main = QFont("Geist", 13)
-        if not QFont("Geist").exactMatch():
-            font_main = QFont("Segoe UI", 13)
-        font_main.setWeight(QFont.Weight.DemiBold)    # 600
-        font_main.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, -0.3)
-        p.setFont(font_main)
-        fm_main = QFontMetricsF(font_main)
-        text_main = "Cortex"
-        w_main = fm_main.horizontalAdvance(text_main)
+            # ── "Cortex" ──────────────────────────────────────────
+            font_main = QFont("Geist", 13)
+            if not QFont("Geist").exactMatch():
+                font_main = QFont("Segoe UI", 13)
+            font_main.setWeight(QFont.Weight.DemiBold)    # 600
+            font_main.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, -0.3)
+            p.setFont(font_main)
+            fm_main = QFontMetricsF(font_main)
+            text_main = "Cortex"
+            w_main = fm_main.horizontalAdvance(text_main)
 
-        # ── Gradient on "Cortex" text ──
-        text_gradient = QLinearGradient(0, 0, w_main, 0)
-        text_gradient.setColorAt(0.0, QColor(T['ring_cyan']))
-        text_gradient.setColorAt(0.5, QColor(T['ring_cyan_light']))
-        text_gradient.setColorAt(1.0, QColor("#3b82f6"))   # blue
-        p.setPen(QPen(text_gradient, 1))
-        p.drawText(
-            QRectF(0, 0, w_main, h),
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-            text_main,
-        )
+            # ── Gradient on "Cortex" text ──
+            text_gradient = QLinearGradient(0, 0, w_main, 0)
+            text_gradient.setColorAt(0.0, QColor(T['ring_cyan']))
+            text_gradient.setColorAt(0.5, QColor(T['ring_cyan_light']))
+            text_gradient.setColorAt(1.0, QColor("#3b82f6"))   # blue
+            p.setPen(QPen(text_gradient, 1))
+            p.drawText(
+                QRectF(0, 0, w_main, h),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                text_main,
+            )
 
-        # ── thin separator ────────────────────────────────────
-        sep_x = w_main + 7
-        sep_h = h * 0.52
-        sep_y = (h - sep_h) / 2
-        p.setPen(QColor(255, 255, 255, 28))
-        p.drawLine(
-            int(sep_x), int(sep_y),
-            int(sep_x), int(sep_y + sep_h),
-        )
+            # ── thin separator ────────────────────────────────────
+            sep_x = w_main + 7
+            sep_h = h * 0.52
+            sep_y = (h - sep_h) / 2
+            p.setPen(QColor(255, 255, 255, 28))
+            p.drawLine(
+                int(sep_x), int(sep_y),
+                int(sep_x), int(sep_y + sep_h),
+            )
 
-        # ── "AI" ──────────────────────────────────────────────
-        font_sub = QFont("Geist", 11)
-        if not QFont("Geist").exactMatch():
-            font_sub = QFont("Segoe UI", 11)
-        font_sub.setWeight(QFont.Weight.Normal)       # 400
-        font_sub.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
-        p.setFont(font_sub)
-        fm_sub = QFontMetricsF(font_sub)
-        text_sub = "AI"
-        w_sub = fm_sub.horizontalAdvance(text_sub)
+            # ── "AI" ──────────────────────────────────────────────
+            font_sub = QFont("Geist", 11)
+            if not QFont("Geist").exactMatch():
+                font_sub = QFont("Segoe UI", 11)
+            font_sub.setWeight(QFont.Weight.Normal)       # 400
+            font_sub.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 0.8)
+            p.setFont(font_sub)
+            fm_sub = QFontMetricsF(font_sub)
+            text_sub = "AI"
+            w_sub = fm_sub.horizontalAdvance(text_sub)
 
-        p.setPen(QColor(T['ring_cyan']))
-        ai_x = sep_x + 8
-        p.drawText(
-            QRectF(ai_x, 0, w_sub + 4, h),
-            Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
-            text_sub,
-        )
+            p.setPen(QColor(T['ring_cyan']))
+            ai_x = sep_x + 8
+            p.drawText(
+                QRectF(ai_x, 0, w_sub + 4, h),
+                Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                text_sub,
+            )
 
-        # Resize widget to exact text width
-        total_w = int(ai_x + w_sub + 2)
-        if self.width() != total_w:
-            self.setFixedWidth(total_w)
-
-        p.end()
+            # Resize widget to exact text width
+            total_w = int(ai_x + w_sub + 2)
+            if self.width() != total_w:
+                self.setFixedWidth(total_w)
+        finally:
+            p.end()
 
 
 # ============================================================

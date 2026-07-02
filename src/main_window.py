@@ -175,25 +175,26 @@ class CleanTabBar(QTabBar):
         from PyQt6.QtGui import QPainter, QColor
         from PyQt6.QtCore import QRect, Qt
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        d = self._is_dark
-        # Cursor IDE Anysphere Dark Theme - Tab Colors
-        col_sel_bg    = QColor("#181818")
-        col_hover_bg  = QColor("#1f1f1f")
-        col_normal_bg = QColor("#141414")
-        col_accent    = QColor("#228df2")
-        col_divider   = QColor("#2a2a2a")
-        col_sel_fg    = QColor("#ffffff")
-        col_hover_fg  = QColor("#d6d6dd")
-        col_normal_fg = QColor("#6d6d6d")
-        col_close     = QColor("#f14c4c")
-        col_close_hover = QColor("#ff6b6b")
+            d = self._is_dark
+            # Cursor IDE Anysphere Dark Theme - Tab Colors
+            col_sel_bg    = QColor("#181818")
+            col_hover_bg  = QColor("#1f1f1f")
+            col_normal_bg = QColor("#141414")
+            col_accent    = QColor("#228df2")
+            col_divider   = QColor("#2a2a2a")
+            col_sel_fg    = QColor("#ffffff")
+            col_hover_fg  = QColor("#d6d6dd")
+            col_normal_fg = QColor("#6d6d6d")
+            col_close     = QColor("#f14c4c")
+            col_close_hover = QColor("#ff6b6b")
 
-        for i in range(self.count()):
-            rect = self.tabRect(i)
-            is_selected = (i == self.currentIndex())
-            is_hovered  = (i == self._hovered_tab)
+            for i in range(self.count()):
+                rect = self.tabRect(i)
+                is_selected = (i == self.currentIndex())
+                is_hovered  = (i == self._hovered_tab)
 
             # Background
             if is_selected:
@@ -309,8 +310,8 @@ class CleanTabBar(QTabBar):
                 font.setBold(True)
                 painter.setFont(font)
                 painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, "×")
-
-        painter.end()
+        finally:
+            painter.end()
 
     def mousePressEvent(self, event):
         """Handle × button click to close the tab."""
@@ -1160,48 +1161,19 @@ class CortexMainWindow(QMainWindow):
         self._terminal_tabs.setMinimumHeight(120)
         self._terminal_tabs.tabCloseRequested.connect(self._close_terminal_tab)
         
-        # Style the terminal tabs with a visible header bar
+        # Hide the PyQt6 tab bar completely — terminal.html provides
+        # the header with terminal name, + New, Kill, Clear, Restart buttons.
+        self._terminal_tabs.tabBar().setVisible(False)
         self._terminal_tabs.setStyleSheet("""
             QTabWidget::pane {
-                border: 1px solid #3e3e42;
+                border: 0px;
                 background: #1e1e1e;
-                top: -1px;
+                top: 0px;
             }
             QTabWidget::tab-bar {
-                left: 0px;
-                alignment: left;
-            }
-            QTabBar::tab {
-                background: #2d2d30;
-                color: #cccccc;
-                border: 1px solid #3e3e42;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                padding: 8px 16px;
-                margin-right: 2px;
-                font-size: 12px;
-                min-width: 100px;
-            }
-            QTabBar::tab:selected {
-                background: #1e1e1e;
-                color: #ffffff;
-                border-bottom: 2px solid #007acc;
-            }
-            QTabBar::tab:hover {
-                background: #2a2d2e;
-            }
-            QTabBar::close-button {
-                image: url(close.png);
-                subcontrol-position: right;
-                subcontrol-origin: padding;
-                border: none;
-                background: transparent;
-                padding: 2px;
-            }
-            QTabBar::close-button:hover {
-                background: #e81123;
-                border-radius: 2px;
+                height: 0px;
+                max-height: 0px;
+                spacing: 0px;
             }
         """)
         
@@ -1708,10 +1680,12 @@ class CortexMainWindow(QMainWindow):
         tab_border = "#3e3e42"
         tab_style = f"""
             QTabWidget::pane {{ border: 1px solid {tab_border}; background: {tab_bg}; }}
-            QTabWidget::tab-bar {{ left: 0px; }}
+            QTabWidget::tab-bar {{ height: 0px; max-height: 0px; spacing: 0px; }}
         """
         self._editor_tabs.setStyleSheet(tab_style)  # legacy tabs only
         self._terminal_tabs.setStyleSheet(tab_style)
+        # Keep terminal tab bar hidden — terminal.html provides the header
+        self._terminal_tabs.tabBar().setVisible(False)
         
         # Apply to all terminal widgets
         for i in range(self._terminal_tabs.count()):
@@ -4367,23 +4341,11 @@ class CortexMainWindow(QMainWindow):
         if self._project_manager.root:
             term.set_cwd(str(self._project_manager.root))
 
-        # Hide the per-terminal header — the tab bar provides terminal names & close buttons
-        term.hide_header()
-
-        # Get shell name for tab title
-        try:
-            from src.config.settings import get_settings
-            _s = get_settings()
-            _shell_name = _s.get("terminal", "default_shell", default="powershell")
-            _shell_display = _shell_name.capitalize()
-        except Exception:
-            _shell_display = "PowerShell"
-        
-        terminal_num = self._terminal_tabs.count() + 1
-        tab_title = f"{_shell_display} {terminal_num}"
+        # Use terminal's own name text for the tab title
+        tab_title = term._terminal_name_text
         idx = self._terminal_tabs.addTab(term, tab_title)
         self._terminal_tabs.setCurrentIndex(idx)
-        self._terminal_tabs.setTabToolTip(idx, f"{_shell_display} Terminal {terminal_num}")
+        self._terminal_tabs.setTabToolTip(idx, tab_title)
         
         if show_panel:
             self._terminal_tabs.setVisible(True)
@@ -4392,129 +4354,27 @@ class CortexMainWindow(QMainWindow):
                 self._toggle_terminal_panel(show=True)
             term.setFocus()
             
-        # Ensure corner widget (action buttons) is set up
-        self._ensure_terminal_corner_widget()
-            
         # Hook up "New Terminal" button from within the terminal
         term.new_terminal_requested.connect(lambda: self._new_terminal(show_panel=True))
         
-        # Store shell name reference for later use
-        term._shell_display_name = _shell_display
+        # Hook up dropdown terminal switcher
+        term.switch_to_terminal_requested.connect(self._switch_to_terminal_tab)
+        
+        # When this terminal's xterm.js is ready, sync the full terminal list to ALL terminals
+        # (ensures dropdown gets populated even if the terminal wasn't ready during _sync_terminal_list)
+        term.terminal_ready.connect(self._sync_terminal_list)
+        
+        # Store shell name reference for later use (used by corner shell label updates)
+        term._shell_display_name = term._terminal_name_text.split()[0] if term._terminal_name_text else "PowerShell"
         
         # Connect file operations to AI chat
         term.file_operation_detected.connect(self._on_terminal_file_operation)
         
+        # Sync the terminal list to all open terminals (updates their dropdowns)
+        self._sync_terminal_list()
+        
         return term
         
-    def _ensure_terminal_corner_widget(self):
-        """Add action buttons (+ New, Kill, Clear, Restart) as a corner widget on the terminal tab bar.
-        Similar to VS Code's terminal toolbar. Only created once."""
-        if self._terminal_tabs.cornerWidget() is not None:
-            return  # Already set up
-            
-        corner = QWidget()
-        corner.setFixedHeight(34)  # Match tab bar height
-        corner.setStyleSheet("""
-            QWidget {
-                background: #1e1e1e;
-                border-bottom: 1px solid #3e3e42;
-            }
-        """)
-        cl = QHBoxLayout(corner)
-        cl.setContentsMargins(8, 0, 8, 0)
-        cl.setSpacing(6)
-        
-        # Shell name label - updates when terminal tab changes
-        shell_label = QLabel("PowerShell")
-        shell_label.setObjectName("terminal_shell_label")
-        shell_label.setStyleSheet("""
-            QLabel {
-                color: #8a8a8a;
-                font-size: 11px;
-                font-weight: normal;
-                padding-right: 8px;
-                border-right: 1px solid #3e3e42;
-                margin-right: 4px;
-            }
-        """)
-        cl.addWidget(shell_label)
-        
-        # Update shell label when tab changes
-        def _update_shell_label(index):
-            term = self._terminal_tabs.widget(index)
-            if term and hasattr(term, '_shell_display_name'):
-                shell_label.setText(term._shell_display_name)
-            else:
-                shell_label.setText("PowerShell")
-        
-        self._terminal_tabs.currentChanged.connect(_update_shell_label)
-        
-        _btn_style = """
-            QPushButton { 
-                background: #2d2d30; 
-                color: #cccccc; 
-                border: 1px solid #3e3e42; 
-                border-radius: 4px; 
-                padding: 4px 10px; 
-                font-size: 11px;
-                font-weight: normal;
-            }
-            QPushButton:hover { 
-                background: #3e3e42; 
-                color: #ffffff; 
-                border: 1px solid #505050;
-            }
-            QPushButton:pressed {
-                background: #1e1e1e;
-            }
-        """
-        
-        new_btn = QPushButton("+ New")
-        new_btn.setFixedHeight(24)
-        new_btn.setMinimumWidth(60)
-        new_btn.setToolTip("New Terminal (Ctrl+Shift+`)")
-        new_btn.setStyleSheet(_btn_style)
-        new_btn.clicked.connect(lambda: self._new_terminal(show_panel=True))
-        cl.addWidget(new_btn)
-        
-        kill_btn = QPushButton("Kill")
-        kill_btn.setFixedHeight(24)
-        kill_btn.setMinimumWidth(44)
-        kill_btn.setToolTip("Kill Current Terminal")
-        kill_btn.setStyleSheet(_btn_style + """
-            QPushButton:hover { 
-                background: #e81123; 
-                color: #ffffff; 
-            }
-        """)
-        kill_btn.clicked.connect(self._kill_current_terminal)
-        cl.addWidget(kill_btn)
-        
-        clear_btn = QPushButton("Clear")
-        clear_btn.setFixedHeight(24)
-        clear_btn.setMinimumWidth(48)
-        clear_btn.setToolTip("Clear Terminal")
-        clear_btn.setStyleSheet(_btn_style)
-        def _clear_current():
-            t = self._current_terminal()
-            if t: t._clear()
-        clear_btn.clicked.connect(_clear_current)
-        cl.addWidget(clear_btn)
-        
-        restart_btn = QPushButton("Restart")
-        restart_btn.setFixedHeight(24)
-        restart_btn.setMinimumWidth(56)
-        restart_btn.setToolTip("Restart Terminal")
-        restart_btn.setStyleSheet(_btn_style)
-        def _restart_current():
-            t = self._current_terminal()
-            if t: t._restart()
-        restart_btn.clicked.connect(_restart_current)
-        cl.addWidget(restart_btn)
-        
-        cl.addStretch()  # Push buttons to the left
-        
-        self._terminal_tabs.setCornerWidget(corner)
 
     def _on_terminal_file_operation(self, operation_type: str, file_path: str, status: str):
         """Handle file operations from terminal and show in AI chat."""
@@ -4540,6 +4400,11 @@ class CortexMainWindow(QMainWindow):
         term = self._terminal_tabs.widget(index)
         if isinstance(term, XTermWidget):
             self._ai_agent.set_terminal(term)
+            # Update the HTML header label for the now-visible terminal
+            if term._is_ready:
+                term._bridge.update_terminal_label.emit(term._terminal_name_text)
+        # Sync dropdown list across all terminals
+        self._sync_terminal_list()
 
     def _close_terminal_tab(self, index: int):
         term = self._terminal_tabs.widget(index)
@@ -4548,6 +4413,8 @@ class CortexMainWindow(QMainWindow):
         self._terminal_tabs.removeTab(index)
         if self._terminal_tabs.count() == 0:
             self._terminal_tabs.setVisible(False)
+        # Sync dropdown list across remaining terminals
+        self._sync_terminal_list()
 
     def _kill_current_terminal(self):
         idx = self._terminal_tabs.currentIndex()
@@ -4557,6 +4424,28 @@ class CortexMainWindow(QMainWindow):
     def _current_terminal(self) -> XTermWidget | None:
         w = self._terminal_tabs.currentWidget()
         return w if isinstance(w, XTermWidget) else None
+
+    def _sync_terminal_list(self):
+        """Send the list of all open terminals to every terminal's dropdown."""
+        terminals = []
+        active_idx = self._terminal_tabs.currentIndex()
+        for i in range(self._terminal_tabs.count()):
+            term = self._terminal_tabs.widget(i)
+            if isinstance(term, XTermWidget):
+                name = term._terminal_name_text
+            else:
+                name = self._terminal_tabs.tabText(i)
+            terminals.append({"index": i, "name": name, "active": (i == active_idx)})
+        json_str = json.dumps(terminals)
+        for i in range(self._terminal_tabs.count()):
+            term = self._terminal_tabs.widget(i)
+            if isinstance(term, XTermWidget) and term._is_ready:
+                term._bridge.update_terminal_list.emit(json_str)
+
+    def _switch_to_terminal_tab(self, index: int):
+        """Switch to a specific terminal tab (called from JS dropdown)."""
+        if 0 <= index < self._terminal_tabs.count():
+            self._terminal_tabs.setCurrentIndex(index)
 
     def _show_terminal_panel(self):
         """Show terminal panel (called from AI chat 'View in terminal' button)."""

@@ -46,19 +46,20 @@ class CursorSplitHandle(QSplitterHandle):
 
     def paintEvent(self, event):
         p = QPainter(self)
-        w, h = self.width(), self.height()
+        try:
+            w, h = self.width(), self.height()
 
-        # Fill entire handle with subtle background
-        p.fillRect(0, 0, w, h, _BG_COLOR)
+            # Fill entire handle with subtle background
+            p.fillRect(0, 0, w, h, _BG_COLOR)
 
-        # Draw center groove line
-        p.setPen(_LINE_PEN)
-        if self.orientation() == Qt.Orientation.Horizontal:
-            p.drawLine(w // 2, 0, w // 2, h - 1)
-        else:
-            p.drawLine(0, h // 2, w - 1, h // 2)
-
-        p.end()
+            # Draw center groove line
+            p.setPen(_LINE_PEN)
+            if self.orientation() == Qt.Orientation.Horizontal:
+                p.drawLine(w // 2, 0, w // 2, h - 1)
+            else:
+                p.drawLine(0, h // 2, w - 1, h // 2)
+        finally:
+            p.end()
 
     def sizeHint(self):
         if self.orientation() == Qt.Orientation.Horizontal:

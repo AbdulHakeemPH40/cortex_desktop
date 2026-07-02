@@ -129,6 +129,7 @@ _NOISE_PREFIXES = (
     b"QTextHtmlParser",
     b"JSON message object is missing",
     b"QFont::setPixelSize",
+    b"QBackingStore::endPaint",
 )
 class _StderrFilter:
     """Filter out known Qt/Chromium noise from stderr while passing everything else."""

@@ -1729,40 +1729,40 @@ class CodeEditor(QPlainTextEdit):
     def _draw_indent_guides(self):
         """Draw vertical indentation guide lines like VS Code."""
         painter = QPainter(self.viewport())
-        
-        # Guide line color — editorIndentGuide.background
-        guide_color = QColor("#2a2a2a")   # sideBar.border - subtle
-        painter.setPen(QPen(guide_color, 1, Qt.PenStyle.DotLine))
-        
-        # Get horizontal offset and char width
-        offset_x = self.horizontalScrollBar().value()
-        char_w = self.fontMetrics().horizontalAdvance(' ')
-        # VS Code style: draw lines at 4, 8, 12... spaces
-        indent_char_count = 4 
-        
-        block = self.firstVisibleBlock()
-        while block.isValid():
-            top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
-            bottom = top + int(self.blockBoundingRect(block).height())
+        try:
+            # Guide line color — editorIndentGuide.background
+            guide_color = QColor("#2a2a2a")   # sideBar.border - subtle
+            painter.setPen(QPen(guide_color, 1, Qt.PenStyle.DotLine))
             
-            if block.isVisible() and bottom >= 0 and top <= self.viewport().height():
-                text = block.text()
-                indent = 0
-                for char in text:
-                    if char == ' ': indent += 1
-                    elif char == '\t': indent += 4
-                    else: break
+            # Get horizontal offset and char width
+            offset_x = self.horizontalScrollBar().value()
+            char_w = self.fontMetrics().horizontalAdvance(' ')
+            # VS Code style: draw lines at 4, 8, 12... spaces
+            indent_char_count = 4 
+            
+            block = self.firstVisibleBlock()
+            while block.isValid():
+                top = int(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
+                bottom = top + int(self.blockBoundingRect(block).height())
                 
-                if indent >= indent_char_count:
-                    for i in range(indent_char_count, indent + 1, indent_char_count):
-                        x = (i * char_w) - offset_x
-                        if 0 <= x < self.viewport().width():
-                            painter.drawLine(x, top, x, bottom)
-            
-            block = block.next()
-            if top > self.viewport().height(): break
-        
-        painter.end()
+                if block.isVisible() and bottom >= 0 and top <= self.viewport().height():
+                    text = block.text()
+                    indent = 0
+                    for char in text:
+                        if char == ' ': indent += 1
+                        elif char == '\t': indent += 4
+                        else: break
+                    
+                    if indent >= indent_char_count:
+                        for i in range(indent_char_count, indent + 1, indent_char_count):
+                            x = (i * char_w) - offset_x
+                            if 0 <= x < self.viewport().width():
+                                painter.drawLine(x, top, x, bottom)
+                
+                block = block.next()
+                if top > self.viewport().height(): break
+        finally:
+            painter.end()
 
     def _on_cursor_changed(self):
         cursor = self.textCursor()
