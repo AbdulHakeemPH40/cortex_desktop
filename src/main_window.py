@@ -4471,15 +4471,15 @@ class CortexMainWindow(QMainWindow):
         clear_btn.setMinimumWidth(48)
         clear_btn.setToolTip("Clear Terminal")
         clear_btn.setStyleSheet(_btn_style)
-        clear_btn.setStyleSheet(_btn_style)
         def _clear_current():
             t = self._current_terminal()
             if t: t._clear()
         clear_btn.clicked.connect(_clear_current)
         cl.addWidget(clear_btn)
         
-        restart_btn = QPushButton("\u21ba")
-        restart_btn.setFixedSize(28, 24)
+        restart_btn = QPushButton("Restart")
+        restart_btn.setFixedHeight(24)
+        restart_btn.setMinimumWidth(56)
         restart_btn.setToolTip("Restart Terminal")
         restart_btn.setStyleSheet(_btn_style)
         def _restart_current():
@@ -4487,6 +4487,8 @@ class CortexMainWindow(QMainWindow):
             if t: t._restart()
         restart_btn.clicked.connect(_restart_current)
         cl.addWidget(restart_btn)
+        
+        cl.addStretch()  # Push buttons to the left
         
         self._terminal_tabs.setCornerWidget(corner)
 
