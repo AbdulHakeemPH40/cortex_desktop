@@ -5972,10 +5972,6 @@ class CortexMainWindow(QMainWindow):
             term = self._terminal_tabs.widget(i)
             if isinstance(term, XTermWidget):
                 term.set_cwd(folder_path)
-
-        # Also update the integrated (editor-area) terminal
-        if hasattr(self, '_integrated_terminal') and self._integrated_terminal:
-            self._integrated_terminal.set_cwd(folder_path)
                 
         project_name = Path(folder_path).name
         self._sync_window_title()
