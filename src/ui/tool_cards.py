@@ -770,6 +770,7 @@ _TOOL_NAME_MAP = {
     "edit_file_streaming": "write", "write_file_streaming": "write",
     "grep": "grep", "glob": "glob",
     "search": "search", "codesearch": "search", "codebase_search": "search",
+    "sementicsearch": "search", "semantic_search": "search", "semanticsearch": "search",
     "list": "list_dir", "listdir": "list_dir", "list_dir": "list_dir",
     "listdirectory": "list_dir", "list_directory": "list_dir", "directory": "list_dir",
     "terminal": "terminal", "bash": "terminal", "powershell": "terminal", "command": "terminal", "run_command": "terminal",

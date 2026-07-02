@@ -3972,6 +3972,7 @@ class InputArea(QWidget):
             "google": "openrouter",
             "nvidia": "openrouter",
             "z-ai": "openrouter",
+            "x-ai": "openrouter",
             "qwen": "alibaba",
         }
         def _has_key(provider_hint: str) -> bool:
@@ -7811,6 +7812,15 @@ class ChatPanel(QWidget):
         while to_load and to_load[-1].get("role") == "user":
             to_load.pop()
 
+        # FIX: Also trim LEADING orphaned user messages from to_load.
+        # These are user prompts whose AI responses are further down in
+        # _pending_messages (older session). Without this, they stack at the
+        # top of the chat as "hi hi hi" with no AI responses.
+        while to_load and to_load[0].get("role") == "user":
+            if len(to_load) > 1 and to_load[1].get("role") == "assistant":
+                break  # This user msg has its response right after — keep it
+            to_load.pop(0)
+
         if not to_load:
             self._lazy_loaded = True
             self._hide_load_more_indicator()
@@ -7917,6 +7927,17 @@ class ChatPanel(QWidget):
                     split_idx = total - INITIAL_LOAD
                 initial_msgs = valid_msgs[split_idx:]
                 self._pending_messages = valid_msgs[:split_idx]
+
+                # FIX: Trim leading orphaned user messages from initial_msgs.
+                # These are user prompts whose AI responses are in _pending_messages
+                # (older session). Without this, they stack at the top of the chat
+                # as a wall of "hi hi hi hi" with no AI responses — the "floating" bug.
+                while initial_msgs and initial_msgs[0].get("role") == "user":
+                    # Only keep this user msg if the NEXT msg is assistant (its response)
+                    if len(initial_msgs) > 1 and initial_msgs[1].get("role") == "assistant":
+                        break
+                    # Orphaned user — move it back to pending
+                    self._pending_messages.append(initial_msgs.pop(0))
                 log.info(f"[ChatRestore] Lazy load: {len(loaded)} msgs of {total} (split at #{split_idx}), {len(self._pending_messages)} pending")
             else:
                 initial_msgs = valid_msgs

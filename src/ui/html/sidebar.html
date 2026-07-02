@@ -1856,6 +1856,22 @@ function initBridge() {
             callBridge('onFileOpened', filePath);
           });
         }
+
+        // ── Flush any queued callBridge calls that were buffered before bridge was ready ──
+        if (window._pendingBridgeCalls && window._pendingBridgeCalls.length > 0) {
+          console.log('[Sidebar] Flushing', window._pendingBridgeCalls.length, 'pending bridge calls');
+          var pendingCalls = window._pendingBridgeCalls;
+          window._pendingBridgeCalls = [];
+          pendingCalls.forEach(function(call) {
+            try {
+              if (bridge[call.method]) {
+                bridge[call.method](...call.args);
+              }
+            } catch(e) {
+              console.error('[Sidebar] Flushed bridge call failed:', call.method, e);
+            }
+          });
+        }
       });
     } catch(e) {
       console.log('[Sidebar] QWebChannel init FAILED:', String(e));
@@ -1945,12 +1961,24 @@ function pushNativeModal(type, path, name) {
 }
 
 function callBridge(method, ...args) {
-  // Always queue through the poll dispatcher — the QWebChannel bridge
-  // is null when the init handshake fails (PyQt6 "missing id" issue).
-  // The poll dispatcher processes queued calls reliably via runJavaScript.
-  if (!window._pendingBridgeCalls) window._pendingBridgeCalls = [];
-  window._pendingBridgeCalls.push({ method: method, args: args });
-  console.log('[Sidebar] Queued bridge call:', method, args);
+  // If QWebChannel bridge is ready, call directly.
+  // If not ready yet, queue for flushing when bridge connects.
+  if (bridge && bridgeReady) {
+    try {
+      if (bridge[method]) {
+        bridge[method](...args);
+      } else {
+        console.warn('[Sidebar] Bridge method not found:', method);
+      }
+    } catch(e) {
+      console.error('[Sidebar] Bridge call failed:', method, e);
+    }
+  } else {
+    // Bridge not ready — queue for flush on initBridge success
+    if (!window._pendingBridgeCalls) window._pendingBridgeCalls = [];
+    window._pendingBridgeCalls.push({ method: method, args: args });
+    console.log('[Sidebar] Queued bridge call (bridge not ready):', method, args);
+  }
 }
 
 // ─── Panel Switching ───────────────────────────────────

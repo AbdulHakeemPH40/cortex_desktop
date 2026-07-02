@@ -313,6 +313,20 @@ class AlibabaProvider(BaseProvider):
                     )
 
                 if status == 400:
+                    _is_arrearage = any(kw in _resp_body.lower() for kw in (
+                        'arrearage', 'overdue', 'payment',
+                    ))
+                    if _is_arrearage:
+                        log.error(f"Alibaba chat account suspended (overdue payment): {_resp_body[:300]}")
+                        return ChatResponse(
+                            content="", model=model, provider="alibaba",
+                            error=(
+                                "QUOTA_EXHAUSTED: Alibaba Model Studio account has overdue payments. "
+                                "Please visit https://modelstudio.console.alibabacloud.com/ to clear your balance, "
+                                "or switch to a different model provider."
+                            ),
+                            duration_ms=(time.time() - start_time) * 1000,
+                        )
                     log.error(f"Alibaba chat HTTP 400 (non-retryable): {_resp_body[:300]}")
                     return ChatResponse(
                         content="", model=model, provider="alibaba",
@@ -624,8 +638,15 @@ class AlibabaProvider(BaseProvider):
             'insufficient_quota', 'quota exceeded', 'billing', 'no credits',
             'free allocated quota', 'allocated quota exhausted',
         ))
-        if _is_quota:
-            raise RuntimeError(f"QUOTA_EXHAUSTED: Alibaba Model Studio quota reached — {_err_msg}")
+        _is_arrearage = any(kw in _err_lower for kw in (
+            'arrearage', 'overdue', 'payment', 'account.*suspended',
+        ))
+        if _is_quota or _is_arrearage:
+            raise RuntimeError(
+                "QUOTA_EXHAUSTED: Alibaba Model Studio account has overdue payments. "
+                "Please visit https://modelstudio.console.alibabacloud.com/ to clear your balance, "
+                "or switch to a different model provider."
+            )
         raise RuntimeError(f"Alibaba stream failed: {_err_msg}")
 
     def validate_api_key(self) -> bool:

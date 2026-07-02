@@ -545,17 +545,23 @@ class DeepSeekProvider(BaseProvider):
                     except Exception:
                         pass
                 # Detect daily/monthly quota exhaustion — NEVER retryable
+                _resp_lower = _resp_body.lower()
                 _is_quota_exhausted = (
-                    "insufficient_quota" in _resp_body.lower()
-                    or "quota exceeded" in _resp_body.lower()
-                    or "insufficient balance" in _resp_body.lower()
-                    or "tpd rate limit" in _resp_body.lower()
-                    or "tokens per day" in _resp_body.lower()
+                    "insufficient_quota" in _resp_lower
+                    or "quota exceeded" in _resp_lower
+                    or "insufficient balance" in _resp_lower
+                    or "tpd rate limit" in _resp_lower
+                    or "tokens per day" in _resp_lower
+                    or "arrearage" in _resp_lower
+                    or "overdue" in _resp_lower
+                    or "payment" in _resp_lower
                 )
                 if _is_quota_exhausted:
-                    log.error(f"[DeepSeek] Quota exhausted: {_resp_body}")
+                    log.error(f"[DeepSeek] Quota/billing error: {_resp_body}")
                     raise RuntimeError(
-                        f"QUOTA_EXHAUSTED: DeepSeek daily quota reached — {_resp_body}"
+                        "QUOTA_EXHAUSTED: DeepSeek account has a billing issue or exhausted quota. "
+                        "Please visit https://platform.deepseek.com to check your balance, "
+                        "or switch to a different model provider."
                     )
                 if status in (429, 502, 503, 504) and attempt < max_retries:
                     log.warning(f"[DeepSeek] Transient error {status} (attempt {attempt + 1}/{max_retries + 1})")

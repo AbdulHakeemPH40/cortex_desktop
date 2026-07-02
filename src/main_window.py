@@ -2292,6 +2292,13 @@ class CortexMainWindow(QMainWindow):
             self._update_status_file(filepath)
             log.info(f"File opened successfully: {filepath}")
 
+            # SAFETY NET: Force renderTabs() after a short delay to guarantee
+            # the tab header is visible. _safe_run_js defers JS execution via
+            # QTimer.singleShot(0), so openFile() may not have run yet when we
+            # return here. This deferred renderTabs() ensures the tab appears
+            # even if the primary JS call was delayed.
+            QTimer.singleShot(100, lambda: self._webview_panel._safe_run_js("renderTabs();"))
+
             # Notify sidebar search of currently open files
             self._notify_search_of_open_files()
 
@@ -3051,17 +3058,36 @@ class CortexMainWindow(QMainWindow):
 
     def _open_file_at_line(self, file_path: str, line_number: int):
         """Open file and navigate to specific line."""
-        # First open the file
-        self._open_file(file_path)
-        
-        # Get the current editor
-        editor = self._editor_tabs.currentWidget()
-        if isinstance(editor, CodeEditor):
-            # Navigate to line (0-indexed in Scintilla, but 1-indexed for users)
-            line_index = max(0, line_number - 1)
-            editor.setCursorPosition(line_index, 0)
-            editor.ensureLineVisible(line_index)
-            log.info(f"Navigated to line {line_number} in {file_path}")
+        try:
+            # First open the file — this is the critical part
+            self._open_file(file_path)
+            
+            # Navigate to line in webview panel (Monaco editor)
+            # Use QTimer to ensure the file is fully loaded before navigating
+            if hasattr(self, '_webview_panel') and self._webview_panel:
+                QTimer.singleShot(300, lambda: self._webview_panel._safe_run_js(
+                    f"if (typeof goToLine === 'function') goToLine({line_number});"
+                ))
+                # Extra safety: force renderTabs() to guarantee tab header shows
+                QTimer.singleShot(150, lambda: self._webview_panel._safe_run_js("renderTabs();"))
+            
+            # Legacy: also try the old editor tabs (CodeEditor) if available
+            try:
+                editor = self._editor_tabs.currentWidget() if hasattr(self, '_editor_tabs') else None
+                if isinstance(editor, CodeEditor):
+                    line_index = max(0, line_number - 1)
+                    editor.setCursorPosition(line_index, 0)
+                    editor.ensureLineVisible(line_index)
+                    log.info(f"Navigated to line {line_number} in {file_path}")
+            except Exception:
+                pass  # Old editor not available — webview panel handles it
+        except Exception as e:
+            log.error(f"[OpenAtLine] Failed to open {file_path} at line {line_number}: {e}")
+            # Fallback: try opening without line navigation
+            try:
+                self._open_file(file_path)
+            except Exception as e2:
+                log.error(f"[OpenAtLine] Fallback also failed: {e2}")
 
     def _on_accept_file_edit(self, file_path: str):
         """Accept AI edit — the file is already written to disk, just acknowledge."""

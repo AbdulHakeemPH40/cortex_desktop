@@ -435,9 +435,10 @@ class OpenAIProvider(BaseProvider):
                     'insufficient_quota', 'exceeded your current quota',
                     'quota exceeded', 'billing', 'no credits',
                     'tpd rate limit', 'tokens per day',
+                    'arrearage', 'overdue', 'payment',
                 ))
                 if _is_quota_exhausted:
-                    log.error(f"OpenAI stream quota exhausted: {e}")
+                    log.error(f"OpenAI stream quota/billing error: {e}")
                     break  # Don't retry — raise at exhaustion point
 
                 # Detect transient errors worth retrying
@@ -468,9 +469,14 @@ class OpenAIProvider(BaseProvider):
             'insufficient_quota', 'exceeded your current quota',
             'quota exceeded', 'billing', 'no credits',
             'tpd rate limit', 'tokens per day',
+            'arrearage', 'overdue', 'payment',
         ))
         if _is_quota:
-            raise RuntimeError(f"QUOTA_EXHAUSTED: OpenAI quota reached — {_err_msg}")
+            raise RuntimeError(
+                "QUOTA_EXHAUSTED: OpenAI account has a billing issue or exhausted quota. "
+                "Please visit https://platform.openai.com/account/billing to check your balance, "
+                "or switch to a different model provider."
+            )
         raise RuntimeError(f"OpenAI stream failed: {_err_msg}")
 
     def validate_api_key(self) -> bool:

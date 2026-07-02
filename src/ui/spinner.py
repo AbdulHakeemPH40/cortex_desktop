@@ -1078,6 +1078,8 @@ _SPINNER_MAP = {
     "glob":               (ScatterSpinner,  "tool_search"),
     "search":             (RadarSpinner,    "tool_search"),
     "codebase_search":    (RadarSpinner,    "tool_search"),
+    "semantic_search":    (RadarSpinner,    "tool_search"),
+    "sementicsearch":     (RadarSpinner,    "tool_search"),
     "terminal":           (DotsSpinner,     "tool_terminal"),
     "bash":               (DotsSpinner,     "tool_terminal"),
     "command":            (DotsSpinner,     "tool_terminal"),

@@ -165,6 +165,22 @@ PROVIDER_THINKING_DEFAULTS = {
     "mistral": {
         "strip_reasoning_content": True,         # Mistral rejects reasoning_content field
     },
+    "anthropic": {
+        "thinking_type": "adaptive",             # Claude models support adaptive thinking
+        "budget_tokens": 8000,                   # Default thinking budget
+    },
+    "x-ai": {
+        "thinking_type": "adaptive",             # Grok models support adaptive thinking
+        "budget_tokens": 8000,                   # Default thinking budget
+    },
+    "google": {
+        "thinking_type": "adaptive",             # Gemini models support adaptive thinking
+        "budget_tokens": 8000,                   # Default thinking budget
+    },
+    "z-ai": {
+        "thinking_type": "adaptive",             # GLM models support adaptive thinking
+        "budget_tokens": 8000,                   # Default thinking budget
+    },
 }
 
 # Thinking loop detection budget (replaces CORTEX_THINKING_BUDGET_TOKENS)
@@ -261,6 +277,32 @@ THINKING_SUPPORTED_MODELS = {
         "qwen3.6-plus",
         "qwen3-coder-plus",
     },
+
+    # Anthropic Claude (via OpenRouter) - supports extended thinking
+    "anthropic": {
+        "claude-fable-5",
+        "claude-opus-4-8",
+        "claude-opus-4-5",
+        "claude-sonnet-4-5",
+        "claude-haiku-4-5",
+    },
+
+    # xAI Grok (via OpenRouter) - supports extended thinking
+    "x-ai": {
+        "grok-4.3",
+    },
+
+    # Google Gemini (via OpenRouter) - supports extended thinking
+    "google": {
+        "gemini-3.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    },
+
+    # Z.ai GLM (via OpenRouter) - supports extended thinking
+    "z-ai": {
+        "glm-5.2",
+    },
 }
 
 # Models that support ADAPTIVE thinking (AI decides when to think)
@@ -276,6 +318,18 @@ ADAPTIVE_THINKING_MODELS = {
     
     # Alibaba - Qwen3 (adaptive via thinking_budget)
     "alibaba": {"qwen3.7-plus", "qwen3.6-plus", "qwen3-coder-plus"},
+
+    # Anthropic Claude (via OpenRouter) - adaptive thinking
+    "anthropic": {"claude-fable-5", "claude-opus-4-8", "claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5"},
+
+    # xAI Grok (via OpenRouter) - adaptive thinking
+    "x-ai": {"grok-4.3"},
+
+    # Google Gemini (via OpenRouter) - adaptive thinking
+    "google": {"gemini-3.5-flash", "gemini-2.5-pro", "gemini-2.5-flash"},
+
+    # Z.ai GLM (via OpenRouter) - adaptive thinking
+    "z-ai": {"glm-5.2"},
 }
 
 

@@ -493,16 +493,24 @@ class MimoProvider(BaseProvider):
                         pass
 
                 # Detect daily quota exhaustion — non-retryable
+                _resp_lower = _resp_body.lower()
                 _is_quota = (
-                    "quota" in _resp_body.lower()
-                    or "rate limit" in _resp_body.lower()
-                    or "tokens per day" in _resp_body.lower()
+                    "quota" in _resp_lower
+                    or "rate limit" in _resp_lower
+                    or "tokens per day" in _resp_lower
+                    or "arrearage" in _resp_lower
+                    or "overdue" in _resp_lower
+                    or "payment" in _resp_lower
                 )
                 if _is_quota and status == 429:
-                    log.error(f"Mimo API daily quota exhausted: {_resp_body}")
+                    log.error(f"MiMo API daily quota exhausted: {_resp_body}")
                     return ChatResponse(
                         content="", model=model, provider="mimo",
-                        error=f"QUOTA_EXHAUSTED: {_resp_body}",
+                        error=(
+                            "QUOTA_EXHAUSTED: MiMo daily token quota reached or billing issue. "
+                            "Please visit https://platform.xiaomimimo.com to check your quota, "
+                            "or switch to a different model provider."
+                        ),
                         duration_ms=(time.time() - start_time) * 1000,
                     )
 
@@ -740,15 +748,21 @@ class MimoProvider(BaseProvider):
                 # Log detailed error info for debugging
                 log.error(f"[MiMo] HTTP {status} | URL: {url} | Server: {_resp_headers.get('server', 'unknown')} | Body: {_resp_body[:200]}")
 
+                _resp_lower = _resp_body.lower()
                 _is_quota = (
-                    "quota" in _resp_body.lower()
-                    or "rate limit" in _resp_body.lower()
-                    or "tokens per day" in _resp_body.lower()
+                    "quota" in _resp_lower
+                    or "rate limit" in _resp_lower
+                    or "tokens per day" in _resp_lower
+                    or "arrearage" in _resp_lower
+                    or "overdue" in _resp_lower
+                    or "payment" in _resp_lower
                 )
                 if _is_quota and status == 429:
-                    log.error(f"Mimo API stream daily quota exhausted: {_resp_body}")
+                    log.error(f"MiMo API stream daily quota exhausted: {_resp_body}")
                     raise RuntimeError(
-                        f"QUOTA_EXHAUSTED: Mimo daily token quota reached — {_resp_body}"
+                        "QUOTA_EXHAUSTED: MiMo daily token quota reached or billing issue. "
+                        "Please visit https://platform.xiaomimimo.com to check your quota, "
+                        "or switch to a different model provider."
                     )
 
                 # Non-retryable parameter errors (400) — especially the

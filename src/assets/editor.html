@@ -1833,6 +1833,9 @@ function switchToFile(filePath) {
         }
     }
     renderTabs();
+    // Safety net: re-render tabs after Monaco model switch completes.
+    // Fixes search-result-click race where tab header doesn't show on first open.
+    setTimeout(renderTabs, 0);
     // Always notify Python about active file change — even during scroll.
     // isScrolling only suppresses LSP cursor spam, not the active-file signal.
     if (bridge && activeFilePath) {
@@ -1873,6 +1876,19 @@ function scheduleEditorRetry(filePath) {
 // openFile checks this to discard stale activate calls that arrive after the user switched away.
 function setIntendedActive(filePath) {
     _intendedActiveFile = filePath;
+}
+
+// Called by Python to navigate to a specific line in the active editor.
+function goToLine(lineNumber) {
+    if (!editor || !activeFilePath) return;
+    try {
+        var pos = { lineNumber: lineNumber, column: 1 };
+        editor.revealLineInCenter(lineNumber);
+        editor.setPosition(pos);
+        editor.focus();
+    } catch(e) {
+        console.warn('[Editor] goToLine failed:', e);
+    }
 }
 
 function showImagePreview(filePath, dataUri, fileSize) {
@@ -1942,12 +1958,13 @@ function openFile(filePath, content, language, activate) {
         modified: false
     };
     openOrder.push(filePath);
-    // Always activate the first file, regardless of the gate.
-    // Without this, the first non-image file open via _flush_pending_switch
-    // (activate=false) renders a tab without the 'active' class, making it
-    // invisible against the dark tab bar background.
-    if (shouldActivate || !activeFilePath) switchToFile(filePath);
-    else renderTabs();
+    // FIX: Always switchToFile for new files — ensures the tab header
+    // is rendered with the 'active' class and activeFilePath is set.
+    // Previously, when shouldActivate was false and an active file existed,
+    // only renderTabs() was called, which created the tab WITHOUT the
+    // 'active' class, making it invisible against the dark tab bar.
+    // This caused the "search result click opens file but no tab header" bug.
+    switchToFile(filePath);
 
     // ── LSP: Immediately notify Python about the new file ──
     // Don't wait for the switch-settle timer — the LSP needs didOpen
@@ -1965,6 +1982,10 @@ function openFile(filePath, content, language, activate) {
     if (bridge && bridge.onContentDelivered) {
         bridge.onContentDelivered(filePath, (content || '').length);
     }
+    // SAFETY NET: Force a deferred renderTabs() to guarantee the tab header
+    // is always visible, even if switchToFile/renderTabs above had a DOM timing issue.
+    // This fixes the "search result click opens file but no tab header" bug.
+    setTimeout(renderTabs, 0);
 }
 
 function _loadTextFromUri(fileUri, onDone) {

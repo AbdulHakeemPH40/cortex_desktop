@@ -648,7 +648,7 @@ kbd {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     padding: 10px 0;
     border-top: 1px solid rgba(255, 255, 255, .04)
 }
@@ -662,6 +662,8 @@ kbd {
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+    min-width: 140px;
+    width: 140px;
 }
 
 .provider-logo {
@@ -702,19 +704,20 @@ kbd {
 }
 
 .provider-info label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     line-height: 1.2;
+    display: block;
 }
 
 .provider-info p {
     font-size: 10px;
     color: var(--muted);
-    margin-top: 1px;
+    margin-top: 2px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100px;
+    max-width: 80px;
 }
 
 .provider-key {
@@ -723,19 +726,27 @@ kbd {
     align-items: center;
     flex: 1;
     min-width: 0;
+    position: relative;
 }
 
 .provider-key .setting-input {
     flex: 1;
     min-width: 0;
-    height: 32px;
+    height: 36px;
     font-size: 12px;
-    padding: 4px 8px;
+    padding: 6px 10px;
+    width: 100%;
 }
 
 /* API Key - inline buttons */
 .provider-key .key-input {
-    padding-right: 70px;
+    padding-right: 80px;
+    height: 36px;
+    font-size: 12px;
+    border-radius: var(--radius-xs);
+    width: 280px;
+    min-width: 280px;
+    max-width: 280px;
 }
 
 .provider-key .key-mask {
@@ -747,32 +758,44 @@ kbd {
     font-family: var(--font-mono);
     font-size: 11px;
     pointer-events: none;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
+    user-select: none;
+    max-width: calc(100% - 90px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: var(--surface-2);
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
 }
 
 /* Action buttons - compact inline */
 .key-actions {
     display: flex;
-    gap: 2px;
+    gap: 4px;
     align-items: center;
     position: absolute;
-    right: 4px;
+    right: 6px;
     top: 50%;
     transform: translateY(-50%);
+    z-index: 2;
 }
 
 .key-actions .icon-btn {
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    border-radius: 6px;
+    transition: all 0.15s;
 }
 
 .key-actions .icon-btn svg {
-    width: 12px;
-    height: 12px;
+    width: 13px;
+    height: 13px;
 }
 
 /* Key status indicators */
@@ -806,20 +829,6 @@ kbd {
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.5; }
-}
-
-/* Eye button states */
-.eye-btn.active {
-    color: var(--accent) !important;
-    border-color: rgba(77, 163, 255, 0.3) !important;
-}
-
-.eye-btn.active .eye-open {
-    display: none;
-}
-
-.eye-btn.active .eye-closed {
-    display: block !important;
 }
 
 /* Memory */

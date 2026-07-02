@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cortex Settings</title>
-  <link rel="stylesheet" href="./memory_management.css?v=8">
+  <link rel="stylesheet" href="./memory_management.css?v=9">
 </head>
 
 <body>
@@ -422,20 +422,46 @@
             </div>
             <select class="setting-select" id="defaultModel">
               <option value="auto" selected>Auto (Smart routing)</option>
-              <option value="mimo-v2.5-pro">MiMo V2.5 Pro</option>
-              <option value="mimo-v2.5">MiMo V2.5</option>
-              <option value="deepseek-v4-pro">DeepSeek V4 Pro</option>
-              <option value="gpt-5.5">GPT-5.5 (OpenAI)</option>
-              <option value="gpt-5.4">GPT-5.4 (OpenAI)</option>
-              <option value="gpt-4o">GPT-4o (OpenAI)</option>
-              <option value="anthropic/claude-opus-4-8">Claude Opus 4.8 (OpenRouter)</option>
-              <option value="anthropic/claude-sonnet-4-5">Claude Sonnet 4.5 (OpenRouter)</option>
-              <option value="google/gemini-2.5-pro">Gemini 2.5 Pro (OpenRouter)</option>
-              <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra (OpenRouter)</option>
-              <option value="qwen3.7-plus">Qwen 3.7 Plus (Alibaba)</option>
-              <option value="qwen3.6-plus">Qwen 3.6 Plus (Alibaba)</option>
-              <option value="qwen3-coder-plus">Qwen3 Coder Plus (Alibaba)</option>
-              <option value="qwen-flash">Qwen Flash (Alibaba)</option>
+              <optgroup label="Xiaomi MiMo">
+                <option value="mimo-v2.5-pro">MiMo V2.5 Pro — 1M · 42B MoE agentic</option>
+                <option value="mimo-v2.5">MiMo V2.5 — 1M · full-modal</option>
+              </optgroup>
+              <optgroup label="DeepSeek V4">
+                <option value="deepseek-v4-pro">DeepSeek V4 Pro — 1.6T params · 1M ctx</option>
+                <option value="deepseek-v4-flash">DeepSeek V4 Flash — 1M ctx · fast</option>
+              </optgroup>
+              <optgroup label="OpenAI GPT">
+                <option value="gpt-5.5">GPT-5.5 — 1.05M ctx · newest frontier</option>
+                <option value="gpt-5.4">GPT-5.4 — 1.05M ctx · frontier</option>
+              </optgroup>
+              <optgroup label="OpenRouter — Anthropic">
+                <option value="anthropic/claude-fable-5">Claude Fable 5 — 1M ctx · 64k out · new</option>
+                <option value="anthropic/claude-opus-4-8">Claude Opus 4.8 — 1M ctx · 64k out · flagship</option>
+                <option value="anthropic/claude-opus-4-5">Claude Opus 4.5 — 1M ctx · 64k out</option>
+                <option value="anthropic/claude-sonnet-4-5">Claude Sonnet 4.5 — 1M ctx · 64k out</option>
+                <option value="anthropic/claude-haiku-4-5">Claude Haiku 4.5 — 1M ctx · 64k out · fast</option>
+              </optgroup>
+              <optgroup label="OpenRouter — Google">
+                <option value="google/gemini-3.5-flash">Gemini 3.5 Flash — 1M ctx · 64k out · new</option>
+                <option value="google/gemini-2.5-pro">Gemini 2.5 Pro — 1M ctx · 65k out</option>
+                <option value="google/gemini-2.5-flash">Gemini 2.5 Flash — 1M ctx · fast</option>
+              </optgroup>
+              <optgroup label="OpenRouter — NVIDIA">
+                <option value="nvidia/nemotron-3-ultra-550b-a55b">Nemotron 3 Ultra — 1M ctx · MoE</option>
+              </optgroup>
+              <optgroup label="OpenRouter — Z.ai (GLM)">
+                <option value="z-ai/glm-5.2">GLM 5.2 — 1M ctx · 744B MoE · coding-first</option>
+              </optgroup>
+              <optgroup label="OpenRouter — xAI (Grok)">
+                <option value="x-ai/grok-4.3">Grok 4.3 — 1M ctx · 64k out</option>
+              </optgroup>
+              <optgroup label="Alibaba — Qwen (Model Studio)">
+                <option value="qwen3.7-plus">Qwen 3.7 Plus — 1M ctx · agentic flagship</option>
+                <option value="qwen3.6-plus">Qwen 3.6 Plus — 1M ctx · agentic</option>
+                <option value="qwen3-coder-plus">Qwen3 Coder Plus — 1M ctx · best for code</option>
+                <option value="qwen-flash">Qwen Flash — 1M ctx · fast</option>
+                <option value="qwen-turbo">Qwen Turbo — 1M ctx · low cost</option>
+              </optgroup>
             </select>
           </div>
         </div>
@@ -479,10 +505,6 @@
               <input type="password" class="setting-input key-input" id="mimoKey" placeholder="Paste key..." data-provider="mimo">
               <span class="key-mask" id="mimoKeyMask" style="display:none;">••••••••••••••••</span>
               <div class="key-actions">
-                <button class="setting-btn icon-btn eye-btn" id="mimoEye" title="Show/Hide" data-provider="mimo">
-                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <button class="setting-btn icon-btn test-btn" id="mimoTest" title="Test" data-provider="mimo">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -503,10 +525,6 @@
               <input type="password" class="setting-input key-input" id="deepseekKey" placeholder="Paste key..." data-provider="deepseek">
               <span class="key-mask" id="deepseekKeyMask" style="display:none;">••••••••••••••••</span>
               <div class="key-actions">
-                <button class="setting-btn icon-btn eye-btn" id="deepseekEye" title="Show/Hide" data-provider="deepseek">
-                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <button class="setting-btn icon-btn test-btn" id="deepseekTest" title="Test" data-provider="deepseek">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -527,10 +545,6 @@
               <input type="password" class="setting-input key-input" id="openaiKey" placeholder="Paste key..." data-provider="openai">
               <span class="key-mask" id="openaiKeyMask" style="display:none;">••••••••••••••••</span>
               <div class="key-actions">
-                <button class="setting-btn icon-btn eye-btn" id="openaiEye" title="Show/Hide" data-provider="openai">
-                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <button class="setting-btn icon-btn test-btn" id="openaiTest" title="Test" data-provider="openai">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -551,10 +565,6 @@
               <input type="password" class="setting-input key-input" id="openrouterKey" placeholder="Paste key..." data-provider="openrouter">
               <span class="key-mask" id="openrouterKeyMask" style="display:none;">••••••••••••••••</span>
               <div class="key-actions">
-                <button class="setting-btn icon-btn eye-btn" id="openrouterEye" title="Show/Hide" data-provider="openrouter">
-                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <button class="setting-btn icon-btn test-btn" id="openrouterTest" title="Test" data-provider="openrouter">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -575,10 +585,6 @@
               <input type="password" class="setting-input key-input" id="alibabaKey" placeholder="Paste key..." data-provider="alibaba">
               <span class="key-mask" id="alibabaKeyMask" style="display:none;">••••••••••••••••</span>
               <div class="key-actions">
-                <button class="setting-btn icon-btn eye-btn" id="alibabaEye" title="Show/Hide" data-provider="alibaba">
-                  <svg class="eye-open" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  <svg class="eye-closed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <button class="setting-btn icon-btn test-btn" id="alibabaTest" title="Test" data-provider="alibaba">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                 </button>
@@ -590,39 +596,39 @@
           </div>
         </div>
         <div class="settings-card" style="border:1px dashed rgba(100,100,100,0.4); background:rgba(255,255,255,0.02)">
-          <h3 style="color:#888">🕐  Coming Soon</h3>
-          <p class="card-desc">These providers will be available in a future update.</p>
-          <div class="provider-row" style="opacity:0.45">
+          <h3 style="color:#888">Available via OpenRouter</h3>
+          <p class="card-desc">These providers are accessible using your OpenRouter API key.</p>
+          <div class="provider-row" style="opacity:0.8">
             <div class="provider-info">
               <div class="provider-logo google">G</div>
               <div><label>Google AI</label>
-                <p>Gemini 2.5 Pro, Flash</p>
+                <p>Gemini 3.5 Flash, 2.5 Pro, 2.5 Flash · via OpenRouter</p>
               </div>
             </div>
             <div class="provider-key">
-              <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Via OpenRouter</span>
             </div>
           </div>
-          <div class="provider-row" style="opacity:0.45">
+          <div class="provider-row" style="opacity:0.8">
             <div class="provider-info">
               <div class="provider-logo" style="background:#d77b4a;color:white">A</div>
               <div><label>Anthropic</label>
-                <p>Claude Opus, Sonnet, Haiku</p>
+                <p>Claude Fable 5, Opus, Sonnet, Haiku · via OpenRouter</p>
               </div>
             </div>
             <div class="provider-key">
-              <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Via OpenRouter</span>
             </div>
           </div>
-          <div class="provider-row" style="opacity:0.45">
+          <div class="provider-row" style="opacity:0.8">
             <div class="provider-info">
               <div class="provider-logo" style="background:#1da1f2;color:white">X</div>
               <div><label>xAI (Grok)</label>
-                <p>Grok 3, Grok 3 Mini</p>
+                <p>Grok 4.3 · via OpenRouter</p>
               </div>
             </div>
             <div class="provider-key">
-              <span class="setting-btn" style="background:#444;color:#777;cursor:default;font-size:11px;">Coming Soon</span>
+              <span class="setting-btn" style="background:#3fb950;color:white;cursor:default;">Via OpenRouter</span>
             </div>
           </div>
         </div>

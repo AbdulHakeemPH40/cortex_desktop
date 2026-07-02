@@ -1524,7 +1524,7 @@ _TOOL_SCHEMAS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "SementicSearch",
-            "description": "Search codebase semantically using natural language. Finds code by MEANING, not exact text — ideal for large codebases and conceptual queries like 'authentication flow', 'error handling pattern', 'database migration logic'. Use this when Grep returns too many or too few results, or when you need to understand code behavior rather than find exact strings. First use auto-indexes the project; subsequent searches are fast (<2s).",
+            "description": "[SUBSCRIBER-ONLY] Search codebase semantically using natural language. Finds code by MEANING, not exact text — ideal for large codebases and conceptual queries like 'authentication flow', 'error handling pattern', 'database migration logic'. Use this when Grep returns too many or too few results, or when you need to understand code behavior rather than find exact strings. REQUIRES Cortex subscription — falls back to Grep/Glob for non-subscribers.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -2061,8 +2061,26 @@ class AgentWorker(QThread):
                     'broken pipe', 'connection aborted', 'remote host',
                 ))
                 _is_http_400 = 'http 400' in _exc_str or 'bad request' in _exc_str
-                
-                if _is_connection_err:
+                _is_billing = any(kw in _exc_str for kw in (
+                    'arrearage', 'overdue', 'quota_exhausted', 'payment required',
+                    'insufficient credits', 'credits insufficient',
+                ))
+
+                if _is_billing:
+                    _user_msg = (
+                        "**Account Billing Issue**\n\n"
+                        "Your AI provider account has overdue payments or exhausted credits.\n\n"
+                        "**Fix:** Visit your provider's dashboard to clear the balance:\n"
+                        "• MiMo: https://platform.xiaomimimo.com\n"
+                        "• DeepSeek: https://platform.deepseek.com\n"
+                        "• OpenAI: https://platform.openai.com/account/billing\n"
+                        "• OpenRouter: https://openrouter.ai/credits\n"
+                        "• Qwen: https://modelstudio.console.alibabacloud.com/\n\n"
+                        "Or switch to a different model in the dropdown above."
+                    )
+                    log.error(f"[WORKER] Billing error: {exc}")
+                    self.error_occurred.emit(_user_msg)
+                elif _is_connection_err:
                     _user_msg = (
                         "Connection to AI provider was lost. This is usually a temporary network issue. "
                         "Please try again or switch to a different model."
@@ -5959,6 +5977,7 @@ They survive auto-compaction and are ALWAYS active:
             _is_known = any(kw in _exc_str for kw in (
                 "credits insufficient", "insufficient credits", "quota",
                 "payment required", "model not available", "402",
+                "arrearage", "overdue", "quota_exhausted",
             ))
             if _is_known:
                 log.error(f"[BRIDGE] _call_llm failed: {exc}")
@@ -8873,6 +8892,25 @@ They survive auto-compaction and are ALWAYS active:
         if not query or not query.strip():
             return ToolResult(tool_id=tool_id, result=None, success=False,
                               error="query is required for semantic search")
+
+        # ── Subscription check: semantic search is subscriber-only ──
+        _has_semantic_access = False
+        try:
+            from src.core.cortex_api import get_api_client
+            _api = get_api_client()
+            _has_semantic_access = _api.has_subscription()
+        except Exception:
+            pass
+
+        if not _has_semantic_access:
+            return ToolResult(
+                tool_id=tool_id, result=None, success=False,
+                error=(
+                    "Semantic search requires a Cortex subscription. "
+                    "Using Grep/Glob instead for code search. "
+                    "Subscribe at Settings → Billing to enable semantic search."
+                ),
+            )
 
         # ── Resolve search path ──
         _search_path = args.get("path", "")

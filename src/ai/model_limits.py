@@ -139,6 +139,7 @@ _REGISTRY: List[Tuple[str, int, int]] = [
     ("gpt-5.4",            1_050_000, 128_000),
 
     # ── Anthropic Claude (via OpenRouter) — all 1M ctx, 64K output ──────────
+    ("anthropic/claude-fable-5",       1_000_000,  65_536),
     ("anthropic/claude-opus-4-8",      1_000_000,  65_536),
     ("anthropic/claude-opus-4-5",      1_000_000,  65_536),
     ("anthropic/claude-sonnet-4-5",    1_000_000,  65_536),
@@ -156,6 +157,7 @@ _REGISTRY: List[Tuple[str, int, int]] = [
     ("qwen",                  32_000,   8_192),   # catch-all
 
     # ── Google Gemini (OpenRouter) ───────────────────────────────────────────
+    ("google/gemini-3.5-flash", 1_000_000,  65_536),
     ("google/gemini-2.5-pro",   1_000_000,  65_536),
     ("google/gemini-2.5-flash", 1_000_000,  32_768),
     ("gemini",                  1_000_000,  65_536),   # catch-all
@@ -180,6 +182,10 @@ _REGISTRY: List[Tuple[str, int, int]] = [
     # ── SiliconFlow (semantic search) ────────────────────────────────────────
     ("pro/deepseek",              128_000,  32_768),
     ("free/deepseek",             128_000,  32_768),
+
+    # ── xAI Grok (OpenRouter) ────────────────────────────────────────────────
+    ("x-ai/grok-4.3",            1_000_000,  65_536),
+    ("x-ai/grok",                1_000_000,  65_536),   # catch-all
 ]
 # fmt: on
 
@@ -251,6 +257,7 @@ _ESCALATION_TABLE: Dict[str, Tuple[int, int, int]] = {
     "deepseek-v4-pro":          (131_072, 256_000, 384_000),
     "deepseek":                 (131_072, 196_000, 262_144),
     # Claude (OpenRouter) — all 64K output
+    "anthropic/claude-fable-5": (  65_536,  65_536,  65_536),
     "anthropic/claude-opus-4-8":(  65_536,  65_536,  65_536),
     "anthropic/claude-opus-4-5":(  65_536,  65_536,  65_536),
     "anthropic/claude-sonnet-4-5":(65_536,  65_536,  65_536),
@@ -262,8 +269,13 @@ _ESCALATION_TABLE: Dict[str, Tuple[int, int, int]] = {
     "nvidia/nemotron-3-ultra":  ( 65_536, 131_072, 131_072),
     # Z.ai GLM
     "z-ai/glm-5.2":             ( 65_536,  98_304, 131_072),
+    # Google Gemini
+    "google/gemini-3.5-flash":  ( 65_536,  65_536,  65_536),
     "mimo-v2.5-pro":            (131_072, 131_072, 131_072),
     "mimo-v2.5":                (131_072, 131_072, 131_072),
+    # xAI Grok
+    "x-ai/grok-4.3":            ( 65_536,  65_536,  65_536),
+    "x-ai/grok":                ( 65_536,  65_536,  65_536),
 }
 
 

@@ -16,6 +16,7 @@ Popular coding models available:
 - minimax/minimax-m3                     : MiniMax M3 multimodal 1M ctx
 - google/gemini-2.5-pro                  : Gemini 2.5 Pro
 - openai/gpt-4o                          : GPT-4o
+- x-ai/grok-4.3                          : Grok 4.3
 
 Full model list: https://openrouter.ai/models
 API key:         https://openrouter.ai/keys
@@ -40,6 +41,7 @@ log = get_logger("openrouter_provider")
 # Display names
 OPENROUTER_DISPLAY_NAMES: Dict[str, str] = {
     # Anthropic (all 1M context, 64K output)
+    "anthropic/claude-fable-5":           "Claude Fable 5",
     "anthropic/claude-opus-4-8":          "Claude Opus 4.8",
     "anthropic/claude-opus-4-5":          "Claude Opus 4.5",
     "anthropic/claude-sonnet-4-5":        "Claude Sonnet 4.5",
@@ -63,6 +65,7 @@ OPENROUTER_DISPLAY_NAMES: Dict[str, str] = {
     "qwen/qwen3.7-plus":                  "Qwen 3.7 Plus",
     "qwen/qwen3.7-max":                   "Qwen 3.7 Max",
     # Google
+    "google/gemini-3.5-flash":            "Gemini 3.5 Flash",
     "google/gemini-2.5-pro":              "Gemini 2.5 Pro",
     "google/gemini-2.5-flash":            "Gemini 2.5 Flash",
     # GLM / Z-ai
@@ -73,6 +76,8 @@ OPENROUTER_DISPLAY_NAMES: Dict[str, str] = {
     "z-ai/glm-4.5-air:free":              "GLM-4.5 Air (Free)",
     # NVIDIA
     "nvidia/nemotron-3-ultra-550b-a55b":  "NVIDIA Nemotron 3 Ultra",
+    # xAI (Grok)
+    "x-ai/grok-4.3":                      "Grok 4.3",
     # MiniMax
     "minimax/minimax-m3":                 "MiniMax M3",
 }
@@ -668,7 +673,7 @@ class OpenRouterProvider(BaseProvider):
                 _is_quota = any(kw in _resp_body.lower() for kw in (
                     "insufficient_quota", "quota exceeded", "insufficient balance",
                     "insufficient credits", "rate limit", "requires more credits",
-                    "can only afford",
+                    "can only afford", "arrearage", "overdue",
                 ))
                 if _is_quota:
                     # 402 with "can only afford N tokens" → auto-reduce max_tokens and retry
@@ -699,7 +704,9 @@ class OpenRouterProvider(BaseProvider):
                         pass
                     log.error("[OpenRouter] Quota/credits exhausted: %s", _clean_msg)
                     raise RuntimeError(
-                        f"OpenRouter credits insufficient: {_clean_msg}"
+                        "QUOTA_EXHAUSTED: OpenRouter credits insufficient or billing issue. "
+                        "Please visit https://openrouter.ai/credits to add credits, "
+                        "or switch to a different model provider."
                     )
 
                 # Free-model unavailable fallback: 404 with message suggesting paid version

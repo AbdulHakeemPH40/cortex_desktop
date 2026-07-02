@@ -26,12 +26,14 @@ MODEL_GROUPS = [
         ("gpt-5.4", "GPT-5.4", "1.05M ctx · frontier", "#10a37f"),
     ], "byok"),
     ("OpenRouter — Anthropic", [
+        ("anthropic/claude-fable-5", "Claude Fable 5", "1M ctx · 64k out · new", "#d77b4a"),
         ("anthropic/claude-opus-4-8", "Claude Opus 4.8", "1M ctx · 64k out · flagship", "#d77b4a"),
         ("anthropic/claude-opus-4-5", "Claude Opus 4.5", "1M ctx · 64k out", "#d77b4a"),
         ("anthropic/claude-sonnet-4-5", "Claude Sonnet 4.5", "1M ctx · 64k out", "#d77b4a"),
         ("anthropic/claude-haiku-4-5", "Claude Haiku 4.5", "1M ctx · 64k out · fast", "#d77b4a"),
     ], "byok"),
     ("OpenRouter — Google", [
+        ("google/gemini-3.5-flash", "Gemini 3.5 Flash", "1M ctx · 64k out · new", "#4285f4"),
         ("google/gemini-2.5-pro", "Gemini 2.5 Pro", "1M ctx · 65k out", "#4285f4"),
         ("google/gemini-2.5-flash", "Gemini 2.5 Flash", "1M ctx · fast", "#4285f4"),
     ], "byok"),
@@ -40,6 +42,9 @@ MODEL_GROUPS = [
     ], "byok"),
     ("OpenRouter — Z.ai (GLM)", [
         ("z-ai/glm-5.2", "GLM 5.2", "1M ctx · 744B MoE · coding-first", "#00bcd4"),
+    ], "byok"),
+    ("OpenRouter — xAI (Grok)", [
+        ("x-ai/grok-4.3", "Grok 4.3", "1M ctx · 64k out", "#1da1f2"),
     ], "byok"),
     ("Alibaba — Qwen (Model Studio)", [
         ("qwen3.7-plus", "Qwen 3.7 Plus", "1M ctx · agentic flagship", "#f59e0b"),

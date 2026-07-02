@@ -1,4 +1,4 @@
-﻿/* CORTEX SETTINGS — JS: Navigation, Modals, Memory Bridge, Live Settings Hydration */
+/* CORTEX SETTINGS — JS: Navigation, Modals, Memory Bridge, Live Settings Hydration */
 (function () {
   "use strict";
 
@@ -352,7 +352,7 @@
     }
 
     /* ── Cached usage data for chart range switching ── */
-    const MODEL_NAMES={'mimo-v2.5':{n:'MiMo V2.5',c:'#f97316'},'mimo-v2.5-pro':{n:'MiMo V2.5 Pro',c:'#f97316'},'deepseek-v4':{n:'DeepSeek V4',c:'#a78bfa'},'deepseek-v4-pro':{n:'DeepSeek V4 Pro',c:'#a78bfa'},'gpt-5.5':{n:'GPT-5.5',c:'#10b981'},'gpt-5.4':{n:'GPT-5.4',c:'#10b981'},'gpt-4o':{n:'GPT-4o',c:'#10b981'},'claude-opus':{n:'Claude Opus',c:'#d77b4a'},'claude-sonnet':{n:'Claude Sonnet',c:'#d77b4a'},'qwen3.7-plus':{n:'Qwen 3.7 Plus',c:'#f59e0b'},'qwen3.6-plus':{n:'Qwen 3.6 Plus',c:'#f59e0b'},'gemini-2.5-pro':{n:'Gemini 2.5 Pro',c:'#4285f4'},'glm-5.2':{n:'GLM 5.2',c:'#eab308'},'mistral-large-latest':{n:'Mistral Large',c:'#f43f5e'}};
+    const MODEL_NAMES={'mimo-v2.5':{n:'MiMo V2.5',c:'#f97316'},'mimo-v2.5-pro':{n:'MiMo V2.5 Pro',c:'#f97316'},'deepseek-v4':{n:'DeepSeek V4',c:'#a78bfa'},'deepseek-v4-pro':{n:'DeepSeek V4 Pro',c:'#a78bfa'},'gpt-5.5':{n:'GPT-5.5',c:'#10b981'},'gpt-5.4':{n:'GPT-5.4',c:'#10b981'},'gpt-4o':{n:'GPT-4o',c:'#10b981'},'claude-opus':{n:'Claude Opus',c:'#d77b4a'},'claude-sonnet':{n:'Claude Sonnet',c:'#d77b4a'},'claude-fable':{n:'Claude Fable',c:'#d77b4a'},'qwen3.7-plus':{n:'Qwen 3.7 Plus',c:'#f59e0b'},'qwen3.6-plus':{n:'Qwen 3.6 Plus',c:'#f59e0b'},'gemini-3.5-flash':{n:'Gemini 3.5 Flash',c:'#4285f4'},'gemini-2.5-pro':{n:'Gemini 2.5 Pro',c:'#4285f4'},'glm-5.2':{n:'GLM 5.2',c:'#00bcd4'},'mistral-large-latest':{n:'Mistral Large',c:'#f43f5e'},'grok-4.3':{n:'Grok 4.3',c:'#1da1f2'}};
     const _IM=/^(test|mock|fake|placeholder|unknown|default)/i;
     function isValidModel(id){return id&&typeof id==='string'&&id.length>=2&&id.length<=80&&!_IM.test(id);} function getModelName(id){if(!id)return'Unknown';var m=MODEL_NAMES[id];if(m)return m.n;return id.split(/[-_]/).map(function(w){return w.charAt(0).toUpperCase()+w.slice(1);}).join(' ');} function getModelColor(id){var m=MODEL_NAMES[id];return m?m.c:'#6b7280';}
     let _cachedUsageData = null;
@@ -986,8 +986,15 @@
     /* Track which providers were explicitly removed (don't reload from .env) */
     const _providerRemoved = {};
 
+    /* Mask API key for display: show first 6 + last 4 chars, asterisks in between */
+    function _maskApiKey(key) {
+      if (!key || typeof key !== 'string') return '••••••••••••••••';
+      if (key.length <= 12) return key.charAt(0) + '•'.repeat(key.length - 2) + key.charAt(key.length - 1);
+      return key.substring(0, 6) + '•'.repeat(Math.min(key.length - 10, 16)) + key.substring(key.length - 4);
+    }
+
     /* Show masked key when a key is stored */
-    function _showMaskedState(provider) {
+    function _showMaskedState(provider, fullKey) {
       const cfg = PROVIDER_CONFIG[provider];
       if (!cfg) return;
       const input = $(cfg.input);
@@ -996,7 +1003,8 @@
       if (input && mask) {
         input.style.display = 'none';
         mask.style.display = 'inline-block';
-        mask.textContent = '••••••••••••••••••••••••••••';
+        /* If fullKey provided, show partial mask; otherwise generic dots */
+        mask.textContent = fullKey ? _maskApiKey(fullKey) : '••••••••••••••••••••••••••••';
         if (row) row.setAttribute('data-has-key', 'true');
         _providerHasKey[provider] = true;
       }
@@ -1036,23 +1044,24 @@
           input.type = 'password';
         }
       } else {
-        /* Show: reveal key */
+        /* Show: reveal partially masked key for security */
         eyeBtn.classList.add('active');
         if (_providerHasKey[provider]) {
-          /* Need to load the actual key first */
+          /* Load the actual key and show partially masked version */
           if (bridge && typeof bridge.getApiKey === 'function') {
             bridge.getApiKey(cfg.kmName, (key) => {
               if (key) {
-                input.style.display = '';
-                input.value = key;
-                input.type = 'text';
-                mask.style.display = 'none';
+                /* Show masked key in the mask element (not full key) */
+                mask.textContent = _maskApiKey(key);
+                mask.style.display = 'inline-block';
+                input.style.display = 'none';
               }
             });
           } else {
-            input.style.display = '';
-            input.type = 'text';
-            mask.style.display = 'none';
+            /* No bridge — just show generic mask */
+            mask.textContent = '••••••••••••••••••••••••••••';
+            mask.style.display = 'inline-block';
+            input.style.display = 'none';
           }
         } else {
           input.type = 'text';
@@ -1149,7 +1158,7 @@
       if (bridge && typeof bridge.setApiKey === 'function') {
         bridge.setApiKey(cfg.kmName, value, (ok) => {
           if (ok) {
-            _showMaskedState(provider);
+            _showMaskedState(provider, value);
             showToast(`${provider} key saved`);
           } else {
             showToast(`Failed to save ${provider} key`);
@@ -1158,7 +1167,7 @@
       } else {
         /* Fallback: save via setSetting */
         persistSetting(cfg.settingsKey, value);
-        _showMaskedState(provider);
+        _showMaskedState(provider, value);
         showToast(`${provider} key saved`);
       }
     }
@@ -1208,7 +1217,7 @@
           bridge.getApiKey(cfg.kmName, (key) => {
             /* Only show masked state if key is valid (not empty, not placeholder) */
             if (key && key.length > 8 && key !== '***' && key !== '***') {
-              _showMaskedState(provider);
+              _showMaskedState(provider, key);
             } else {
               /* No valid key — show empty input */
               _showEditState(provider);
