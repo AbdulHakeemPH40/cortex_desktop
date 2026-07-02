@@ -4171,8 +4171,10 @@ class CortexMainWindow(QMainWindow):
         if getattr(self, '_terminal_panel_hidden', False):
             self._toggle_terminal_panel(show=True)
 
-        # Use the integrated terminal in the vertical splitter
-        term = self._integrated_terminal
+        # Use the current terminal from the tab widget
+        term = self._current_terminal()
+        if not term:
+            term = self._new_terminal()
 
         # Start the shell if it hasn't been started yet
         if not term._shell_started:
