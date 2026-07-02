@@ -11,6 +11,7 @@ Phase 6: Helper utilities
 Phase 7: Testing exports
 """
 
+import logging
 import os
 import json
 import time
@@ -18,6 +19,8 @@ import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable, TypedDict
 from functools import lru_cache
+
+log = logging.getLogger("cortex.agent")
 
 # ============================================================
 # PHASE 1: Core types and data structures (DONE)
@@ -682,7 +685,7 @@ def getConfig(file: str, createDefault: Callable, throwOnInvalid: bool = False) 
     except FileNotFoundError:
         backupPath = findMostRecentBackup(file)
         if backupPath:
-            print(f'\nConfig file not found: {file}\nBackup exists: {backupPath}\n')
+            log.warning(f'Config file not found: {file}. Backup exists: {backupPath}')
         return createDefault()
     
     except ConfigParseError as error:
@@ -714,7 +717,7 @@ def getConfig(file: str, createDefault: Callable, throwOnInvalid: bool = False) 
             finally:
                 insideGetConfig = False
         
-        print(f'\nCortex configuration file at {file} is corrupted: {error}\n')
+        log.error(f'Cortex configuration file at {file} is corrupted: {error}')
         
         # Try to backup the corrupted config file (only if not already backed up)
         fileBase = Path(file).name
@@ -761,14 +764,14 @@ def getConfig(file: str, createDefault: Callable, throwOnInvalid: bool = False) 
         # Notify user about corrupted config and available backup
         backupPath = findMostRecentBackup(file)
         if corruptedBackupPath:
-            print(f'The corrupted file has been backed up to: {corruptedBackupPath}\n')
+            log.warning(f'The corrupted file has been backed up to: {corruptedBackupPath}')
         elif alreadyBackedUp:
-            print('The corrupted file has already been backed up.\n')
+            log.warning('The corrupted file has already been backed up.')
         
         if backupPath:
-            print(f'A backup file exists at: {backupPath}\nYou can manually restore it by running: cp "{backupPath}" "{file}"\n\n')
+            log.info(f'A backup file exists at: {backupPath}. You can manually restore it by running: cp "{backupPath}" "{file}"')
         else:
-            print()
+            log.warning('No backup file found for corrupted config.')
         
         return createDefault()
     

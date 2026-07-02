@@ -1,6 +1,9 @@
 """WebSearch Tool - Search the web for current information."""
+import logging
 import time
 from typing import Any, Dict, List, Optional, Union
+
+log = logging.getLogger("cortex.agent")
 
 # Defensive imports
 try:
@@ -97,7 +100,7 @@ def make_output_from_search_response(
             if not isinstance(content, list):
                 error_code = content.get('error_code', 'unknown') if isinstance(content, dict) else 'unknown'
                 error_msg = f'Web search error: {error_code}'
-                print(f"Error: {error_msg}")  # TODO: Use proper logging
+                log.error(error_msg)
                 results.append(error_msg)
                 continue
             

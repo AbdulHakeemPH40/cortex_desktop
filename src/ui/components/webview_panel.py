@@ -150,9 +150,6 @@ class WebviewPanel(QWidget):
         self._pending_theme: Optional[bool] = None
         self._files_delivered_to_js: set = set()     # files whose content reached JS (via openFile or force_reload)
         self._webview_initialized = False
-
-        # LSP removed — AI agent handles code intelligence
-        self._lsp_manager = None
         
         self._build_placeholder()
 
@@ -441,22 +438,11 @@ class WebviewPanel(QWidget):
         log.info("[WebviewPanel] Monaco Editor ready")
         self.editor_ready.emit()
 
-        # ── LSP: If a file is already active, notify the LSP immediately ──
-        # This covers the session-restore case where files were opened before
-        # Monaco finished loading. Without this, the LSP never gets didOpen
-        # for the restored file until the user types something.
-        if self._lsp_manager and self._active_file_path:
+        # ── Session restore: ensure Monaco has the file content ──
+        if self._active_file_path:
             f = self._open_files.get(self._active_file_path)
             if f:
-                try:
-                    self._lsp_manager.notify_changed(
-                        self._active_file_path,
-                        f.get("content", ""),
-                        f.get("language", "plaintext")
-                    )
-                    log.info(f"[WebviewPanel] LSP didOpen sent for restored file: {self._active_file_path}")
-                except Exception as e:
-                    log.warning(f"[WebviewPanel] LSP init on editor_ready failed: {e}")
+                log.info(f"[WebviewPanel] Restored file content for: {self._active_file_path}")
 
     def _on_render_crash(self, termination_status, exit_code):
         """Chromium render process crashed — log and auto-recover."""
@@ -475,8 +461,6 @@ class WebviewPanel(QWidget):
                 _status_int = -1
         status_name = status_names.get(_status_int, f"Unknown({termination_status})")
         log.critical(f"[WebviewPanel] RENDER PROCESS CRASHED: status={status_name}, exit_code={exit_code}")
-        print(f"\n💥 [WebviewPanel] Chromium render process CRASHED (status={status_name}, code={exit_code})\n",
-              flush=True)
         # Mark page dead so we stop sending JS. Future opens will queue until reload.
         self._page_loaded = False
 

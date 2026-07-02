@@ -9,9 +9,12 @@ AI prompt suggestion system:
 - Integrates with speculation system for instant execution
 """
 
+import logging
 import os
 import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+log = logging.getLogger("cortex.agent")
 
 try:
     from ...bootstrap.state import get_is_non_interactive_session
@@ -77,7 +80,7 @@ try:
     from ...utils.log import log_error
 except ImportError:
     def log_error(error: Exception):
-        print(f"[ERROR] {error}")
+        log.error(f"{error}")
 
 try:
     from ...utils.messages import (

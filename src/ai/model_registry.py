@@ -19,6 +19,7 @@ MODEL_GROUPS = [
     ], "byok"),
     ("DeepSeek V4", [
         ("deepseek-v4-pro", "DeepSeek V4 Pro", "1.6T params · 1M ctx", "#a78bfa"),
+        ("deepseek-v4-flash", "DeepSeek V4 Flash", "1M ctx · fast · cost-effective", "#a78bfa"),
     ], "byok"),
     ("OpenAI GPT", [
         ("gpt-5.5", "GPT-5.5", "1.05M ctx · newest frontier", "#10a37f"),
@@ -44,7 +45,7 @@ MODEL_GROUPS = [
         ("qwen3.7-plus", "Qwen 3.7 Plus", "1M ctx · agentic flagship", "#f59e0b"),
         ("qwen3.6-plus", "Qwen 3.6 Plus", "1M ctx · agentic", "#f59e0b"),
         ("qwen3-coder-plus", "Qwen3 Coder Plus", "1M ctx · best for code", "#f59e0b"),
-        ("qwen-flash", "Qwen Flash", "1M ctx · fast · free quota", "#f59e0b"),
+        ("qwen-flash", "Qwen Flash", "1M ctx · fast", "#f59e0b"),
         ("qwen-turbo", "Qwen Turbo", "1M ctx · low cost", "#f59e0b"),
     ], "byok"),
 ]

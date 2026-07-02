@@ -6,8 +6,6 @@ MiMo-V2.5 is Xiaomi's latest model family from platform.xiaomimimo.com:
   — Long-horizon agentic coding, autonomous agent loops
 - MiMo-V2.5: Full-modal (text/image/video/audio), 1M context, 128K output
   — Multimodal agentic perception & workflows
-- MiMo-V2.5-Flash: Lightweight text model, 256K context, 64K output
-  — High-throughput coding, simple tasks
 
 API: OpenAI-compatible chat completions
 
@@ -15,9 +13,8 @@ API: OpenAI-compatible chat completions
   (Anthropic-compatible endpoint also available at /anthropic — not used by this provider)
 
 Pricing (per 1M tokens, overseas, cache-miss / cached / output):
-  mimo-v2.5-pro:   $1.00 / $0.20 / $3.00
-  mimo-v2.5:       $0.40 / $0.08 / $2.00
-  mimo-v2.5-flash: $0.10 / $0.01 / $0.30
+  mimo-v2.5-pro: $1.00 / $0.20 / $3.00
+  mimo-v2.5:     $0.40 / $0.08 / $2.00
   (Long-context >256K surcharge applies to pro and v2.5)
   Cache write is currently free.
 
@@ -87,7 +84,7 @@ class MimoProvider(BaseProvider):
                 return
 
             key = self._api_key or ""
-            log.info(f"[MiMo] _detect_hosts: key_prefix='{key[:3]}...' key_len={len(key)}")
+            log.info(f"[MiMo] _detect_hosts: key_prefix='{key[:2]}**' key_len={len(key)}")
             if key.startswith("tp-"):
                 self._primary_host = self._API_HOST_TP
                 self._fallback_host = self._API_HOST_SK
@@ -99,7 +96,7 @@ class MimoProvider(BaseProvider):
             else:
                 self._primary_host = self._API_HOST_SK
                 self._fallback_host = self._API_HOST_TP
-                log.warning(f"[MiMo] Unknown key prefix '{key[:3]}' → defaulting to SK endpoint")
+                log.warning(f"[MiMo] Unknown key prefix '{key[:2]}**' → defaulting to SK endpoint")
 
             self._current_host = self._primary_host
             self._fell_back = False
@@ -157,10 +154,10 @@ class MimoProvider(BaseProvider):
                 self._api_key = self._api_key.replace(' ', '').replace('\n', '').replace('\r', '').strip().strip("'\"")
                 # Validate key format: must start with sk- or tp- and be reasonable length
                 if not (self._api_key.startswith('sk-') or self._api_key.startswith('tp-')):
-                    log.warning(f"[MiMo] Invalid key prefix '{self._api_key[:5]}...' — key may be corrupted. Expected sk-* or tp-*")
+                    log.warning(f"[MiMo] Invalid key prefix '{self._api_key[:2]}**' — key may be corrupted. Expected sk-* or tp-*")
                 if len(self._api_key) > 128:
                     log.warning(f"[MiMo] Key length {len(self._api_key)} exceeds expected 32-128 chars — key may be corrupted")
-            log.info(f"[MiMo] __init__: key_loaded={bool(self._api_key)} key_prefix='{self._api_key[:5]}...' key_len={len(self._api_key)}")
+            log.info(f"[MiMo] __init__: key_loaded={bool(self._api_key)} key_prefix='{self._api_key[:2]}**' key_len={len(self._api_key)}")
             if not self._api_key:
                 log.warning("MIMO_API_KEY not configured. Add key in Settings → Models & Providers")
             self._session = requests.Session()
@@ -227,17 +224,6 @@ class MimoProvider(BaseProvider):
                     supports_vision=True,
                 ),
             ]
-            # Flash is only available on pay-as-you-go (sk-*), not Token Plan (tp-*)
-            if not self._api_key.startswith("tp-"):
-                models.append(ModelInfo(
-                    id="mimo-v2.5-flash",
-                    name="MiMo V2.5 Flash (256K ctx)",
-                    provider="mimo",
-                    context_length=262_144,
-                    max_tokens=65_536,
-                    supports_streaming=True,
-                    supports_vision=False,
-                ))
             return models
         except Exception as e:
             log.error(f"[MiMo] available_models error: {e}")
@@ -298,7 +284,7 @@ class MimoProvider(BaseProvider):
             if api_key and api_key[:3] != (old_key or '')[:3]:
                 self._fell_back = False
                 self._detect_hosts()
-                log.info(f"[MiMo] set_api_key: endpoint re-routed for prefix '{api_key[:3]}...' → {self._primary_host}")
+                log.info(f"[MiMo] set_api_key: endpoint re-routed for prefix '{api_key[:2]}**' → {self._primary_host}")
         except Exception as e:
             log.error(f"[MiMo] set_api_key error: {e}")
 
@@ -372,7 +358,7 @@ class MimoProvider(BaseProvider):
             thinking: MiMo thinking mode control.
                 {"type": "enabled"} for deep reasoning (slower, higher quality).
                 {"type": "disabled"} for fast responses (default for agentic coding).
-                If None, MiMo defaults apply (enabled for pro/v2.5, disabled for flash).
+                If None, MiMo defaults apply (enabled for pro, disabled for v2.5).
             top_p: Nucleus sampling (0.0-1.0). Default API value if None.
             frequency_penalty: -2.0 to 2.0. Default API value if None.
             presence_penalty: -2.0 to 2.0. Default API value if None.

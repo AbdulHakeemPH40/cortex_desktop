@@ -1427,14 +1427,14 @@ class SidebarBridge(QObject):
     def deleteFile(self, filepath: str) -> str:
         """Move file/directory to Recycle Bin (safe — NOT permanent delete).
         Emits file_deleted signal so editor tabs auto-close."""
-        print(f"[SidebarBridge.deleteFile] CALLED with filepath={filepath!r}", flush=True)
+        log.debug(f"[SidebarBridge.deleteFile] CALLED with filepath={filepath!r}")
         try:
             from src.utils.safe_delete import safe_delete
             result = safe_delete(filepath)
-            print(f"[SidebarBridge.deleteFile] safe_delete result={result}", flush=True)
+            log.debug(f"[SidebarBridge.deleteFile] safe_delete result={result}")
             if result["success"]:
                 abs_path = os.path.abspath(filepath)
-                print(f"[SidebarBridge.deleteFile] emitting file_deleted for abs_path={abs_path!r}", flush=True)
+                log.debug(f"[SidebarBridge.deleteFile] emitting file_deleted for abs_path={abs_path!r}")
                 self.file_deleted.emit(abs_path)
                 log.info(f"deleteFile: moved to Recycle Bin → {abs_path}")
                 return "ok"
@@ -1442,7 +1442,7 @@ class SidebarBridge(QObject):
                 return f"Error: {result['message']}"
         except Exception as e:
             log.error(f"deleteFile failed: {e}")
-            print(f"[SidebarBridge.deleteFile] EXCEPTION: {e}", flush=True)
+            log.error(f"[SidebarBridge.deleteFile] EXCEPTION: {e}")
             return f"Error: {e}"
 
     # NOTE: refreshGitStatus() with no args is defined at line 813 using git_utils.

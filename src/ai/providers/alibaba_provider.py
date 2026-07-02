@@ -13,7 +13,6 @@ API key:
     Set DASHSCOPE_API_KEY via Settings → Models & Providers (stored in Windows Credential Manager).
 
 Model tiers exposed:
-    • Free quota models — 1,000,000 tokens free (e.g. qwen3.7-plus)
     • Most capable paid  — qwen-max / qwen3-max
     • Balanced           — qwen-plus
     • Low cost / fastest — qwen-turbo
@@ -133,7 +132,7 @@ class AlibabaProvider(BaseProvider):
                 # ── Coding (1M context) ──
                 ModelInfo("qwen3-coder-plus", "Qwen3 Coder Plus", "alibaba",
                           1_000_000, 65_536, True, False),
-                # ── Free quota / fast (1M context) ──
+                #
                 ModelInfo("qwen-flash", "Qwen Flash", "alibaba",
                           1_000_000, 32_768, True, False),
                 # ── Low cost (1M context) ──
@@ -235,8 +234,13 @@ class AlibabaProvider(BaseProvider):
                 payload["tool_choice"] = tool_choice
 
         # Qwen3 thinking: cap budget on non-streaming too (not disable — agent needs reasoning)
-        if not stream and self._is_thinking_model(model):
-            _budget = self._get_int_env("CORTEX_QWEN_THINKING_BUDGET", 4096, minimum=512, maximum=32768)
+        from src.agent.src.utils.thinking import get_provider_thinking_config
+        _qwen_cfg = get_provider_thinking_config("alibaba")
+        if not stream and self._is_thinking_model(model) and _qwen_cfg.get("enable_thinking", True):
+            _budget = max(
+                _qwen_cfg.get("budget_min", 512),
+                min(_qwen_cfg.get("thinking_budget", 4096), _qwen_cfg.get("budget_max", 32768))
+            )
             payload["enable_thinking"] = True
             payload["thinking_budget"] = _budget
 
@@ -382,8 +386,13 @@ class AlibabaProvider(BaseProvider):
         }
         # Qwen3 thinking budget — cap reasoning tokens to prevent runaway costs.
         # DashScope OpenAI-compat API: enable_thinking + thinking_budget at top level.
-        if self._is_thinking_model(model):
-            _budget = self._get_int_env("CORTEX_QWEN_THINKING_BUDGET", 4096, minimum=512, maximum=32768)
+        from src.agent.src.utils.thinking import get_provider_thinking_config
+        _qwen_cfg = get_provider_thinking_config("alibaba")
+        if self._is_thinking_model(model) and _qwen_cfg.get("enable_thinking", True):
+            _budget = max(
+                _qwen_cfg.get("budget_min", 512),
+                min(_qwen_cfg.get("thinking_budget", 4096), _qwen_cfg.get("budget_max", 32768))
+            )
             payload["enable_thinking"] = True
             payload["thinking_budget"] = _budget
 

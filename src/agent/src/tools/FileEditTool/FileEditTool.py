@@ -5,10 +5,13 @@
 # A tool for editing files by replacing strings in place.
 # ------------------------------------------------------------
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Callable
 import asyncio
+
+log = logging.getLogger("cortex.agent")
 
 # ============================================================
 # LOCAL IMPORTS
@@ -272,7 +275,7 @@ def atomic_edit(path: str, old_string: str, new_string: str, replace_all: bool) 
         os.replace(temp_path, path)
         return True
     except Exception as e:
-        print(f"Atomic edit failed: {e}")
+        log.error(f"Atomic edit failed: {e}")
         return False
 
 def verify_edit(path: str, old_string: str, new_string: str, replace_all: bool) -> bool:
@@ -289,7 +292,7 @@ def verify_edit(path: str, old_string: str, new_string: str, replace_all: bool) 
             # For single replace, ensure old_string is gone and new_string is present
             return old_string not in content and new_string in content
     except Exception as e:
-        print(f"Edit verification failed: {e}")
+        log.error(f"Edit verification failed: {e}")
         return False
 
 def write_text_content(path: str, content: str, encoding: str, line_endings: str) -> None:

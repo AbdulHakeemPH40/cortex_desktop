@@ -5,7 +5,10 @@ Discovers available resources (databases, APIs, docs, etc.) from Model Context
 Protocol (MCP) servers that the AI agent can query for external data.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, TypedDict
+
+log = logging.getLogger("cortex.agent")
 
 # Defensive imports
 try:
@@ -36,7 +39,7 @@ try:
     from ...utils.log import logMCPError
 except ImportError:
     def logMCPError(server_name, error_message):
-        print(f'MCP Error [{server_name}]: {error_message}')
+        log.error(f'MCP Error [{server_name}]: {error_message}')
 
 try:
     from ...utils.slowOperations import jsonStringify

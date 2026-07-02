@@ -3,9 +3,12 @@ Theme Manager for Cortex AI Agent IDE
 Handles dark QSS stylesheet loading — dark mode only.
 """
 
+import logging
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QObject, pyqtSignal
+
+log = logging.getLogger("cortex.theme_manager")
 
 
 THEMES_DIR = Path(__file__).parent.parent / "ui" / "themes"
@@ -24,7 +27,7 @@ class ThemeManager(QObject):
         qss_file = THEMES_DIR / "dark.qss"
 
         if not qss_file.exists():
-            print(f"[ThemeManager] Theme file not found: {qss_file}")
+            log.error(f"[ThemeManager] Theme file not found: {qss_file}")
             return
 
         with open(qss_file, "r", encoding="utf-8") as f:

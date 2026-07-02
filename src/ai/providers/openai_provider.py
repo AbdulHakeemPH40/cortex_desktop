@@ -99,7 +99,7 @@ class OpenAIProvider(BaseProvider):
                     if not self._api_key:
                         raise ValueError("API key not set for OpenAI")
 
-                    log.debug(f"Creating OpenAI client with key: {self._api_key[:10]}...")
+                    log.debug(f"Creating OpenAI client with key: ***")
                     self._client = OpenAI(
                         api_key=self._api_key,
                         base_url=self._base_url or "https://api.openai.com/v1",
@@ -175,10 +175,13 @@ class OpenAIProvider(BaseProvider):
                 # CRITICAL: When reasoning is enabled, GPT-5.x ONLY accepts temperature=1.0
                 # (same constraint as o1/o3 reasoning models). Any other value → 400.
                 _is_gpt5_nano = model and "nano" in model.lower()
-                if _is_gpt5 and not _is_gpt5_nano and not tools:
-                    _reasoning_effort = os.getenv("CORTEX_OPENAI_REASONING_EFFORT", "medium")
+                from src.agent.src.utils.thinking import get_provider_thinking_config
+                _t_cfg = get_provider_thinking_config("openai")
+                _skip_tools = _t_cfg.get("skip_with_tools", True)
+                if _is_gpt5 and not _is_gpt5_nano and not (tools and _skip_tools):
+                    _reasoning_effort = _t_cfg.get("reasoning_effort", "medium")
                     _body["reasoning_effort"] = _reasoning_effort
-                    _body["temperature"] = 1.0  # Reasoning models require temperature=1.0
+                    _body["temperature"] = _t_cfg.get("temperature_override", 1.0)
                     log.debug(f"OpenAI reasoning_effort={_reasoning_effort} temperature=1.0 for model={model}")
 
                 # Use non-streaming for chat() — streaming path handled by chat_stream()
@@ -329,10 +332,13 @@ class OpenAIProvider(BaseProvider):
                 # CRITICAL: When reasoning is enabled, GPT-5.x ONLY accepts temperature=1.0
                 # (same constraint as o1/o3 reasoning models). Any other value → 400.
                 _is_gpt5_nano = model and "nano" in model.lower()
-                if _is_gpt5 and not _is_gpt5_nano and not tools:
-                    _reasoning_effort = os.getenv("CORTEX_OPENAI_REASONING_EFFORT", "medium")
+                from src.agent.src.utils.thinking import get_provider_thinking_config
+                _t_cfg = get_provider_thinking_config("openai")
+                _skip_tools = _t_cfg.get("skip_with_tools", True)
+                if _is_gpt5 and not _is_gpt5_nano and not (tools and _skip_tools):
+                    _reasoning_effort = _t_cfg.get("reasoning_effort", "medium")
                     _body["reasoning_effort"] = _reasoning_effort
-                    _body["temperature"] = 1.0  # Reasoning models require temperature=1.0
+                    _body["temperature"] = _t_cfg.get("temperature_override", 1.0)
                     log.debug(f"OpenAI reasoning_effort={_reasoning_effort} temperature=1.0 for model={model}")
 
                 response = client.chat.completions.create(**_body)

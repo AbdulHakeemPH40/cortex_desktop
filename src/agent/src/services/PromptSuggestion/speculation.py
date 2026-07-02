@@ -9,12 +9,15 @@ AI speculative execution system:
 - Provides instant results when user accepts speculation
 """
 
+import logging
 import os
 import asyncio
 import shutil
 import uuid
 from os.path import dirname, isabs, join, relpath
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+log = logging.getLogger("cortex.agent")
 
 try:
     from ...bootstrap.state import get_cwd_state
@@ -78,7 +81,7 @@ try:
     from ...utils.debug import log_for_debugging
 except ImportError:
     def log_for_debugging(msg: str, **kwargs):
-        print(f"[DEBUG] {msg}")
+        log.debug(f"{msg}")
 
 try:
     from ...utils.errors import error_message
@@ -132,7 +135,7 @@ try:
     from ...utils.log import log_error
 except ImportError:
     def log_error(error: Exception):
-        print(f"[ERROR] {error}")
+        log.error(f"{error}")
 
 try:
     from ...utils.messages import (

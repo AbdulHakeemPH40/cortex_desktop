@@ -5,10 +5,13 @@
 # A tool for searching and loading deferred tool schemas.
 # ------------------------------------------------------------
 
+import logging
 import re
 import threading
 from typing import Any, Dict, List, Optional, TypedDict
 import asyncio
+
+log = logging.getLogger("cortex.agent")
 
 try:
     from .constants import TOOL_SEARCH_TOOL_NAME
@@ -43,7 +46,7 @@ try:
     from ..utils.debug import log_for_debugging
 except ImportError:
     def log_for_debugging(msg: str) -> None:
-        print(f"[DEBUG] {msg}")
+        log.debug(f"{msg}")
 
 try:
     from ..utils.lazy_schema import lazy_schema

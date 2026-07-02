@@ -1,19 +1,18 @@
 # utils/thinking.py
 # Extended Thinking/Reasoning Configuration for Multi-LLM Cortex IDE
-# Supports: OpenAI (o1/o3), Anthropic (Cortex), Google (Gemini), DeepSeek, Qwen (budget-capped)
+# Supports: OpenAI (GPT-5.x), MiMo (V2.5), DeepSeek (V4), Alibaba (Qwen3)
 
 """
 Extended thinking/reasoning configuration for multi-LLM models.
 
 Different LLM providers call this feature by different names:
-- OpenAI: "Extended Thinking" (o1, o3 models)
-- Anthropic: "Extended Thinking" (Cortex 4+)
-- Google: "Thinking Budget" (Gemini 2.0 Flash Thinking)
-- Alibaba: "Thinking" (Qwen3 / QwQ models — budget-capped via DashScope API)
-- DeepSeek: "Reasoning" (DeepSeek-R1)
-- Qwen: "Thinking" (QwQ reasoning model)
+- OpenAI: "reasoning_effort" (GPT-5.x models)
+- MiMo: "thinking" parameter (V2.5 family)
+- DeepSeek: Always-on reasoning (V4 models, no toggle)
+- Alibaba: "thinking_budget" (Qwen3 models via DashScope API)
 
-This module provides unified configuration across all providers.
+This module provides unified configuration across all providers,
+including tiered reasoning budgets mapped to task complexity.
 """
 
 from dataclasses import dataclass
@@ -38,7 +37,9 @@ class ThinkingConfig:
             - 'disabled': Never think (fastest, cheapest)
     """
     enabled: bool = True
-    budget_tokens: int = 4000
+    # Default: standard chat/code completion tier (500-2K tokens).
+    # See REASONING_TIERS for full tier-to-budget mapping.
+    budget_tokens: int = 1000
     type: Literal["adaptive", "enabled", "disabled"] = "adaptive"
     
     def to_api_params(self, provider: str) -> dict:
@@ -92,76 +93,189 @@ class ThinkingConfig:
 
 
 # ============================================================================
+# Reasoning Tiers — Task-aware token budget configuration
+# ============================================================================
+
+# Maps task complexity to reasoning effort and token reservation.
+# Reference: OpenAI recommends reserving 25K+ tokens for GPT-5.5 high effort.
+REASONING_TIERS = {
+    # Classification, formatting, simple lookup — no reasoning needed
+    "none": {
+        "effort": "none",
+        "budget_tokens": 0,
+        "thinking": "disabled",
+    },
+    # Standard chat/code completion — lightweight reasoning
+    "low": {
+        "effort": "low",
+        "budget_tokens": 1000,
+        "thinking": "disabled",
+    },
+    # Debugging, multi-file reasoning — moderate reasoning
+    "medium": {
+        "effort": "medium",
+        "budget_tokens": 4000,
+        "thinking": "enabled",
+    },
+    # Complex reasoning, architecture analysis — deep reasoning
+    "high": {
+        "effort": "high",
+        "budget_tokens": 8000,
+        "thinking": "enabled",
+    },
+    # Agentic loops, architecture decisions, large refactors — max reasoning
+    # OpenAI recommends 25K+ headroom for GPT-5.5 at highest effort levels
+    "xhigh": {
+        "effort": "xhigh",
+        "budget_tokens": 32000,
+        "thinking": "enabled",
+    },
+}
+
+# Default tier for standard chat/code completion (most common task type)
+DEFAULT_REASONING_TIER = "low"
+
+
+# ============================================================================
+# Runtime Defaults — centralized thinking config (replaces env vars)
+# ============================================================================
+
+# Per-provider thinking defaults (used by providers instead of os.environ)
+# These replace: CORTEX_OPENAI_REASONING_EFFORT, CORTEX_MIMO_THINKING,
+# CORTEX_QWEN_THINKING_BUDGET, CORTEX_THINKING_BUDGET_TOKENS
+PROVIDER_THINKING_DEFAULTS = {
+    "openai": {
+        "reasoning_effort": "medium",            # was CORTEX_OPENAI_REASONING_EFFORT
+        "temperature_override": 1.0,             # required when reasoning enabled
+        "skip_with_tools": True,                 # GPT-5.x: reasoning + tools = 400
+    },
+    "mimo": {
+        "thinking_type": "enabled",              # was CORTEX_MIMO_THINKING
+        "merge_reasoning_when_disabled": True,   # MiMo quirk: reasoning_content = full response
+    },
+    "deepseek": {
+        "always_reason": True,                   # no toggle, always-on reasoning
+    },
+    "alibaba": {
+        "thinking_budget": 4096,                 # was CORTEX_QWEN_THINKING_BUDGET
+        "budget_min": 512,
+        "budget_max": 32768,
+        "enable_thinking": True,
+    },
+    "mistral": {
+        "strip_reasoning_content": True,         # Mistral rejects reasoning_content field
+    },
+}
+
+# Thinking loop detection budget (replaces CORTEX_THINKING_BUDGET_TOKENS)
+THINKING_LOOP_DETECTION_BUDGET = 32_000
+
+
+def get_provider_thinking_config(provider: str) -> dict:
+    """Get centralized thinking config for a provider.
+    
+    Checks settings.json first for user overrides, falls back to
+    PROVIDER_THINKING_DEFAULTS.
+    
+    Args:
+        provider: LLM provider name (openai, mimo, deepseek, alibaba, mistral)
+    
+    Returns:
+        Dict with provider-specific thinking configuration
+    
+    Examples:
+        >>> cfg = get_provider_thinking_config("openai")
+        >>> cfg["reasoning_effort"]
+        'medium'
+        >>> cfg = get_provider_thinking_config("alibaba")
+        >>> cfg["thinking_budget"]
+        4096
+    """
+    try:
+        from src.config.settings import get_settings
+        settings = get_settings()
+        # Check if user has customized thinking in settings
+        custom = settings.get("thinking", provider)
+        if custom and isinstance(custom, dict):
+            base = PROVIDER_THINKING_DEFAULTS.get(provider, {}).copy()
+            base.update(custom)
+            return base
+    except Exception:
+        pass
+    return PROVIDER_THINKING_DEFAULTS.get(provider, {})
+
+
+def get_thinking_loop_budget() -> int:
+    """Get the thinking loop detection budget in tokens.
+    
+    Returns:
+        Token budget before forcing action (default 32,000)
+    
+    Examples:
+        >>> get_thinking_loop_budget()
+        32000
+    """
+    try:
+        from src.config.settings import get_settings
+        settings = get_settings()
+        custom_budget = settings.get("thinking", "loop_detection_budget")
+        if isinstance(custom_budget, int) and custom_budget > 0:
+            return custom_budget
+    except Exception:
+        pass
+    return THINKING_LOOP_DETECTION_BUDGET
+
+
+def get_reasoning_tier(tier_name: str) -> dict:
+    """Get reasoning config for a named tier."""
+    return REASONING_TIERS.get(tier_name, REASONING_TIERS[DEFAULT_REASONING_TIER])
+
+
+# ============================================================================
 # Model Support Detection
 # ============================================================================
 
 # Models that support extended thinking/reasoning
 THINKING_SUPPORTED_MODELS = {
-    # OpenAI - o-series models with extended thinking
+    # OpenAI - GPT-5.x supports reasoning_effort
     "openai": {
-        "o1", "o1-mini", "o1-preview",
-        "o3", "o3-mini",
-        "o4-mini",
+        "gpt-5.5",
+        "gpt-5.4",
     },
     
-    # Anthropic - Cortex 4+ models
-    "anthropic": {
-        "cortex-sonnet-4", "cortex-sonnet-4-20250514",
-        "cortex-opus-4", "cortex-opus-4-20250514",
-        "cortex-haiku-4-5", "cortex-haiku-4-5-20250514",
-        # Cortex 4.6+ with adaptive thinking
-        "cortex-sonnet-4-6", "cortex-opus-4-6",
+    # MiMo - V2.5 family supports thinking parameter
+    "mimo": {
+        "mimo-v2.5-pro",
+        "mimo-v2.5",
     },
     
-    # Google - Gemini 2.0 Flash Thinking
-    "google": {
-        "gemini-2.0-flash-thinking",
-        "gemini-2.0-flash-thinking-exp",
-    },
-    
-    # DeepSeek - R1 reasoning model
+    # DeepSeek - V4 models always reason (no toggle needed)
     "deepseek": {
-        "deepseek-reasoner",
-        "deepseek-r1",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
     },
     
-    # Alibaba - QwQ reasoning model
-    "qwen": {
-        "qwq-32b",
-        "qwq-plus",
-        "qwen-reasoning",
+    # Alibaba - Qwen3/QwQ models support thinking_budget
+    "alibaba": {
+        "qwen3.7-plus",
+        "qwen3.6-plus",
+        "qwen3-coder-plus",
     },
 }
 
 # Models that support ADAPTIVE thinking (AI decides when to think)
 ADAPTIVE_THINKING_MODELS = {
-    # OpenAI - o3+ models
-    "openai": {"o3", "o3-mini", "o4-mini"},
+    # OpenAI - GPT-5.x with reasoning_effort
+    "openai": {"gpt-5.5", "gpt-5.4"},
     
-    # Anthropic - Cortex 4.6+
-    "anthropic": {
-        "cortex-sonnet-4-6",
-        "cortex-opus-4-6",
-    },
+    # MiMo - V2.5 family (adaptive via thinking parameter)
+    "mimo": {"mimo-v2.5-pro", "mimo-v2.5"},
     
-    # Google - Gemini 2.0 Flash Thinking (adaptive by default)
-    "google": {
-        "gemini-2.0-flash-thinking",
-        "gemini-2.0-flash-thinking-exp",
-    },
+    # DeepSeek - V4 (always reasons, adaptive)
+    "deepseek": {"deepseek-v4-pro", "deepseek-v4-flash"},
     
-    # DeepSeek - R1 (always reasons, adaptive)
-    "deepseek": {
-        "deepseek-reasoner",
-        "deepseek-r1",
-    },
-    
-    # Alibaba - QwQ (always reasons, adaptive)
-    "qwen": {
-        "qwq-32b",
-        "qwq-plus",
-        "qwen-reasoning",
-    },
+    # Alibaba - Qwen3 (adaptive via thinking_budget)
+    "alibaba": {"qwen3.7-plus", "qwen3.6-plus", "qwen3-coder-plus"},
 }
 
 
@@ -170,18 +284,18 @@ def model_supports_thinking(provider: str, model_name: str) -> bool:
     Check if a specific model supports extended thinking/reasoning.
     
     Args:
-        provider: LLM provider (openai, anthropic, google, deepseek, qwen)
-        model_name: Model identifier (e.g., "gpt-4", "cortex-sonnet-4")
+        provider: LLM provider (openai, mimo, deepseek, alibaba)
+        model_name: Model identifier (e.g., "gpt-5.5", "mimo-v2.5-pro")
     
     Returns:
         True if model supports extended thinking
     
     Examples:
-        >>> model_supports_thinking("openai", "o3-mini")
+        >>> model_supports_thinking("openai", "gpt-5.5")
         True
-        >>> model_supports_thinking("anthropic", "cortex-sonnet-4")
+        >>> model_supports_thinking("mimo", "mimo-v2.5-pro")
         True
-        >>> model_supports_thinking("deepseek", "deepseek-chat")
+        >>> model_supports_thinking("mistral", "mistral-large-latest")
         False
     """
     provider = provider.lower()
@@ -216,10 +330,10 @@ def model_supports_adaptive_thinking(provider: str, model_name: str) -> bool:
         True if model supports adaptive thinking
     
     Examples:
-        >>> model_supports_adaptive_thinking("anthropic", "cortex-opus-4-6")
+        >>> model_supports_adaptive_thinking("openai", "gpt-5.5")
         True
-        >>> model_supports_adaptive_thinking("anthropic", "cortex-sonnet-4")
-        False  # Cortex 4.0 requires explicit thinking enable/disable
+        >>> model_supports_adaptive_thinking("mimo", "mimo-v2.5-pro")
+        True
     """
     provider = provider.lower()
     model_name = model_name.lower()
@@ -253,7 +367,7 @@ def get_recommended_thinking_config(provider: str, model_name: str) -> Optional[
         >>> config.type
         'adaptive'
         >>> config.budget_tokens
-        4000
+        1000
     """
     if not model_supports_thinking(provider, model_name):
         return None
@@ -262,14 +376,14 @@ def get_recommended_thinking_config(provider: str, model_name: str) -> Optional[
     if model_supports_adaptive_thinking(provider, model_name):
         return ThinkingConfig(
             enabled=True,
-            budget_tokens=4000,
+            budget_tokens=1000,
             type="adaptive"
         )
     
     # Model supports thinking but not adaptive - default to enabled
     return ThinkingConfig(
         enabled=True,
-        budget_tokens=4000,
+        budget_tokens=1000,
         type="enabled"
     )
 
@@ -297,36 +411,36 @@ def get_provider_thinking_info(provider: str) -> dict:
     """
     provider_info = {
         "openai": {
-            "feature_name": "Extended Thinking",
+            "feature_name": "Reasoning Effort",
             "supports_thinking": True,
             "supports_adaptive": True,
-            "models": ["o1", "o1-mini", "o3", "o3-mini", "o4-mini"],
+            "models": ["gpt-5.5", "gpt-5.4"],
             "config_param": "reasoning_effort",
-            "description": "OpenAI o-series models with extended reasoning",
+            "description": "GPT-5.x models with reasoning_effort parameter",
         },
-        "anthropic": {
+        "mimo": {
             "feature_name": "Extended Thinking",
             "supports_thinking": True,
             "supports_adaptive": True,
-            "models": ["cortex-sonnet-4", "cortex-opus-4", "cortex-haiku-4-5"],
-            "config_param": "thinking.budget_tokens",
-            "description": "Cortex 4+ models with chain-of-thought reasoning",
+            "models": ["mimo-v2.5-pro", "mimo-v2.5"],
+            "config_param": "thinking",
+            "description": "MiMo V2.5 family with thinking parameter",
         },
-        "google": {
+        "deepseek": {
+            "feature_name": "Always-On Reasoning",
+            "supports_thinking": True,
+            "supports_adaptive": True,
+            "models": ["deepseek-v4-pro", "deepseek-v4-flash"],
+            "config_param": None,
+            "description": "DeepSeek V4 models (always reason, no toggle)",
+        },
+        "alibaba": {
             "feature_name": "Thinking Budget",
             "supports_thinking": True,
             "supports_adaptive": True,
-            "models": ["gemini-2.0-flash-thinking"],
-            "config_param": "thinking_config.thinking_budget",
-            "description": "Gemini 2.0 Flash Thinking Edition",
-        },
-        "qwen": {
-            "feature_name": "Thinking",
-            "supports_thinking": True,
-            "supports_adaptive": True,
-            "models": ["qwq-32b", "qwq-plus"],
-            "config_param": None,
-            "description": "Alibaba QwQ reasoning model (always reasons)",
+            "models": ["qwen3.7-plus", "qwen3.6-plus", "qwen3-coder-plus"],
+            "config_param": "thinking_budget",
+            "description": "Qwen3 models with thinking_budget parameter",
         },
     }
     
@@ -349,9 +463,9 @@ def list_thinking_supported_models() -> Dict[str, list]:
     
     Examples:
         >>> models = list_thinking_supported_models()
-        >>> "o3-mini" in models["openai"]
+        >>> "gpt-5.5" in models["openai"]
         True
-        >>> "cortex-sonnet-4" in models["anthropic"]
+        >>> "mimo-v2.5-pro" in models["mimo"]
         True
     """
     return {
@@ -431,4 +545,15 @@ __all__ = [
     # Constants
     "THINKING_SUPPORTED_MODELS",
     "ADAPTIVE_THINKING_MODELS",
+    
+    # Reasoning tiers
+    "REASONING_TIERS",
+    "DEFAULT_REASONING_TIER",
+    "get_reasoning_tier",
+    
+    # Runtime config (centralized thinking defaults)
+    "PROVIDER_THINKING_DEFAULTS",
+    "THINKING_LOOP_DETECTION_BUDGET",
+    "get_provider_thinking_config",
+    "get_thinking_loop_budget",
 ]

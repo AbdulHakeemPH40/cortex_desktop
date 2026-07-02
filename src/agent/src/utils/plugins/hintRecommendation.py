@@ -11,9 +11,12 @@ marketplace filtering is hardcoded for v1.
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Set, List
 from functools import lru_cache
+
+log = logging.getLogger("cortex.agent")
 
 # Constants
 MAX_SHOWN_PLUGINS = 100
@@ -370,9 +373,9 @@ if __name__ == "__main__":
     async def example_resolution():
         recommendation = await resolve_plugin_hint(hint)
         if recommendation:
-            print(f"Found plugin: {recommendation.plugin_name}")
+            log.debug(f"Found plugin: {recommendation.plugin_name}")
         else:
-            print("Plugin not found in marketplace")
+            log.debug("Plugin not found in marketplace")
     
     asyncio.run(example_resolution())
     

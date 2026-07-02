@@ -60,5 +60,5 @@ def summary() -> str:
         lines.append(f"  {label}: {delta:.0f}ms")
     lines.append("=" * 60)
     result = "\n".join(lines)
-    print(result)
+    log.debug(result)
     return result

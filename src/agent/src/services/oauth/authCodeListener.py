@@ -32,7 +32,7 @@ try:
     from ...utils.log import log_error
 except ImportError:
     def log_error(error: Exception):
-        print(f"[ERROR] {error}")
+        logger.error(f"{error}")
 
 try:
     from .oauthClient import should_use_cloud_ai_auth

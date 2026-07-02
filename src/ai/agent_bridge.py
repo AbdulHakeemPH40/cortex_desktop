@@ -2175,7 +2175,6 @@ class CortexAgentBridge(QObject):
         self._cursor_pos:   Optional[int] = None
         self._terminal      = None
         self._ui_parent     = None
-        self._lsp_manager   = None
         self._always_allowed: bool = False
         self._file_edit_permission: Optional[str] = None  # None=not asked, "once", "always", "rejected"
         self._file_edit_permission_event: Optional[threading.Event] = None
@@ -4089,6 +4088,7 @@ They survive auto-compaction and are ALWAYS active:
             _has_mutated = False
             _turn_had_mutation = False  # Reset per-turn; set to True at L5290 if tools mutated
             self._research_nudge_count = 0  # Research-mode detector reset
+            _any_tool_calls = False  # Track if AI used ANY tools (even read-only)
 
             # ── Auto-continue: use pre-compacted messages from previous cycle ──
             _pre_compacted = self._auto_continue_compacted
@@ -4479,14 +4479,9 @@ They survive auto-compaction and are ALWAYS active:
                 }
                 
                 # After AI has made mutations, expand toolset slightly
-                # but DON'T dump all 19 tools — only add LSP
-                # for research/navigation, keep task/MCP/team tools excluded
+                # but DON'T dump all tools — keep task/MCP/team tools excluded
                 # to save ~500+ lines of JSON per turn.
-                if self._session_mutation_count > 5:
-                    allowed_names = core_names | {"LSP"}
-                else:
-                    allowed_names = core_names
-                active_tool_defs = _filter_tool_definitions(list(tool_defs), allowed_names)
+                active_tool_defs = _filter_tool_definitions(list(tool_defs), core_names)
                 
                 if self._session_mutation_count > 5:
                     log.info(
@@ -4554,7 +4549,8 @@ They survive auto-compaction and are ALWAYS active:
                     # Claude/Anthropic uses budget_tokens to bound thinking, not time.
                     # When thinking exceeds the token budget without producing content
                     # or tool calls, inject a directive to force action.
-                    _thinking_budget_tokens = int(os.environ.get("CORTEX_THINKING_BUDGET_TOKENS", "32000"))
+                    from src.agent.src.utils.thinking import get_thinking_loop_budget
+                    _thinking_budget_tokens = get_thinking_loop_budget()
                     _reasoning_token_count = 0  # approximate token count (chars / 4)
                     _has_received_content_or_tools = False
                     _thinking_budget_exceeded = False  # flag to prevent repeated warnings
@@ -4609,9 +4605,11 @@ They survive auto-compaction and are ALWAYS active:
                         # MiMo defaults to thinking=enabled for pro/v2.5 models,
                         # which produces reasoning_content in the SSE stream.
                         # This is required for thought cards to display AI thinking.
-                        # Users can disable via env override CORTEX_MIMO_THINKING=disabled.
+                        # Config centralized in thinking.py PROVIDER_THINKING_DEFAULTS.
                         if provider_type == ProviderType.MIMO:
-                            _mimo_thinking_override = os.environ.get("CORTEX_MIMO_THINKING", "enabled")
+                            from src.agent.src.utils.thinking import get_provider_thinking_config
+                            _mimo_cfg = get_provider_thinking_config("mimo")
+                            _mimo_thinking_override = _mimo_cfg.get("thinking_type", "enabled")
                             if _mimo_thinking_override in ("disabled", "enabled"):
                                 _chat_kwargs["thinking"] = {"type": _mimo_thinking_override}
 
@@ -5429,6 +5427,8 @@ They survive auto-compaction and are ALWAYS active:
                     f"[BRIDGE] {len(pending)} tool call(s) on turn {turn + 1}: "
                     + ", ".join(p["function"]["name"] for p in pending)
                 )
+                # Track that AI used tools this cycle (even read-only)
+                _any_tool_calls = True
                 # Reset hallucination counter — model made real tool calls
                 self._hallucination_retry_count = 0
 
@@ -5818,11 +5818,21 @@ They survive auto-compaction and are ALWAYS active:
                             self.response_chunk,
                             f'\n\n---\n*Remaining tasks were auto-cancelled after repeated attempts without progress. You can start a new request if needed.*\n'
                         )
-                    elif _mutations_this_cycle > 0 and self._auto_continue_cycle < self._MAX_AUTO_CONTINUE_CYCLES:
+                    elif ((_mutations_this_cycle > 0) or (_any_tool_calls and self._auto_continue_cycle == 0)) and self._auto_continue_cycle < self._MAX_AUTO_CONTINUE_CYCLES:
                         # ── AUTO-CONTINUE: Agent made progress, compact + restart ──
                         # ── Staleness gate: don't auto-continue if the exact same
                         #     todos have been pending across cycles.  Mutations
                         #     without todo resolution = busywork, not progress.
+                        #
+                        # ── Read-only nudge: when AI used tools but made no mutations
+                        #     (e.g. read-only analysis tasks), give ONE auto-continue
+                        #     cycle on the first attempt so it gets a chance to act.
+                        if _mutations_this_cycle == 0 and _any_tool_calls:
+                            log.info(
+                                f'[BRIDGE] Read-only cycle detected: {len(_pending_todos)} todo(s) '
+                                f'pending, AI made tool calls but no mutations — '
+                                f'auto-continuing as first-attempt nudge'
+                            )
                         if self._continue_cycle_count >= 2:
                             log.info(
                                 f'[BRIDGE] Stale continue blocked: same {len(_pending_todos)} todo(s) '
@@ -5893,8 +5903,9 @@ They survive auto-compaction and are ALWAYS active:
                         # ── MANUAL FALLBACK: No progress or auto-continue exhausted ──
                         log.info(
                             f'[BRIDGE] {len(_pending_todos)} todos still pending — '
-                            f'mutations this cycle={_mutations_this_cycle}, '
-                            f'auto-continue={self._auto_continue_cycle}/{self._MAX_AUTO_CONTINUE_CYCLES} — emitting turn_limit_hit'
+                            f'mutations={_mutations_this_cycle}, tool_calls={_any_tool_calls}, '
+                            f'auto-continue={self._auto_continue_cycle}/{self._MAX_AUTO_CONTINUE_CYCLES} '
+                            f'— emitting turn_limit_hit'
                         )
                         # Build context checkpoint so the AI has memory when resumed
                         try:
@@ -7248,7 +7259,6 @@ They survive auto-compaction and are ALWAYS active:
                 "SementicSearch":  self._dispatch_semantic_search,
                 "TodoWrite":       self._dispatch_todo_write,
                 "AskUserQuestion": self._dispatch_ask_user_question,
-                "LSP":             self._dispatch_lsp,
                 "WebFetch":        self._dispatch_web_fetch,
                 "WebSearch":       self._dispatch_web_search,
                 "TaskCreate":      self._dispatch_task_create,
@@ -8969,9 +8979,20 @@ They survive auto-compaction and are ALWAYS active:
                 _content = td.get("content", "").lower()
                 
                 # Skip validation for non-implementation tasks
+                # These are analysis/research tasks that legitimately complete
+                # without file mutations (e.g. reading code, building an index)
                 _is_implementation = not any(
                     _content.startswith(x) for x in 
-                    ("test", "verify", "analyze", "read", "review", "check")
+                    (
+                        "test", "verify", "analyze", "read", "review", "check",
+                        # Analysis & research tasks — no mutations expected
+                        "scan", "map", "deliver", "index", "research",
+                        "investigate", "explore", "understand", "list",
+                        "summarize", "describe", "categorize", "classify",
+                        "organize", "outline", "document", "report",
+                        "draft", "write", "audit", "compare", "survey",
+                        "assess", "evaluate", "inspect", "trace", "profile",
+                    )
                 )
                 
                 if _is_implementation and _mutation_count == 0:
@@ -9347,72 +9368,6 @@ They survive auto-compaction and are ALWAYS active:
             success=True
         )
 
-    async def _dispatch_lsp(self, tool_id: str, args: Dict[str, Any]) -> ToolResult:
-        """
-        Handle the LSP tool.
-
-        Dispatches LSP operations to the LSP manager if available.
-        Operations: goToDefinition, findReferences, hover, documentSymbol,
-        workspaceSymbol, goToImplementation, call hierarchy.
-        """
-        operation = args.get("operation", "")
-        file_path = args.get("filePath", "")
-        line = args.get("line", 1)
-        character = args.get("character", 1)
-
-        if not operation:
-            return ToolResult(tool_id=tool_id, result=None, success=False,
-                              error="LSP requires 'operation' parameter")
-        if not file_path:
-            return ToolResult(tool_id=tool_id, result=None, success=False,
-                              error="LSP requires 'filePath' parameter")
-
-        # Resolve relative paths
-        if not os.path.isabs(file_path) and self._project_root:
-            file_path = os.path.join(self._project_root, file_path)
-
-        # Try to use the LSP manager if available
-        lsp_result = None
-        if hasattr(self, '_lsp_manager') and self._lsp_manager:
-            try:
-                # LSP operations are synchronous in the manager
-                if operation == "goToDefinition":
-                    lsp_result = self._lsp_manager.go_to_definition(file_path, line, character)
-                elif operation == "findReferences":
-                    lsp_result = self._lsp_manager.find_references(file_path, line, character)
-                elif operation == "hover":
-                    lsp_result = self._lsp_manager.get_hover(file_path, line, character)
-                elif operation == "documentSymbol":
-                    lsp_result = self._lsp_manager.get_document_symbols(file_path)
-                elif operation == "workspaceSymbol":
-                    lsp_result = self._lsp_manager.get_workspace_symbols(args.get("query", ""))
-                elif operation == "goToImplementation":
-                    lsp_result = self._lsp_manager.go_to_implementation(file_path, line, character)
-            except Exception as exc:
-                log.warning(f"[LSP] LSP operation failed: {exc}")
-                lsp_result = None
-
-        if lsp_result:
-            return ToolResult(tool_id=tool_id, result={
-                "operation": operation,
-                "file": file_path,
-                "position": {"line": line, "character": character},
-                "result": lsp_result,
-            })
-
-        # Fallback: return guidance for manual navigation
-        return ToolResult(tool_id=tool_id, result={
-            "operation": operation,
-            "file": file_path,
-            "position": {"line": line, "character": character},
-            "result": None,
-            "message": (
-                f"LSP operation '{operation}' at {file_path}:{line}:{character}. "
-                f"LSP server may not be running for this file type. "
-                f"Use Grep or Read tools to search for definitions/references manually."
-            ),
-        })
-
     async def _dispatch_web_fetch(self, tool_id: str, args: Dict[str, Any]) -> ToolResult:
         """
         Handle the WebFetch tool.
@@ -9592,17 +9547,23 @@ They survive auto-compaction and are ALWAYS active:
             )
 
         # ── Tier 1: SerpAPI — Google search (best quality) ─────────────────
+        # SECURITY: Use POST with form body instead of GET with api_key in URL.
+        # urllib3 debug logging exposes full request URLs, leaking API keys.
         serpapi_key = km.get_key("serpapi") or ""
         if serpapi_key:
             try:
-                encoded = urllib.parse.quote(query)
-                serpapi_url = (
-                    f'https://serpapi.com/search'
-                    f'?q={encoded}&api_key={serpapi_key}&engine=google'
-                    f'&num=10&gl=us&hl=en'
-                )
+                serpapi_url = 'https://serpapi.com/search'
+                serpapi_data = urllib.parse.urlencode({
+                    'q': query,
+                    'api_key': serpapi_key,
+                    'engine': 'google',
+                    'num': '10',
+                    'gl': 'us',
+                    'hl': 'en',
+                }).encode('utf-8')
                 req = urllib.request.Request(
                     serpapi_url,
+                    data=serpapi_data,
                     headers={'User-Agent': 'Cortex-IDE/1.0 (web-search)'}
                 )
                 with urllib.request.urlopen(req, timeout=12) as resp:

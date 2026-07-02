@@ -221,11 +221,11 @@ def get_preferred_programming_font() -> str:
     for font_name in preferred_fonts:
         font = QFont(font_name)
         if font.exactMatch():
-            print(f"[Editor] Using font: {font_name}")
+            log.debug(f"Using font: {font_name}")
             return font_name
     
     # Ultimate fallback
-    print("[Editor] Using default monospace font")
+    log.debug("Using default monospace font")
     return "Consolas"  # Safe fallback that exists on all systems
 
 
@@ -991,9 +991,9 @@ class CodeEditor(QPlainTextEdit):
         # Force update to ensure colors are applied immediately
         self.update()
         
-        print(f"[Editor] Applied dark theme: bg={bg_color.name()}, fg={fg_color.name()}")
-        print(f"[Editor] Palette Base: {palette.color(QPalette.ColorRole.Base).name()}")
-        print(f"[Editor] Palette Text: {palette.color(QPalette.ColorRole.Text).name()}")
+        log.debug(f"Applied dark theme: bg={bg_color.name()}, fg={fg_color.name()}")
+        log.debug(f"Palette Base: {palette.color(QPalette.ColorRole.Base).name()}")
+        log.debug(f"Palette Text: {palette.color(QPalette.ColorRole.Text).name()}")
 
     def __init__(self, parent=None, language: str = "python"):
         super().__init__(parent)
@@ -1073,9 +1073,7 @@ class CodeEditor(QPlainTextEdit):
         self._inline_selection_text = ""
         self._inline_selection_range = (0, 0)
         
-        # Syntax Error Detection — VS Code-style separate diagnostic collections
-        # Each source (LSP, local) has its own collection; they MERGE for display
-        self._lsp_diagnostics: List[DiagnosticError] = []   # From Pyright reactive push
+        # Syntax Error Detection — separate diagnostic collections per source
         self._local_diagnostics: List[DiagnosticError] = [] # From ast.parse / py_compile
         self._syntax_errors: List[DiagnosticError] = []     # Merged view for rendering
         self._lint_selections: list = []                     # Stored lint ExtraSelections (survives Qt round-trip)
@@ -1090,9 +1088,6 @@ class CodeEditor(QPlainTextEdit):
         self._hover_timer.timeout.connect(self._show_hover_diagnostic)
         self._last_hover_pos = QPoint(-1, -1)
 
-        # REACTIVE: Dynamic response to LSP background results
-        get_lsp_manager().diagnostics_updated.connect(self._handle_lsp_update)
-
         # Completion Widget & Debounce Timer
         self._completion_timer = QTimer(self)
         self._completion_timer.setSingleShot(True)
@@ -1100,7 +1095,7 @@ class CodeEditor(QPlainTextEdit):
         self._completion_widget = CompletionWidget(None)  # Top-level window for proper visibility
         self._completion_widget.hide()
         self._completion_widget.item_selected.connect(self._insert_completion)
-        # Thread-safe: LSP callback emits signal → GUI thread receives and shows popup
+        # Thread-safe: callback emits signal → GUI thread receives and shows popup
         self._completion_results_ready.connect(self._show_completions)
         
         # Custom context menu with theme-aware icons
@@ -1300,9 +1295,9 @@ class CodeEditor(QPlainTextEdit):
                 cursor.setPosition(min(new_position, new_length))
                 self.setTextCursor(cursor)
             
-            print(f"[Format] Code formatted successfully for {self._language}")
+            log.debug(f"Code formatted successfully for {self._language}")
         else:
-            print(f"[Format] Failed to format: {result.error_message}")
+            log.warning(f"Failed to format: {result.error_message}")
             # Show error in status bar if available
             main_win = self.window()
             if main_win and hasattr(main_win, 'show_status_message'):
@@ -1345,10 +1340,6 @@ class CodeEditor(QPlainTextEdit):
             if hasattr(self, '_highlighter'):
                 self._highlighter.set_language(language)
             
-            # Show Java setup notification for first-time Java users
-            if language.lower() == 'java':
-                self._check_java_setup()
-        
         # CRITICAL: Allow highlighter to run by NOT blocking document signals
         # Only prevent content_modified from firing
         try:
@@ -1368,20 +1359,13 @@ class CodeEditor(QPlainTextEdit):
         except (TypeError, RuntimeError):
             pass
         
-        print(f"[Editor] set_content: {len(text)} chars, triggering highlighting")
+        log.debug(f"set_content: {len(text)} chars, triggering highlighting")
         
         # Trigger syntax highlighting via rehighlight() - this is the proper Qt way
         if hasattr(self, '_highlighter'):
             self._highlighter.rehighlight()
         
-        # CRITICAL: Immediately notify LSP of the editor content so Pyright analyzes
-        # THIS content — not the stale on-disk version. Without this, Pyright's initial
-        # publishDiagnostics reports errors from the on-disk file, causing false errors.
-        if file_path and language:
-            get_lsp_manager().notify_changed(file_path, text, language)
-        
         # Clear any stale diagnostics from previous file
-        self._lsp_diagnostics = []
         self._local_diagnostics = []
         self._syntax_errors = []
         self._lint_selections = []
@@ -1584,23 +1568,12 @@ class CodeEditor(QPlainTextEdit):
             bottom = top + round(self.blockBoundingRect(block).height())
 
     def _on_content_changed(self):
-        """Handle editor content change: schedule lint but keep LSP diagnostics.
+        """Handle editor content change: schedule lint and refresh diagnostics."""
         
-        LSP diagnostics are kept until new ones arrive from Pyright.
-        This prevents flickering "no errors" while Pyright analyzes.
-        """
-        # Notify LSP immediately of content changes (don't wait for lint timer)
-        # This ensures Pyright analyzes the current editor content, not stale disk version
-        path = self._file_path or f"virtual_file.{self._language or 'py'}"
-        content = self.toPlainText()
-        get_lsp_manager().notify_changed(path, content, self._language)
-        
-        # Clear stale LSP diagnostics immediately when content changes
-        # New diagnostics will arrive from Pyright after analysis
-        self._lsp_diagnostics = []
+        # Clear stale diagnostics immediately when content changes
         self._merge_and_render()
         
-        # Start lint timer for local checker (separate from LSP)
+        # Start lint timer for local checker
         self._lint_timer.start(1500)
         
         # Schedule folding recomputation (debounced)
@@ -1628,9 +1601,6 @@ class CodeEditor(QPlainTextEdit):
         self._linting_in_progress = True
         self._last_lint_content_hash = current_hash
         
-        # Notify LSP of latest content (fast, non-blocking)
-        get_lsp_manager().notify_changed(path, content, self._language)
-        
         # Run syntax check in background thread to avoid UI lag
         import threading
         checker = self._syntax_checker
@@ -1641,38 +1611,20 @@ class CodeEditor(QPlainTextEdit):
                 # Marshal results back to GUI thread
                 QTimer.singleShot(0, lambda: self._on_lint_done(errors))
             except Exception as e:
-                print(f"[SyntaxChecker] Error: {e}")
+                log.error(f"[SyntaxChecker] Error: {e}")
                 QTimer.singleShot(0, lambda: self._on_lint_done([]))
         
         threading.Thread(target=_bg_check, daemon=True).start()
     
     def _on_lint_done(self, errors):
-        """Handle local lint results on the GUI thread.
-        
-        VS Code pattern: local diagnostics go into their own collection,
-        then merge with LSP diagnostics for rendering. This prevents
-        local checker from overwriting Pyright's precise diagnostics.
-        """
+        """Handle local lint results on the GUI thread."""
         self._linting_in_progress = False
         self._local_diagnostics = errors
         self._merge_and_render()
     
     def _merge_and_render(self):
-        """Merge LSP and local diagnostics, deduplicate by line, render.
-        
-        VS Code keeps separate diagnostic collections per source.
-        LSP diagnostics take priority over local ones on the same line
-        because they have precise ranges.
-        """
-        # LSP diagnostics take priority (they have precise ranges)
-        lsp_lines = {e.line for e in self._lsp_diagnostics}
-        
-        merged = list(self._lsp_diagnostics)
-        for e in self._local_diagnostics:
-            if e.line not in lsp_lines:
-                merged.append(e)
-        
-        self._render_diagnostics(merged)
+        """Render local diagnostics."""
+        self._render_diagnostics(list(self._local_diagnostics))
 
     def _render_diagnostics(self, errors: List[DiagnosticError]):
         """Pure visual rendering of provided diagnostic errors with precise ranges."""
@@ -1708,7 +1660,7 @@ class CodeEditor(QPlainTextEdit):
             fmt.setBackground(bg_color)
             s.format = fmt
             
-            # Use precise range from LSP (end_line, end_column)
+            # Use precise range (end_line, end_column)
             start_block = block
             cur = QTextCursor(start_block)
             start_col = min(start_block.length() - 1, max(0, err.column - 1))
@@ -1721,7 +1673,7 @@ class CodeEditor(QPlainTextEdit):
             has_precise_range = (end_col > err.column and end_line_num == err.line) or (end_line_num > err.line)
             
             if has_precise_range:
-                # LSP gave us precise start/end — use it directly
+                # Precise start/end — use it directly
                 end_block = self.document().findBlockByNumber(max(0, end_line_num - 1))
                 if end_block.isValid():
                     end_pos = end_block.position() + min(end_block.length() - 1, max(0, end_col - 1))
@@ -1747,58 +1699,6 @@ class CodeEditor(QPlainTextEdit):
         
         # Re-apply all selections (lint + current line highlight)
         self._highlight_current_line()
-
-    def _handle_lsp_update(self, file_path: str, raw_diagnostics: List[Dict]):
-        """Reactive handler for LSP background results (e.g., Pyright publishDiagnostics).
-        
-        VS Code pattern: LSP diagnostics go into their own collection,
-        then merge with local diagnostics for rendering.
-        """
-        if not self._file_path: return
-        
-        # Convert LSP URI (file:///c%3A/...) to local path (C:\...)
-        from urllib.parse import unquote
-        if file_path.startswith("file://"):
-            # Remove file:// prefix and URL decode
-            uri_path = file_path[7:]  # Remove "file://"
-            uri_path = unquote(uri_path)  # Decode %3A to :
-            # Handle Unix-style paths on Windows
-            if uri_path.startswith("/") and len(uri_path) > 1 and uri_path[2] == ":":
-                uri_path = uri_path[1:]  # Remove leading / before drive letter
-            file_path = uri_path.replace("/", os.sep)
-        
-        # Only process if it matches our file
-        my_path = os.path.normcase(os.path.normpath(self._file_path))
-        inc_path = os.path.normcase(os.path.normpath(file_path))
-        
-        if my_path != inc_path:
-            return
-            
-        # Convert raw LSP dicts to DiagnosticError objects
-        processed_errors = []
-        for d in raw_diagnostics:
-            rng = d.get("range", {})
-            start = rng.get("start", {})
-            end = rng.get("end", {})
-            
-            severity_num = d.get("severity", 1)
-            severity_map = {1: "error", 2: "warning", 3: "info", 4: "info"}
-            
-            processed_errors.append(DiagnosticError(
-                file_path=file_path,
-                message=d.get("message", ""),
-                line=start.get("line", 0) + 1,
-                column=start.get("character", 0) + 1,
-                end_line=end.get("line", 0) + 1,
-                end_column=end.get("character", 0) + 1,
-                severity=severity_map.get(severity_num, "error"),
-                source="LSP",
-                code=str(d.get("code", ""))
-            ))
-        
-        # Store in LSP collection and merge with local diagnostics
-        self._lsp_diagnostics = processed_errors
-        self._merge_and_render()
 
     def _highlight_current_line(self):
         # Combine stored lint selections with current-line highlight
@@ -2150,7 +2050,7 @@ class CodeEditor(QPlainTextEdit):
         self._inline_overlay.focus_prompt()
 
 
-    # Language-specific snippets for when LSP is slow/unavailable
+    # Language-specific snippets for code completion
     SNIPPETS = {
         "python": [
             {"label": "def", "insertText": "def ${1:name}(${2:args}):\n    ${3:pass}", "kind": 15, "detail": "function"},
@@ -2198,7 +2098,7 @@ class CodeEditor(QPlainTextEdit):
     }
 
     def _trigger_completion(self):
-        """Request completions from LSP Manager with fallback to snippets/words/HTML."""
+        """Request completions with fallback to snippets/words."""
         cursor = self.textCursor()
         line = cursor.blockNumber() + 1
         col = cursor.columnNumber() + 1
@@ -2208,61 +2108,39 @@ class CodeEditor(QPlainTextEdit):
         prefix = cursor.selectedText().lower()
         cursor.clearSelection()
         
-        print(f"[Completion] Triggered: lang={self._language}, prefix='{prefix}', file={self._file_path}, line={line}, col={col}")
+        log.debug(f"Completion triggered: lang={self._language}, prefix='{prefix}', file={self._file_path}, line={line}, col={col}")
 
         # HTML Language: Use built-in HTML completion provider
         if self._language and self._language.lower() == "html":
             self._trigger_html_completion(line, col, prefix)
             return
 
-        def on_results(res, err):
-            """Called from LSP background thread — must marshal to GUI thread."""
-            try:
-                items = []
-                if res:
-                    if isinstance(res, dict):
-                        items = res.get("items", []) or []
-                    elif isinstance(res, list):
-                        items = res
-                
-                print(f"[Completion] LSP returned {len(items)} items, err={err}")
-                
-                # Filter LSP items by prefix for relevance
-                if prefix and items:
-                    items = [i for i in items if i.get("label", "").lower().startswith(prefix)]
+        # Snippet-based completions
+        items = []
+        snippets = self.SNIPPETS.get(self._language, [])
+        if prefix:
+            snippets = [s for s in snippets if s["label"].lower().startswith(prefix)]
+        if snippets:
+            log.debug(f"Adding {len(snippets)} snippets for lang={self._language}")
+        items.extend(snippets)
 
-                # Fallback: add snippets if LSP returned few/no results
-                if len(items) < 5:
-                    snippets = self.SNIPPETS.get(self._language, [])
-                    if prefix:
-                        snippets = [s for s in snippets if s["label"].lower().startswith(prefix)]
-                    if snippets:
-                        print(f"[Completion] Adding {len(snippets)} snippets for lang={self._language}")
-                    items = snippets + items
+        # Word-based completions from current document
+        if len(items) < 10 and prefix and len(prefix) >= 2:
+            existing_labels = {i.get("label", "") for i in items}
+            words = self._extract_words(prefix)
+            for w in words:
+                if w not in existing_labels:
+                    items.append({"label": w, "kind": 1, "detail": "word"})
 
-                # Fallback: add word-based completions from current document
-                if len(items) < 10 and prefix and len(prefix) >= 2:
-                    existing_labels = {i.get("label", "") for i in items}
-                    words = self._extract_words(prefix)
-                    for w in words:
-                        if w not in existing_labels:
-                            items.append({"label": w, "kind": 1, "detail": "word"})
-
-                print(f"[Completion] Total items to show: {len(items)}")
-                
-                # Emit signal to GUI thread (safe from any thread)
-                final_items = items[:30]
-                self._completion_results_ready.emit(final_items)
-            except Exception as e:
-                print(f"[Completion] ERROR in on_results: {e}")
-                import traceback
-                traceback.print_exc()
-
-        get_lsp_manager().get_completions(self._file_path, line, col, self._language, on_results)
+        log.debug(f"Total completion items to show: {len(items)}")
+        
+        # Emit signal to GUI thread
+        final_items = items[:30]
+        self._completion_results_ready.emit(final_items)
     
     def _trigger_html_completion(self, line: int, col: int, prefix: str):
         """Trigger HTML-specific completions using built-in provider."""
-        # HTML completion removed - using LSP/basic completion instead
+        # HTML completion removed — using basic completion instead
         self._completion_results_ready.emit([])
 
     def _extract_words(self, exclude_prefix: str) -> List[str]:
@@ -2316,9 +2194,9 @@ class CodeEditor(QPlainTextEdit):
             
             self._completion_widget.move(pos)
             self._completion_widget.show()
-            print(f"[Completion] POPUP shown at ({pos.x()},{pos.y()}) size=({w},{h}) items={len(items)} visible={self._completion_widget.isVisible()}")
+            log.debug(f"Completion popup shown at ({pos.x()},{pos.y()}) size=({w},{h}) items={len(items)} visible={self._completion_widget.isVisible()}")
         except Exception as e:
-            print(f"[Completion] ERROR showing widget: {e}")
+            log.error(f"Error showing completion widget: {e}")
             import traceback
             traceback.print_exc()
 
@@ -2386,161 +2264,6 @@ class CodeEditor(QPlainTextEdit):
             self._inline_overlay.hide()
             self.inline_edit_cancelled.emit()
 
-    def _check_java_setup(self):
-        """Check if Java LSP is available and show setup notification if not."""
-        import shutil
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QApplication
-        
-        # Check if jdtls is available in PATH
-        jdtls_available = shutil.which("jdtls") is not None
-        
-        if not jdtls_available:
-            # Create custom dialog with selectable text
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Java Support Required")
-            dialog.setMinimumWidth(500)
-            
-            layout = QVBoxLayout(dialog)
-            
-            # Title label
-            title_label = QLabel("Java language features require setup.")
-            title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-            layout.addWidget(title_label)
-            
-            # Instruction label
-            inst_label = QLabel("Run these commands in CMD or PowerShell:")
-            layout.addWidget(inst_label)
-            
-            # Warning box for winget not found
-            warn_label = QLabel("⚠ If 'winget' not found, run this first:")
-            warn_label.setStyleSheet("color: #ff9800; font-size: 12px; font-weight: bold;")
-            layout.addWidget(warn_label)
-            
-            fix_text = QLabel('$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")')
-            fix_text.setStyleSheet("background-color: #2d2d2d; padding: 8px; border-radius: 4px; font-family: Consolas, monospace; border-left: 3px solid #ff9800;")
-            fix_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(fix_text)
-            
-            fix_btn = QPushButton("Copy")
-            fix_btn.clicked.connect(lambda: QApplication.clipboard().setText('$env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")'))
-            layout.addWidget(fix_btn)
-            
-            layout.addSpacing(15)
-            
-            # Command 1: Java JDK
-            cmd1_label = QLabel("1. Install Java 21+ JDK (required by jdtls):")
-            layout.addWidget(cmd1_label)
-            
-            cmd1_text = QLabel("winget install EclipseAdoptium.Temurin.21.JDK")
-            cmd1_text.setStyleSheet("background-color: #2d2d2d; padding: 8px; border-radius: 4px; font-family: Consolas, monospace;")
-            cmd1_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(cmd1_text)
-            
-            cmd1_btn = QPushButton("Copy")
-            cmd1_btn.clicked.connect(lambda: QApplication.clipboard().setText("winget install EclipseAdoptium.Temurin.21.JDK"))
-            layout.addWidget(cmd1_btn)
-            
-            # Manual download note
-            manual_label = QLabel("If winget fails, download from adoptium.net and install manually.")
-            manual_label.setStyleSheet("color: #888; font-size: 11px;")
-            layout.addWidget(manual_label)
-            
-            layout.addSpacing(10)
-            
-            # Command 2: Install Scoop (if not installed)
-            cmd2_label = QLabel("2. Install Scoop (package manager):")
-            layout.addWidget(cmd2_label)
-            
-            cmd2_text = QLabel("iwr -useb get.scoop.sh | iex")
-            cmd2_text.setStyleSheet("background-color: #2d2d2d; padding: 8px; border-radius: 4px; font-family: Consolas, monospace;")
-            cmd2_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(cmd2_text)
-            
-            cmd2_btn = QPushButton("Copy")
-            cmd2_btn.clicked.connect(lambda: QApplication.clipboard().setText("iwr -useb get.scoop.sh | iex"))
-            layout.addWidget(cmd2_btn)
-            
-            layout.addSpacing(10)
-            
-            # Command 3: Refresh PATH (needed after scoop install)
-            cmd3_label = QLabel("3. Refresh PATH (so scoop command works):")
-            layout.addWidget(cmd3_label)
-            
-            cmd3_text = QLabel('$env:Path = [Environment]::GetEnvironmentVariable("Path", "User")')
-            cmd3_text.setStyleSheet("background-color: #2d2d2d; padding: 8px; border-radius: 4px; font-family: Consolas, monospace;")
-            cmd3_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(cmd3_text)
-            
-            cmd3_btn = QPushButton("Copy")
-            cmd3_btn.clicked.connect(lambda: QApplication.clipboard().setText('$env:Path = [Environment]::GetEnvironmentVariable("Path", "User")'))
-            layout.addWidget(cmd3_btn)
-            
-            layout.addSpacing(10)
-            
-            # Command 4: JDTLS
-            cmd4_label = QLabel("4. Install Eclipse JDT Language Server:")
-            layout.addWidget(cmd4_label)
-            
-            cmd4_text = QLabel("scoop install jdtls")
-            cmd4_text.setStyleSheet("background-color: #2d2d2d; padding: 8px; border-radius: 4px; font-family: Consolas, monospace;")
-            cmd4_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(cmd4_text)
-            
-            cmd4_btn = QPushButton("Copy")
-            cmd4_btn.clicked.connect(lambda: QApplication.clipboard().setText("scoop install jdtls"))
-            layout.addWidget(cmd4_btn)
-            
-            layout.addSpacing(10)
-            
-            # Troubleshooting section
-            troubleshoot_title = QLabel("Troubleshooting:")
-            troubleshoot_title.setStyleSheet("color: #ff9800; font-size: 12px; font-weight: bold;")
-            layout.addWidget(troubleshoot_title)
-            
-            troubleshoot_text = QLabel(
-                "• If 'java -version' shows old version → Close & reopen terminal\n"
-                "• If 'scoop' not found → Run step 3 (Refresh PATH)\n"
-                "• If 'jdtls' not found → Reinstall: scoop uninstall jdtls && scoop install jdtls"
-            )
-            troubleshoot_text.setStyleSheet("color: #aaa; font-size: 11px;")
-            layout.addWidget(troubleshoot_text)
-            
-            layout.addSpacing(15)
-            
-            # Complete Guide section
-            guide_title = QLabel("Complete Setup Guide:")
-            guide_title.setStyleSheet("color: #2196F3; font-size: 12px; font-weight: bold;")
-            layout.addWidget(guide_title)
-            
-            guide_text = QLabel(
-                "If PATH is broken (commands not found):\n"
-                "$env:Path = [System.Environment]::GetEnvironmentVariable(\"Path\", \"Machine\") + \";\" + [System.Environment]::GetEnvironmentVariable(\"Path\", \"User\")\n\n"
-                "Fix Python for scoop (if jdtls install fails):\n"
-                "$env:Path = \"C:\\Users\\$env:USERNAME\\OneDrive\\Desktop\\black_box\\venv\\Scripts;$env:Path\"\n\n"
-                "Quick Install (copy all at once):\n"
-                "1. winget install EclipseAdoptium.Temurin.21.JDK\n"
-                "2. iwr -useb get.scoop.sh | iex\n"
-                "3. $env:Path = [Environment]::GetEnvironmentVariable(\"Path\", \"User\")\n"
-                "4. scoop install jdtls\n"
-                "5. Restart IDE"
-            )
-            guide_text.setStyleSheet("color: #888; font-size: 10px; font-family: Consolas, monospace;")
-            guide_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            layout.addWidget(guide_text)
-            
-            layout.addSpacing(10)
-            
-            # Step 5
-            step5_label = QLabel("5. Restart Cortex IDE, then open any .java file")
-            layout.addWidget(step5_label)
-            
-            # OK button
-            ok_btn = QPushButton("OK")
-            ok_btn.clicked.connect(dialog.close)
-            layout.addWidget(ok_btn)
-            
-            dialog.exec()
-    
     def _on_inline_submit(self, prompt: str):
         self._inline_overlay.set_pending(True)
         self.inline_edit_submitted.emit(

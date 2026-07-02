@@ -58,8 +58,6 @@ OPENROUTER_DISPLAY_NAMES: Dict[str, str] = {
     "deepseek/deepseek-v4-flash:free":    "DeepSeek V4 Flash (Free)",
     # MiMo (Xiaomi)
     "xiaomi/mimo-v2.5-pro":               "MiMo V2.5 Pro",
-    "xiaomi/mimo-v2.5-flash":             "MiMo V2.5 Flash",
-    "xiaomi/mimo-v2.5-flash:free":        "MiMo V2.5 Flash (Free)",
     # Qwen / Alibaba
     "qwen/qwen3-coder":                   "Qwen3 Coder (Free)",
     "qwen/qwen3.7-plus":                  "Qwen 3.7 Plus",

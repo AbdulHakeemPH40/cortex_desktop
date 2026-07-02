@@ -88,6 +88,17 @@ DEFAULT_SETTINGS = {
         "only_when_unfocused": True,        # Only toast when IDE is not the active window
         "sound_alerts": False,              # Play a sound when tasks complete
     },
+    "thinking": {
+        # Per-provider overrides (merged with thinking.py PROVIDER_THINKING_DEFAULTS)
+        # Set to null to use defaults, or override specific fields
+        "openai": None,     # e.g. {"reasoning_effort": "high"}
+        "mimo": None,       # e.g. {"thinking_type": "disabled"}
+        "deepseek": None,   # e.g. {"always_reason": false}
+        "alibaba": None,    # e.g. {"thinking_budget": 8192}
+        "mistral": None,
+        # Global loop detection budget (tokens)
+        "loop_detection_budget": 32000,
+    },
     "server": {
         "url": "http://127.0.0.1:8000",     # Cortex Django server URL
         "auto_sync": True,                  # Auto-sync usage data to server
@@ -135,7 +146,7 @@ class Settings:
             with open(self._config_file, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, indent=2)
         except OSError as e:
-            print(f"[Settings] Could not save settings: {e}")
+            log.error(f"[Settings] Could not save settings: {e}")
 
     def get(self, *keys, default=None):
         """Get a value by dot-path keys, e.g. get('editor', 'font_size')."""

@@ -198,10 +198,12 @@ class _StderrFilter:
 def install_stderr_filter():
     """Install the stderr filter. Safe to call multiple times.
     
-    Two layers:
+    Three layers:
     1. Python-level: wraps sys.stderr to drop noise from Python logging calls
     2. FD-level: redirects OS fd 2 through a filtered pipe to catch Qt C++ warnings
        (QTextHtmlParser, JSON message object) that bypass Python's stderr entirely.
+    3. stdout-level: redirects OS fd 1 to catch QWebChannel JSON protocol messages
+       ("type": 3, etc.) written to stdout by Qt's C++ layer.
     """
     import sys as _sys
     import os as _os
@@ -244,6 +246,42 @@ def install_stderr_filter():
             install_stderr_filter._fd_installed = True
         except Exception:
             pass  # non-critical: fd filter failed, Python-level still works
+
+    # Layer 3: stdout-level filter (catches QWebChannel JSON messages on fd 1)
+    if hasattr(_os, 'dup2') and not getattr(install_stderr_filter, '_stdout_installed', False):
+        try:
+            _DROP_STDOUT = (b'"type":', b'"id":', b'"objectName":',
+                            b'{"type":', b'"signals":', b'"properties":')
+            _orig_stdout = _os.dup(1)  # save original stdout fd
+            _sr, _sw = _os.pipe()
+            _os.dup2(_sw, 1)           # redirect fd 1 → pipe write end
+            _os.close(_sw)
+
+            def _stdout_reader():
+                buf = b""
+                try:
+                    while True:
+                        chunk = _os.read(_sr, 4096)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        while b"\n" in buf:
+                            line, buf = buf.split(b"\n", 1)
+                            # Drop QWebChannel protocol JSON fragments
+                            if any(p in line for p in _DROP_STDOUT):
+                                continue
+                            try:
+                                _os.write(_orig_stdout, line + b"\n")
+                            except OSError:
+                                pass
+                except Exception:
+                    pass
+
+            _threading.Thread(target=_stdout_reader, daemon=True,
+                              name="StdoutFilter").start()
+            install_stderr_filter._stdout_installed = True
+        except Exception:
+            pass
 
 
 # ── Noise filter: suppress repetitive/noisy log sources ──
@@ -294,7 +332,7 @@ def get_logger(name: str = "cortex") -> logging.Logger:
             maxBytes=10*1024*1024,  # 10MB max per hourly log
             encoding='utf-8'
         )
-        file_handler.setLevel(logging.INFO)  # INFO — important events only, not DEBUG
+        file_handler.setLevel(logging.ERROR)  # ERROR only — reduce log noise
         file_handler.setFormatter(
             logging.Formatter(
                 "[%(asctime)s] %(levelname)s %(name)s: %(message)s",

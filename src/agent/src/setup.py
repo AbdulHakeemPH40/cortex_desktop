@@ -15,6 +15,7 @@
 # ------------------------------------------------------------
 
 import asyncio
+import logging
 import os
 import sys
 from typing import Optional
@@ -249,7 +250,7 @@ try:
     from .utils.log import log_error
 except ImportError:
     def log_error(error: Exception) -> None:
-        print(f"Error: {error}", file=sys.stderr)
+        log.error(f"{error}")
 
 try:
     from .utils.logo_v2_utils import get_recent_activity
@@ -316,6 +317,13 @@ except ImportError:
 
 
 # ============================================================
+# LOGGER
+# ============================================================
+
+log = logging.getLogger("cortex.agent")
+
+
+# ============================================================
 # MAIN SETUP FUNCTION
 # ============================================================
 
@@ -349,12 +357,7 @@ async def setup(
     # Check for Python version >= 3.8 (equivalent to Node.js 18 requirement)
     python_version = sys.version_info
     if python_version.major < 3 or (python_version.major == 3 and python_version.minor < 8):
-        print(
-            chalk.bold.red(
-                'Error: Cortex IDE requires Python version 3.8 or higher.'
-            ),
-            file=sys.stderr,
-        )
+        log.error('Cortex IDE requires Python version 3.8 or higher.')
         sys.exit(1)
     
     # Set custom session ID if provided
@@ -396,37 +399,19 @@ async def setup(
         if is_agent_swarms_enabled():
             restored_iterm2_backup = await check_and_restore_i_term2_backup()
             if restored_iterm2_backup.get('status') == 'restored':
-                print(
-                    chalk.yellow(
-                        'Detected an interrupted iTerm2 setup. Your original settings have been restored. You may need to restart iTerm2 for the changes to take effect.'
-                    )
-                )
+                log.warning('Detected an interrupted iTerm2 setup. Your original settings have been restored. You may need to restart iTerm2 for the changes to take effect.')
             elif restored_iterm2_backup.get('status') == 'failed':
                 backup_path = restored_iterm2_backup.get('backupPath', 'unknown')
-                print(
-                    chalk.red(
-                        f'Failed to restore iTerm2 settings. Please manually restore your original settings with: defaults import com.googlecode.iterm2 {backup_path}.'
-                    ),
-                    file=sys.stderr,
-                )
+                log.error(f'Failed to restore iTerm2 settings. Please manually restore your original settings with: defaults import com.googlecode.iterm2 {backup_path}.')
         
         # Check and restore Terminal.app backup if setup was interrupted
         try:
             restored_terminal_backup = await check_and_restore_terminal_backup()
             if restored_terminal_backup.get('status') == 'restored':
-                print(
-                    chalk.yellow(
-                        'Detected an interrupted Terminal.app setup. Your original settings have been restored. You may need to restart Terminal.app for the changes to take effect.'
-                    )
-                )
+                log.warning('Detected an interrupted Terminal.app setup. Your original settings have been restored. You may need to restart Terminal.app for the changes to take effect.')
             elif restored_terminal_backup.get('status') == 'failed':
                 backup_path = restored_terminal_backup.get('backupPath', 'unknown')
-                print(
-                    chalk.red(
-                        f'Failed to restore Terminal.app settings. Please manually restore your original settings with: defaults import com.apple.Terminal {backup_path}.'
-                    ),
-                    file=sys.stderr,
-                )
+                log.error(f'Failed to restore Terminal.app settings. Please manually restore your original settings with: defaults import com.apple.Terminal {backup_path}.')
         except Exception as error:
             # Log but don't crash if Terminal.app backup restoration fails
             log_error(error)
@@ -519,19 +504,9 @@ async def setup(
                 worktree_session['worktreePath'],
             )
             if tmux_result.get('created'):
-                print(
-                    chalk.green(
-                        f'Created tmux session: {chalk.bold(tmux_session_name)}\n'
-                        f'To attach: {chalk.bold(f"tmux attach -t {tmux_session_name}")}'
-                    )
-                )
+                log.info(f'Created tmux session: {tmux_session_name}. To attach: tmux attach -t {tmux_session_name}')
             else:
-                print(
-                    chalk.yellow(
-                        f'Warning: Failed to create tmux session: {tmux_result.get("error")}'
-                    ),
-                    file=sys.stderr,
-                )
+                log.warning(f'Failed to create tmux session: {tmux_result.get("error")}')
         
         os.chdir(worktree_session['worktreePath'])
         set_cwd(worktree_session['worktreePath'])
@@ -682,10 +657,7 @@ async def setup(
         if sys.platform != 'win32' and hasattr(os, 'getuid') and os.getuid() == 0:
             if (os.environ.get('IS_SANDBOX') != '1' and
                 not is_env_truthy(os.environ.get('CORTEX_CODE_BUBBLEWRAP'))):
-                print(
-                    '--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons',
-                    file=sys.stderr,
-                )
+                log.error('--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons')
                 sys.exit(1)
         
         if (os.environ.get('USER_TYPE') == 'ant' and
@@ -706,10 +678,7 @@ async def setup(
             is_sandboxed = is_docker or is_bubblewrap or is_sandbox
             
             if not is_sandboxed or has_internet:
-                print(
-                    f'--dangerously-skip-permissions can only be used in Docker/sandbox containers with no internet access but got Docker: {is_docker}, Bubblewrap: {is_bubblewrap}, IS_SANDBOX: {is_sandbox}, hasInternet: {has_internet}',
-                    file=sys.stderr,
-                )
+                log.error(f'--dangerously-skip-permissions can only be used in Docker/sandbox containers with no internet access but got Docker: {is_docker}, Bubblewrap: {is_bubblewrap}, IS_SANDBOX: {is_sandbox}, hasInternet: {has_internet}')
                 sys.exit(1)
     
     if os.environ.get('NODE_ENV') == 'test':

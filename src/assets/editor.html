@@ -166,7 +166,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
             gap: 8px;
             user-select: none;
         }
@@ -383,6 +384,24 @@
             display: none;
         }
 
+        #image-preview {
+            flex: 1;
+            display: flex;
+            width: 100%;
+            background: #1e1e1e;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 20px;
+            box-sizing: border-box;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #image-preview.hidden {
+            display: none;
+        }
+
         /* File Path Breadcrumb Bar */
         #file-path-bar {
             display: none;
@@ -550,9 +569,7 @@
                 Open a file or let the AI guide your next move.</div>
         </div>
         <div id="editor-container" class="hidden"></div>
-        <div id="image-preview" role="img" aria-label="Image preview" style="display:none;width:100%;height:100%;background:#1e1e1e;
-        align-items:center;justify-content:center;overflow:auto;padding:20px;box-sizing:border-box;
-        flex-direction:column;gap:10px;position:absolute;top:0;left:0;z-index:5;">
+        <div id="image-preview" class="hidden" role="img" aria-label="Image preview">
             <div id="image-preview-info" style="color:#888;font-size:12px;font-family:system-ui;"></div>
             <img id="image-preview-img" alt="Preview image" style="max-width:95%;max-height:85%;object-fit:contain;
             border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,0.5);" />
@@ -813,7 +830,7 @@ if (typeof require !== 'undefined') {
         bracketPairColorization: { enabled: false },
         guides: { bracketPairs: false },
         smoothScrolling: false,
-        cursorBlinking: 'blink',
+        cursorBlinking: 'solid',
         cursorSmoothCaretAnimation: 'off',
         renderLineHighlight: 'line',
         occurrencesHighlight: 'off',
@@ -1742,6 +1759,7 @@ function switchToFile(filePath) {
     if (filePath === activeFilePath && editor) {
         // Already showing this file — just ensure content is up to date and return.
         setEditorContent(filePath);
+        renderTabs();
         return;
     }
     // NOTE: with per-file models we do NOT copy the editor's value into the
@@ -1864,7 +1882,7 @@ function showImagePreview(filePath, dataUri, fileSize) {
     info.textContent = name + (fileSize ? ' (' + fileSize + ')' : '');
     document.getElementById('editor-container').classList.add('hidden');
     document.getElementById('no-files-hint').style.display = 'none';
-    preview.style.display = 'flex';
+    preview.classList.remove('hidden');
 
     if (!openFiles[filePath]) {
         openFiles[filePath] = { path: filePath, language: 'image', content: '', modified: false, isImage: true };
@@ -1877,12 +1895,15 @@ function showImagePreview(filePath, dataUri, fileSize) {
 }
 
 function hideImagePreview() {
-    document.getElementById('image-preview').style.display = 'none';
+    document.getElementById('image-preview').classList.add('hidden');
 }
 
 // Called by Python: openFile(path, content, language, activate?)
 function openFile(filePath, content, language, activate) {
     if (activate === undefined) activate = true;
+    // Hide welcome screen immediately — prevents logo flash on first file open
+    var _hint = document.getElementById('no-files-hint');
+    if (_hint) _hint.style.display = 'none';
     // Gate: only activate if this file is still the intended active file.
     // Prevents queued openFile(path, ..., true) calls from overriding a
     // more recent user selection after async delivery delay.
@@ -1902,7 +1923,7 @@ function openFile(filePath, content, language, activate) {
             // user switches to this file they see fresh content, not stale.
             forceSetContent(filePath);
         }
-        if (shouldActivate) switchToFile(filePath);
+        if (shouldActivate || !activeFilePath) switchToFile(filePath);
         else renderTabs();
         // ACK for already-open file update too
         if (bridge && bridge.onContentDelivered) {
@@ -1919,7 +1940,11 @@ function openFile(filePath, content, language, activate) {
         modified: false
     };
     openOrder.push(filePath);
-    if (shouldActivate) switchToFile(filePath);
+    // Always activate the first file, regardless of the gate.
+    // Without this, the first non-image file open via _flush_pending_switch
+    // (activate=false) renders a tab without the 'active' class, making it
+    // invisible against the dark tab bar background.
+    if (shouldActivate || !activeFilePath) switchToFile(filePath);
     else renderTabs();
 
     // ── LSP: Immediately notify Python about the new file ──
@@ -1963,6 +1988,9 @@ function _loadTextFromUri(fileUri, onDone) {
 // Called by Python: openFileFromUri(path, language, fileUri, activate?)
 function openFileFromUri(filePath, language, fileUri, activate) {
     if (activate === undefined) activate = true;
+    // Hide welcome screen immediately — prevents logo flash on first file open
+    var _hint = document.getElementById('no-files-hint');
+    if (_hint) _hint.style.display = 'none';
     var shouldActivate = activate && (_intendedActiveFile === null || filePath === _intendedActiveFile);
 
     if (!openFiles[filePath]) {
@@ -1981,7 +2009,7 @@ function openFileFromUri(filePath, language, fileUri, activate) {
     fileLoadTokens[filePath] = token;
     openFiles[filePath].content = '// Loading...';
 
-    if (shouldActivate) switchToFile(filePath);
+    if (shouldActivate || !activeFilePath) switchToFile(filePath);
     else renderTabs();
 
     _loadTextFromUri(fileUri, function(text, err) {
@@ -2011,6 +2039,8 @@ function closeFile(filePath) {
     if (idx >= 0) openOrder.splice(idx, 1);
 
     if (filePath === activeFilePath) {
+        // Hide image preview if we were viewing an image
+        hideImagePreview();
         // Switch to next available file or hide editor
         if (openOrder.length > 0) {
             var nextIdx = Math.min(idx, openOrder.length - 1);
@@ -2060,6 +2090,7 @@ function closeAllFiles() {
     // Keep model content (no setValue('')) — see closeFile rationale above.
     document.getElementById('no-files-hint').style.display = 'flex';
     document.getElementById('editor-container').classList.add('hidden');
+    hideImagePreview();
     renderTabs();
     // Release switching guard after a short settle
     switchStopTimer = setTimeout(function() {

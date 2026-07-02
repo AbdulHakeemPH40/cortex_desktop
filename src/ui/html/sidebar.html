@@ -3726,12 +3726,7 @@ function displaySearchResults(results) {
       div.appendChild(ln);
     }
 
-    if (r.path) {
-      const p = document.createElement('span');
-      p.className = 'match-context';
-      p.textContent = r.path;
-      div.appendChild(p);
-    }
+    // Path is available via hover tooltip (div.title set above) — no inline path display
 
     div.addEventListener('click', () => {
       if (r.lineNum) callBridge('onFileSearchOpened', r.path, r.lineNum);

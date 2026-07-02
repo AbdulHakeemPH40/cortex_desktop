@@ -60,7 +60,6 @@ TOOL_CATEGORIES: Dict[str, ToolCategory] = {
     "WebFetch": ToolCategory.READ,
     "WebSearch": ToolCategory.READ,
     "LS": ToolCategory.READ,
-    "LSP": ToolCategory.READ,
     "FileRead": ToolCategory.READ,
 
     # Write tools

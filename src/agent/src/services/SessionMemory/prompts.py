@@ -9,10 +9,13 @@ AI session memory prompt system:
 - Builds intelligent prompts for forked agent memory updates
 """
 
+import logging
 import os
 import re
 from os.path import join
 from typing import Any, Dict, List, Tuple
+
+log = logging.getLogger("cortex.agent")
 
 try:
     from ..tokenEstimation import rough_token_count_estimation
@@ -43,7 +46,7 @@ try:
     from ...utils.log import log_error
 except ImportError:
     def log_error(error: Exception):
-        print(f"[ERROR] {error}")
+        log.error(f"{error}")
 
 # Constants
 MAX_SECTION_LENGTH = 2000

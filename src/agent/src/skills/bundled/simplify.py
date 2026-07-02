@@ -6,7 +6,10 @@ Converts simplify.ts to Python with multi-LLM compatibility for Cortex IDE.
 Launches 3 parallel review agents (reuse, quality, efficiency).
 """
 
+import logging
 from typing import List, Dict, Any
+
+log = logging.getLogger("cortex.agent")
 
 # Defensive imports with fallback stubs
 try:
@@ -113,6 +116,6 @@ if __name__ == "__main__":
     
     async def test():
         result = await get_prompt_for_command("")
-        print(result[0]["text"][:500] + "...")
+        log.debug(result[0]["text"][:500] + "...")
     
     asyncio.run(test())

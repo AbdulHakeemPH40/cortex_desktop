@@ -5,8 +5,11 @@ Batch skill for parallel work orchestration across multiple agents.
 Converts batch.ts to Python with multi-LLM compatibility for Cortex IDE.
 """
 
+import logging
 from typing import List, Dict, Any
 import asyncio
+
+log = logging.getLogger("cortex.agent")
 
 # Defensive imports with fallback stubs
 try:
@@ -194,6 +197,6 @@ if __name__ == "__main__":
     # Test the prompt generation
     async def test():
         result = await get_prompt_for_command("migrate from lodash to native equivalents")
-        print(result[0]["text"][:500] + "...")
+        log.debug(result[0]["text"][:500] + "...")
     
     asyncio.run(test())

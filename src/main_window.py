@@ -1576,15 +1576,15 @@ class CortexMainWindow(QMainWindow):
         for lbl in [self._status_file, self._status_cursor, self._status_lang, self._status_ai]:
             sb.addWidget(lbl)
 
+        # LSPs are disabled (system removed)
+        lsp_lbl = QLabel("  LSPs: disabled  ")
+        lsp_lbl.setStyleSheet("color: #ff5555; font-size: 11px; padding: 0 6px;")
+        sb.addWidget(lsp_lbl)
+
         # ── Version ──
         version_lbl = QLabel("  Cortex AI Agent v0.0.2 ")
         version_lbl.setStyleSheet("color: #6272a4; font-size: 11px;")
         sb.addPermanentWidget(version_lbl)
-
-        # ── LSP Status ──
-        lsp_lbl = QLabel("LSPs are disabled ")
-        lsp_lbl.setStyleSheet("color: #6272a4; font-size: 11px;")
-        sb.addPermanentWidget(lsp_lbl)
 
         self._update_status_cursor(1, 1)
 
@@ -2001,7 +2001,7 @@ class CortexMainWindow(QMainWindow):
             except Exception as e:
                 log.debug(f"[OpenFolder] Review clear failed: {e}")
     
-        # ── 5. Open the new project folder (sidebar, git, LSP all reset) ──
+        # ── 5. Open the new project folder (sidebar, git reset) ──
         self._open_folder_programmatic(folder)
     
         # ── 6. Update AI chat with new project context ──
@@ -6669,13 +6669,6 @@ class CortexMainWindow(QMainWindow):
             self._live_server.stop()
 
     
-        # Without this, LSP threads keep running and cause access-violation
-        # crashes on process exit (Windows broken-pipe on readline).
-        try:
-                                    log.info("[SHUTDOWN] LSP servers stopped")
-        except Exception as _lsp_exc:
-            log.warning(f"[SHUTDOWN] LSP shutdown error: {_lsp_exc}")
-
         # 6. FINAL DB FLUSH — Guarantee all chat history is persisted to SQLite.
         # This is the last line of defense: after JS bridge save and Python fallback
         # in _emergency_shutdown_save, force the SQLite write queue to empty.
